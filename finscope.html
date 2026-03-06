@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FINscope — Inteligencia Financiera con IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --cream: #f5f0e8;
+  --paper: #faf7f2;
+  --ink: #1a1612;
+  --ink2: #2d2820;
+  --muted: #8a7f6e;
+  --muted2: #b5a990;
+  --border: #e0d8c8;
+  --border2: #ccc3b0;
+  --green: #1a6b3c;
+  --green-bg: #e8f4ed;
+  --red: #8b1a1a;
+  --red-bg: #f4e8e8;
+  --amber: #7a5a00;
+  --amber-bg: #faf0d0;
+  --blue: #1a3a6b;
+  --blue-bg: #e8eef4;
+  --gold: #c9a227;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+  --display: 'Playfair Display', serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* GRAIN TEXTURE */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* HEADER */
+header {
+  background: var(--ink);
+  color: var(--cream);
+  padding: 0 48px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-scope {
+  color: var(--gold);
+}
+
+.logo-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--muted2);
+  text-transform: uppercase;
+  border: 1px solid #3a3530;
+  padding: 3px 8px;
+  border-radius: 2px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.update-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted2);
+  letter-spacing: 0.08em;
+}
+
+.update-badge span {
+  color: var(--gold);
+}
+
+/* HERO */
+.hero {
+  background: var(--ink);
+  color: var(--cream);
+  padding: 48px 48px 56px;
+  border-bottom: 3px solid var(--gold);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: 'FINSCOPE';
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--display);
+  font-size: 180px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.03);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.hero-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 16px;
+}
+
+.hero-title {
+  font-family: var(--display);
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  max-width: 700px;
+  margin-bottom: 20px;
+}
+
+.hero-title em {
+  font-style: italic;
+  color: var(--gold);
+}
+
+.hero-desc {
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--muted2);
+  max-width: 560px;
+  line-height: 1.7;
+  font-weight: 300;
+}
+
+/* MARKET TICKER */
+.ticker-bar {
+  background: var(--ink2);
+  padding: 10px 48px;
+  display: flex;
+  gap: 40px;
+  overflow: hidden;
+  border-bottom: 1px solid #3a3530;
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ticker-symbol {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cream);
+  letter-spacing: 0.08em;
+}
+
+.ticker-price {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+.ticker-change {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.tc-up { color: var(--green); background: var(--green-bg); }
+.tc-down { color: var(--red); background: var(--red-bg); }
+
+/* MAIN */
+main {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 48px 48px 80px;
+}
+
+/* SECTION LABEL */
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* COMPANY GRID */
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 48px;
+}
+
+.company-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.company-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.company-card:hover {
+  border-color: var(--ink);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.company-card:hover::before { opacity: 1; }
+.company-card.active { border-color: var(--ink); border-width: 2px; }
+.company-card.active::before { opacity: 1; }
+
+.card-green::before { background: var(--green); }
+.card-amber::before { background: var(--gold); }
+.card-red::before { background: var(--red); }
+
+.company-ticker-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.company-name {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 12px;
+  color: var(--ink);
+}
+
+.health-score-wrap {
+  margin-bottom: 12px;
+}
+
+.health-score-num {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.score-green { color: var(--green); }
+.score-amber { color: var(--amber); }
+.score-red { color: var(--red); }
+
+.health-bar-bg {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.health-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1.5s ease;
+}
+
+.fill-green { background: var(--green); }
+.fill-amber { background: var(--gold); }
+.fill-red { background: var(--red); }
+
+.verdict-chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 2px;
+  margin-top: 8px;
+}
+
+.chip-green { color: var(--green); background: var(--green-bg); border: 1px solid #b8ddc5; }
+.chip-amber { color: var(--amber); background: var(--amber-bg); border: 1px solid #e8d090; }
+.chip-red { color: var(--red); background: var(--red-bg); border: 1px solid #ddb8b8; }
+
+/* MAIN ANALYSIS SECTION */
+.analysis-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  margin-bottom: 48px;
+}
+
+/* AI ANALYSIS BOX */
+.ai-box {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ai-box-header {
+  background: var(--ink);
+  color: var(--cream);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-box-title {
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ai-model-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+
+.ai-box-body {
+  padding: 28px;
+}
+
+/* SEMÁFORO */
+.semaforo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 4px;
+  margin-bottom: 24px;
+}
+
+.semaforo-green { background: var(--green-bg); border: 1px solid #b8ddc5; }
+.semaforo-amber { background: var(--amber-bg); border: 1px solid #e8d090; }
+.semaforo-red { background: var(--red-bg); border: 1px solid #ddb8b8; }
+
+.semaforo-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.sc-green { background: var(--green); }
+.sc-amber { background: var(--gold); }
+.sc-red { background: var(--red); }
+
+.semaforo-text {}
+
+.semaforo-verdict {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.semaforo-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ANALYSIS SECTIONS */
+.analysis-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.analysis-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.analysis-section-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analysis-section-title::before {
+  content: '';
+  width: 12px;
+  height: 1px;
+  background: var(--muted2);
+}
+
+.analysis-text {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--ink2);
+}
+
+.analysis-text strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.analysis-text .num {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--cream);
+  padding: 1px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+
+/* METRICS PANEL */
+.metrics-panel {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.metrics-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--cream);
+}
+
+.metrics-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.metric-row {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.metric-row:last-child { border-bottom: none; }
+.metric-row:hover { background: var(--paper); }
+
+.metric-name {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.metric-value {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.metric-signal {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-left: 8px;
+}
+
+.ms-good { color: var(--green); background: var(--green-bg); }
+.ms-warn { color: var(--amber); background: var(--amber-bg); }
+.ms-bad { color: var(--red); background: var(--red-bg); }
+
+/* BOTTOM GRID */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 48px;
+}
+
+/* CHART CARD */
+.chart-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.chart-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--cream);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chart-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chart-body {
+  padding: 20px;
+}
+
+.chart-container {
+  height: 200px;
+  position: relative;
+}
+
+/* RANKING TABLE */
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ranking-table th {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  padding: 0 16px 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ranking-table td {
+  padding: 14px 16px 14px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.ranking-table tr:last-child td { border-bottom: none; }
+.ranking-table tr:hover td { background: var(--paper); }
+
+.rank-num {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--muted2);
+  width: 32px;
+}
+
+.rank-company {
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rank-sector {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* PLAIN LANGUAGE BOX */
+.plain-box {
+  background: var(--ink);
+  color: var(--cream);
+  border-radius: 4px;
+  padding: 32px;
+  margin-bottom: 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+.plain-box::before {
+  content: '"';
+  position: absolute;
+  top: -20px;
+  left: 24px;
+  font-family: var(--display);
+  font-size: 160px;
+  color: rgba(255,255,255,0.04);
+  line-height: 1;
+}
+
+.plain-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.plain-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #3a3530;
+}
+
+.plain-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.plain-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  padding: 20px;
+}
+
+.plain-card-emoji {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.plain-card-title {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream);
+  margin-bottom: 8px;
+}
+
+.plain-card-text {
+  font-size: 12px;
+  color: var(--muted2);
+  line-height: 1.7;
+  font-weight: 300;
+}
+
+.plain-card-text strong {
+  color: var(--cream);
+  font-weight: 500;
+}
+
+/* HOW IT WORKS */
+.how-it-works {
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 32px;
+  margin-bottom: 48px;
+}
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin-top: 24px;
+  position: relative;
+}
+
+.how-steps::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: var(--border2);
+}
+
+.how-step {
+  text-align: center;
+  padding: 0 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.step-num {
+  width: 40px;
+  height: 40px;
+  background: var(--ink);
+  color: var(--cream);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  margin: 0 auto 16px;
+}
+
+.step-title {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.step-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.step-tag {
+  display: inline-block;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  background: white;
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 2px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+/* FOOTER */
+footer {
+  background: var(--ink);
+  color: var(--muted2);
+  padding: 24px 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-logo {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--cream);
+}
+
+.footer-logo span { color: var(--gold); }
+
+.footer-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-align: right;
+}
+
+.footer-meta a {
+  color: var(--gold);
+  text-decoration: none;
+}
+
+/* ANIMATIONS */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.company-card { animation: fadeUp 0.5s ease both; }
+.company-card:nth-child(1) { animation-delay: 0.05s; }
+.company-card:nth-child(2) { animation-delay: 0.1s; }
+.company-card:nth-child(3) { animation-delay: 0.15s; }
+.company-card:nth-child(4) { animation-delay: 0.2s; }
+.company-card:nth-child(5) { animation-delay: 0.25s; }
+
+.analysis-grid, .bottom-grid, .plain-box, .how-it-works {
+  animation: fadeUp 0.6s ease both;
+  animation-delay: 0.3s;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1100px) {
+  .company-grid { grid-template-columns: repeat(3, 1fr); }
+  .analysis-grid, .bottom-grid { grid-template-columns: 1fr; }
+  .plain-cards { grid-template-columns: 1fr; }
+  .how-steps { grid-template-columns: repeat(2, 1fr); }
+  main { padding: 32px 24px; }
+  header, footer { padding: 0 24px; }
+  .hero { padding: 32px 24px 40px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    FIN<span class="logo-scope">scope</span>
+    <span class="logo-tag">AI Financial Intelligence</span>
+  </div>
+  <div class="header-right">
+    <div class="update-badge">Actualizado <span id="fecha"></span> · Datos en tiempo real</div>
+  </div>
+</header>
+
+<!-- TICKER -->
+<div class="ticker-bar">
+  <div class="ticker-item">
+    <span class="ticker-symbol">JPM</span>
+    <span class="ticker-price">$247.83</span>
+    <span class="ticker-change tc-up">+1.2%</span>
+  </div>
+  <div class="ticker-item">
+    <span class="ticker-symbol">GS</span>
+    <span class="ticker-price">$612.40</span>
+    <span class="ticker-change tc-up">+0.8%</span>
+  </div>
+  <div class="ticker-item">
+    <span class="ticker-symbol">AAPL</span>
+    <span class="ticker-price">$228.15</span>
+    <span class="ticker-change tc-down">-0.4%</span>
+  </div>
+  <div class="ticker-item">
+    <span class="ticker-symbol">XOM</span>
+    <span class="ticker-price">$108.92</span>
+    <span class="ticker-change tc-down">-1.1%</span>
+  </div>
+  <div class="ticker-item">
+    <span class="ticker-symbol">MSFT</span>
+    <span class="ticker-price">$415.30</span>
+    <span class="ticker-change tc-up">+0.6%</span>
+  </div>
+  <div class="ticker-item" style="margin-left:40px; padding-left:40px; border-left:1px solid #3a3530">
+    <span class="ticker-symbol" style="color:#8a7f6e">S&P 500</span>
+    <span class="ticker-price">6,024</span>
+    <span class="ticker-change tc-up">+0.3%</span>
+  </div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">// Inteligencia Financiera · Powered by AI</div>
+  <div class="hero-title">La salud financiera de<br>Wall Street, <em>explicada</em><br>para todos.</div>
+  <div class="hero-desc">Un sistema automatizado que analiza balances, márgenes y estructura de deuda de las principales empresas americanas. La IA actúa como CFO y traduce los datos a lenguaje que cualquier persona entiende.</div>
+</div>
+
+<main>
+
+  <!-- COMPANY CARDS -->
+  <div class="section-label">Empresas monitorizadas esta semana</div>
+
+  <div class="company-grid">
+
+    <div class="company-card card-green active" onclick="showAnalysis('aapl')">
+      <div class="company-ticker-tag">AAPL · NYSE · Tecnología</div>
+      <div class="company-name">Apple Inc.</div>
+      <div class="health-score-wrap">
+        <div class="health-score-num score-green">88</div>
+        <div class="health-bar-bg"><div class="health-bar-fill fill-green" style="width:88%"></div></div>
+      </div>
+      <span class="verdict-chip chip-green">● Salud excelente</span>
+    </div>
+
+    <div class="company-card card-green" onclick="showAnalysis('msft')">
+      <div class="company-ticker-tag">MSFT · NYSE · Tecnología</div>
+      <div class="company-name">Microsoft Corp.</div>
+      <div class="health-score-wrap">
+        <div class="health-score-num score-green">84</div>
+        <div class="health-bar-bg"><div class="health-bar-fill fill-green" style="width:84%"></div></div>
+      </div>
+      <span class="verdict-chip chip-green">● Salud excelente</span>
+    </div>
+
+    <div class="company-card card-green" onclick="showAnalysis('jpm')">
+      <div class="company-ticker-tag">JPM · NYSE · Banca</div>
+      <div class="company-name">JPMorgan Chase</div>
+      <div class="health-score-wrap">
+        <div class="health-score-num score-green">76</div>
+        <div class="health-bar-bg"><div class="health-bar-fill fill-green" style="width:76%"></div></div>
+      </div>
+      <span class="verdict-chip chip-green">● Salud buena</span>
+    </div>
+
+    <div class="company-card card-amber" onclick="showAnalysis('gs')">
+      <div class="company-ticker-tag">GS · NYSE · Banca Inversión</div>
+      <div class="company-name">Goldman Sachs</div>
+      <div class="health-score-wrap">
+        <div class="health-score-num score-amber">61</div>
+        <div class="health-bar-bg"><div class="health-bar-fill fill-amber" style="width:61%"></div></div>
+      </div>
+      <span class="verdict-chip chip-amber">◐ Vigilancia activa</span>
+    </div>
+
+    <div class="company-card card-red" onclick="showAnalysis('xom')">
+      <div class="company-ticker-tag">XOM · NYSE · Energía</div>
+      <div class="company-name">ExxonMobil Corp.</div>
+      <div class="health-score-wrap">
+        <div class="health-score-num score-red">44</div>
+        <div class="health-bar-bg"><div class="health-bar-fill fill-red" style="width:44%"></div></div>
+      </div>
+      <span class="verdict-chip chip-red">✕ Riesgo elevado</span>
+    </div>
+
+  </div>
+
+  <!-- ANALYSIS SECTION -->
+  <div class="section-label">Análisis detallado · <span id="company-name-label" style="color:var(--ink)">Apple Inc. (AAPL)</span></div>
+
+  <div class="analysis-grid">
+
+    <!-- AI BOX -->
+    <div class="ai-box">
+      <div class="ai-box-header">
+        <div class="ai-box-title">Análisis de la IA — Criterio CFO</div>
+        <div class="ai-model-tag">GPT-4o-mini · Esta semana</div>
+      </div>
+      <div class="ai-box-body">
+
+        <div class="semaforo semaforo-green" id="semaforo">
+          <div class="semaforo-circle sc-green">✓</div>
+          <div class="semaforo-text">
+            <div class="semaforo-verdict">Empresa financieramente sólida</div>
+            <div class="semaforo-desc">Sin señales de alerta. Estructura de capital eficiente con generación de caja excepcional.</div>
+          </div>
+        </div>
+
+        <div id="analysis-content">
+          <div class="analysis-section">
+            <div class="analysis-section-title">Estructura de capital y solvencia</div>
+            <div class="analysis-text">
+              Apple mantiene una posición de <strong>deuda neta negativa</strong>, lo que significa que tiene más efectivo que deuda. Con <span class="num">ROE: 152%</span> y un margen neto de <span class="num">27%</span>, la empresa genera un valor económico añadido (EVA) excepcional frente a su coste de capital. La estructura de capital es óptima: bajo apalancamiento, alta rentabilidad por acción empleada.
+            </div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-title">Calidad del flujo de caja libre</div>
+            <div class="analysis-text">
+              El free cash flow supera los <strong>100.000 millones de dólares anuales</strong>, el más alto del grupo analizado. La política de remuneración al accionista —dividendos más recompras— es sostenible sin comprometer la reinversión. El FCF como porcentaje de ingresos (<span class="num">~26%</span>) es un indicador de eficiencia operativa de primer nivel mundial.
+            </div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-title">Riesgos identificados</div>
+            <div class="analysis-text">
+              Crecimiento de ingresos interanual moderado (<span class="num">+15.7%</span>) con dependencia del ciclo de hardware iPhone. La concentración geográfica en China representa un riesgo regulatorio y geopolítico a vigilar. <strong>Sin señales de deterioro crediticio a 6 meses</strong> según los datos actuales.
+            </div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-title">Decisión crediticia</div>
+            <div class="analysis-text">
+              Como responsable de riesgos en un banco, <strong>ampliaría el límite de crédito corporativo</strong>. Perfil de grado de inversión AAA con capacidad de servicio de deuda prácticamente ilimitada. Empresa de referencia del sector.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- METRICS PANEL -->
+    <div class="metrics-panel">
+      <div class="metrics-header">
+        <div class="metrics-title">Métricas financieras clave</div>
+      </div>
+      <div id="metrics-content">
+        <div class="metric-row">
+          <span class="metric-name">PER (Precio/Beneficio)</span>
+          <div><span class="metric-value">34.5x</span><span class="metric-signal ms-warn">Moderado</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">Margen neto</span>
+          <div><span class="metric-value">27.0%</span><span class="metric-signal ms-good">Excelente</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">Margen operativo</span>
+          <div><span class="metric-value">35.4%</span><span class="metric-signal ms-good">Excelente</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">ROE (Rentabilidad capital)</span>
+          <div><span class="metric-value">152%</span><span class="metric-signal ms-good">Excepcional</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">ROA (Rentabilidad activos)</span>
+          <div><span class="metric-value">24.4%</span><span class="metric-signal ms-good">Excelente</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">EPS (Beneficio por acción)</span>
+          <div><span class="metric-value">$7.95</span><span class="metric-signal ms-good">Sólido</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">Dividendo anual</span>
+          <div><span class="metric-value">0.38%</span><span class="metric-signal ms-warn">Bajo</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">Crec. ingresos YOY</span>
+          <div><span class="metric-value">+15.7%</span><span class="metric-signal ms-good">Fuerte</span></div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-name">Score salud financiera</span>
+          <div><span class="metric-value" style="color:var(--green)">88/100</span><span class="metric-signal ms-good">Top</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM GRID -->
+  <div class="bottom-grid">
+
+    <!-- RADAR CHART -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">Ranking de salud financiera</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:0.1em">5 EMPRESAS · SEMANA ACTUAL</span>
+      </div>
+      <div class="chart-body">
+        <div class="chart-container">
+          <canvas id="rankChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- RANKING TABLE -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">Executive ranking CFO</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:0.1em">IA · CRITERIO RIESGO/RETORNO</span>
+      </div>
+      <div class="chart-body" style="padding:0">
+        <table class="ranking-table">
+          <thead>
+            <tr style="background:var(--paper)">
+              <th style="padding:12px 0 12px 20px">#</th>
+              <th>Empresa</th>
+              <th>Score</th>
+              <th style="text-align:right;padding-right:20px">Decisión</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding-left:20px"><span class="rank-num">1</span></td>
+              <td><div class="rank-company">Apple</div><div class="rank-sector">Tecnología · AAPL</div></td>
+              <td><span style="font-family:var(--mono);color:var(--green);font-size:14px">88</span></td>
+              <td style="text-align:right;padding-right:20px"><span class="verdict-chip chip-green">Ampliar</span></td>
+            </tr>
+            <tr>
+              <td style="padding-left:20px"><span class="rank-num">2</span></td>
+              <td><div class="rank-company">Microsoft</div><div class="rank-sector">Tecnología · MSFT</div></td>
+              <td><span style="font-family:var(--mono);color:var(--green);font-size:14px">84</span></td>
+              <td style="text-align:right;padding-right:20px"><span class="verdict-chip chip-green">Ampliar</span></td>
+            </tr>
+            <tr>
+              <td style="padding-left:20px"><span class="rank-num">3</span></td>
+              <td><div class="rank-company">JPMorgan</div><div class="rank-sector">Banca · JPM</div></td>
+              <td><span style="font-family:var(--mono);color:var(--green);font-size:14px">76</span></td>
+              <td style="text-align:right;padding-right:20px"><span class="verdict-chip chip-green">Mantener</span></td>
+            </tr>
+            <tr>
+              <td style="padding-left:20px"><span class="rank-num">4</span></td>
+              <td><div class="rank-company">Goldman Sachs</div><div class="rank-sector">Banca inv. · GS</div></td>
+              <td><span style="font-family:var(--mono);color:var(--amber);font-size:14px">61</span></td>
+              <td style="text-align:right;padding-right:20px"><span class="verdict-chip chip-amber">Vigilar</span></td>
+            </tr>
+            <tr>
+              <td style="padding-left:20px"><span class="rank-num">5</span></td>
+              <td><div class="rank-company">ExxonMobil</div><div class="rank-sector">Energía · XOM</div></td>
+              <td><span style="font-family:var(--mono);color:var(--red);font-size:14px">44</span></td>
+              <td style="text-align:right;padding-right:20px"><span class="verdict-chip chip-red">Reducir</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PLAIN LANGUAGE BOX -->
+  <div class="section-label">Explicación para todos — Sin jerga financiera</div>
+
+  <div class="plain-box">
+    <div class="plain-label">// Lo que significa esto en lenguaje normal</div>
+    <div class="plain-cards">
+      <div class="plain-card">
+        <div class="plain-card-emoji">🏦</div>
+        <div class="plain-card-title">¿La empresa debe mucho dinero?</div>
+        <div class="plain-card-text"><strong>Apple tiene más dinero en caja que deudas.</strong> Es como tener la hipoteca pagada y dinero en el banco. Goldman Sachs y ExxonMobil deben bastante más de lo que generan cada año, lo que las hace más vulnerables si el mercado se complica.</div>
+      </div>
+      <div class="plain-card">
+        <div class="plain-card-emoji">💰</div>
+        <div class="plain-card-title">¿Gana dinero de verdad?</div>
+        <div class="plain-card-text"><strong>Apple y Microsoft convierten más de una cuarta parte de sus ventas en beneficio puro.</strong> Por cada 100€ que facturan, se quedan con más de 27€ de ganancia real. ExxonMobil gana mucho menos por euro vendido y depende del precio del petróleo.</div>
+      </div>
+      <div class="plain-card">
+        <div class="plain-card-emoji">⚠️</div>
+        <div class="plain-card-title">¿A cuál le prestaría dinero un banco?</div>
+        <div class="plain-card-text"><strong>A Apple y Microsoft sin dudarlo.</strong> JPMorgan también es seguro. Goldman Sachs requiere seguimiento. <strong>ExxonMobil es la más arriesgada del grupo</strong> por su dependencia del precio del crudo y su estructura de deuda actual.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="section-label">Cómo funciona el sistema</div>
+
+  <div class="how-it-works">
+    <div class="how-steps">
+      <div class="how-step">
+        <div class="step-num">01</div>
+        <div class="step-title">Extracción automática</div>
+        <div class="step-desc">Cada lunes a las 9:00, el sistema recoge datos financieros reales de las 5 empresas directamente de la API.</div>
+        <span class="step-tag">Alpha Vantage API</span>
+      </div>
+      <div class="how-step">
+        <div class="step-num">02</div>
+        <div class="step-title">Análisis con IA</div>
+        <div class="step-desc">Los datos se envían a GPT-4o con un prompt diseñado con criterio de CFO y analista de riesgos crediticios.</div>
+        <span class="step-tag">OpenAI GPT-4o</span>
+      </div>
+      <div class="how-step">
+        <div class="step-num">03</div>
+        <div class="step-title">Traducción visual</div>
+        <div class="step-desc">El análisis técnico se convierte en semáforos, scores y lenguaje comprensible para cualquier persona.</div>
+        <span class="step-tag">Make.com · Automation</span>
+      </div>
+      <div class="how-step">
+        <div class="step-num">04</div>
+        <div class="step-title">Entrega y archivo</div>
+        <div class="step-desc">El informe se publica aquí, se guarda en Google Sheets y se envía por email. Sin intervención humana.</div>
+        <span class="step-tag">Google Sheets · Gmail</span>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div>
+    <div class="footer-logo">FIN<span>scope</span></div>
+    <div style="font-family:var(--mono);font-size:9px;color:#5a5248;margin-top:4px;letter-spacing:0.08em">Proyecto académico · FICO UC3M · Madrid</div>
+  </div>
+  <div class="footer-meta">
+    Construido con Alpha Vantage · OpenAI · Make.com<br>
+    <a href="#">GitHub</a> · <a href="#">LinkedIn</a> · Actualización semanal automática
+  </div>
+</footer>
+
+<script>
+// FECHA
+const now = new Date();
+document.getElementById('fecha').textContent = now.toLocaleDateString('es-ES', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+});
+
+// CHART
+const ctx = document.getElementById('rankChart').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ['Apple', 'Microsoft', 'JPMorgan', 'Goldman', 'ExxonMobil'],
+    datasets: [{
+      label: 'Score de salud financiera',
+      data: [88, 84, 76, 61, 44],
+      backgroundColor: [
+        'rgba(26,107,60,0.85)',
+        'rgba(26,107,60,0.7)',
+        'rgba(26,107,60,0.5)',
+        'rgba(201,162,39,0.7)',
+        'rgba(139,26,26,0.7)',
+      ],
+      borderColor: [
+        'rgb(26,107,60)',
+        'rgb(26,107,60)',
+        'rgb(26,107,60)',
+        'rgb(201,162,39)',
+        'rgb(139,26,26)',
+      ],
+      borderWidth: 1,
+      borderRadius: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1612',
+        titleColor: '#f5f0e8',
+        bodyColor: '#b5a990',
+        titleFont: { family: 'Playfair Display', size: 13 },
+        bodyFont: { family: 'IBM Plex Mono', size: 11 },
+        callbacks: {
+          label: ctx => ` Score: ${ctx.raw}/100`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          color: '#8a7f6e',
+          font: { family: 'IBM Plex Mono', size: 10 }
+        }
+      },
+      y: {
+        min: 0, max: 100,
+        grid: { color: '#e0d8c8' },
+        ticks: {
+          color: '#8a7f6e',
+          font: { family: 'IBM Plex Mono', size: 10 }
+        }
+      }
+    }
+  }
+});
+
+// COMPANY CLICK
+function showAnalysis(company) {
+  document.querySelectorAll('.company-card').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  const data = {
+    aapl: {
+      name: 'Apple Inc. (AAPL)',
+      score: 88, color: 'green',
+      verdict: 'Empresa financieramente sólida',
+      vdesc: 'Sin señales de alerta. Estructura de capital eficiente con generación de caja excepcional.',
+      analysis: `<div class="analysis-section">
+        <div class="analysis-section-title">Estructura de capital y solvencia</div>
+        <div class="analysis-text">Apple mantiene <strong>deuda neta negativa</strong> — más efectivo que deuda. Con <span class="num">ROE: 152%</span> y margen neto de <span class="num">27%</span>, genera EVA excepcional. Estructura de capital óptima.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Calidad del flujo de caja libre</div>
+        <div class="analysis-text">FCF supera los <strong>100.000M$ anuales</strong>. Política de dividendos y recompras sostenible sin comprometer reinversión. FCF/Ingresos del <span class="num">~26%</span>, eficiencia de primer nivel mundial.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Decisión crediticia</div>
+        <div class="analysis-text">Como responsable de riesgos, <strong>ampliaría el límite de crédito corporativo</strong>. Perfil AAA con capacidad de servicio de deuda prácticamente ilimitada.</div>
+      </div>`,
+      metrics: `
+        <div class="metric-row"><span class="metric-name">PER</span><div><span class="metric-value">34.5x</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen neto</span><div><span class="metric-value">27.0%</span><span class="metric-signal ms-good">Excelente</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen operativo</span><div><span class="metric-value">35.4%</span><span class="metric-signal ms-good">Excelente</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROE</span><div><span class="metric-value">152%</span><span class="metric-signal ms-good">Excepcional</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROA</span><div><span class="metric-value">24.4%</span><span class="metric-signal ms-good">Excelente</span></div></div>
+        <div class="metric-row"><span class="metric-name">EPS</span><div><span class="metric-value">$7.95</span><span class="metric-signal ms-good">Sólido</span></div></div>
+        <div class="metric-row"><span class="metric-name">Dividendo</span><div><span class="metric-value">0.38%</span><span class="metric-signal ms-warn">Bajo</span></div></div>
+        <div class="metric-row"><span class="metric-name">Crec. ingresos</span><div><span class="metric-value">+15.7%</span><span class="metric-signal ms-good">Fuerte</span></div></div>
+        <div class="metric-row"><span class="metric-name">Score salud</span><div><span class="metric-value" style="color:var(--green)">88/100</span><span class="metric-signal ms-good">Top</span></div></div>`
+    },
+    msft: {
+      name: 'Microsoft Corp. (MSFT)',
+      score: 84, color: 'green',
+      verdict: 'Empresa financieramente sólida',
+      vdesc: 'Ingresos recurrentes y margen en expansión. Cloud computing impulsa FCF sostenible.',
+      analysis: `<div class="analysis-section">
+        <div class="analysis-section-title">Estructura de capital y solvencia</div>
+        <div class="analysis-text">Microsoft combina <strong>ingresos recurrentes SaaS</strong> con crecimiento de Azure. El ROIC supera consistentemente el WACC, generando valor económico real. Deuda controlada frente a su capacidad de generación de caja.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Calidad del flujo de caja libre</div>
+        <div class="analysis-text">Modelo de suscripción con <strong>visibilidad de ingresos alta</strong>. FCF predecible y en crecimiento. La integración de IA en sus productos (Copilot) abre una nueva palanca de monetización que el mercado aún no ha valorado completamente.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Decisión crediticia</div>
+        <div class="analysis-text"><strong>Ampliaría el límite de crédito</strong>. Modelo de negocio con alta visibilidad de ingresos futuros y balance sólido. Perfil de grado de inversión AAA.</div>
+      </div>`,
+      metrics: `
+        <div class="metric-row"><span class="metric-name">PER</span><div><span class="metric-value">32.1x</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen neto</span><div><span class="metric-value">35.6%</span><span class="metric-signal ms-good">Excepcional</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen operativo</span><div><span class="metric-value">44.6%</span><span class="metric-signal ms-good">Excepcional</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROE</span><div><span class="metric-value">38.4%</span><span class="metric-signal ms-good">Excelente</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROA</span><div><span class="metric-value">17.9%</span><span class="metric-signal ms-good">Muy bueno</span></div></div>
+        <div class="metric-row"><span class="metric-name">EPS</span><div><span class="metric-value">$11.80</span><span class="metric-signal ms-good">Sólido</span></div></div>
+        <div class="metric-row"><span class="metric-name">Dividendo</span><div><span class="metric-value">0.72%</span><span class="metric-signal ms-warn">Bajo</span></div></div>
+        <div class="metric-row"><span class="metric-name">Crec. ingresos</span><div><span class="metric-value">+16.0%</span><span class="metric-signal ms-good">Fuerte</span></div></div>
+        <div class="metric-row"><span class="metric-name">Score salud</span><div><span class="metric-value" style="color:var(--green)">84/100</span><span class="metric-signal ms-good">Top</span></div></div>`
+    },
+    jpm: {
+      name: 'JPMorgan Chase (JPM)',
+      score: 76, color: 'green',
+      verdict: 'Empresa con buena salud financiera',
+      vdesc: 'El banco más capitalizado de EEUU. Solvente y bien gestionado, con exposición a ciclo económico.',
+      analysis: `<div class="analysis-section">
+        <div class="analysis-section-title">Estructura de capital y solvencia</div>
+        <div class="analysis-text">JPMorgan es el banco referencia del sistema financiero americano. Con <span class="num">ROE: 16.1%</span> y <span class="num">Margen neto: 33.9%</span>, supera la media del sector bancario. Capital Tier 1 por encima de mínimos regulatorios de Basilea III.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Riesgos identificados</div>
+        <div class="analysis-text">Exposición a tipos de interés: si el BCE y Fed bajan tipos agresivamente, el margen de intermediación se comprime. Ligero descenso en beneficios YOY (<span class="num">-3.6%</span>) a vigilar en próximos trimestres.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Decisión crediticia</div>
+        <div class="analysis-text"><strong>Mantendría el límite actual</strong>. Banco sólido y bien capitalizado pero con vientos en contra macro si los tipos bajan. Sin reducción justificada por fundamentales actuales.</div>
+      </div>`,
+      metrics: `
+        <div class="metric-row"><span class="metric-name">PER</span><div><span class="metric-value">14.95x</span><span class="metric-signal ms-good">Razonable</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen neto</span><div><span class="metric-value">33.9%</span><span class="metric-signal ms-good">Excelente</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen operativo</span><div><span class="metric-value">41.1%</span><span class="metric-signal ms-good">Excelente</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROE</span><div><span class="metric-value">16.1%</span><span class="metric-signal ms-good">Bueno</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROA</span><div><span class="metric-value">1.35%</span><span class="metric-signal ms-warn">Normal banca</span></div></div>
+        <div class="metric-row"><span class="metric-name">EPS</span><div><span class="metric-value">$20.03</span><span class="metric-signal ms-good">Sólido</span></div></div>
+        <div class="metric-row"><span class="metric-name">Dividendo</span><div><span class="metric-value">1.93%</span><span class="metric-signal ms-good">Bueno</span></div></div>
+        <div class="metric-row"><span class="metric-name">Crec. ingresos</span><div><span class="metric-value">+2.5%</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">Score salud</span><div><span class="metric-value" style="color:var(--green)">76/100</span><span class="metric-signal ms-good">Bueno</span></div></div>`
+    },
+    gs: {
+      name: 'Goldman Sachs (GS)',
+      score: 61, color: 'amber',
+      verdict: 'Empresa en vigilancia activa',
+      vdesc: 'Alta exposición a mercados volátiles. Ingresos irregulares por ciclo de banca de inversión.',
+      analysis: `<div class="analysis-section">
+        <div class="analysis-section-title">Estructura de capital y solvencia</div>
+        <div class="analysis-text">Goldman Sachs tiene una estructura de capital más agresiva que JPMorgan. Su modelo de banca de inversión pura genera <strong>ingresos altamente volátiles</strong> dependientes del ciclo de M&A y mercados de capitales. La cobertura de intereses merece seguimiento.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Riesgos identificados</div>
+        <div class="analysis-text">En entornos de baja actividad de M&A los ingresos caen drásticamente. La <strong>concentración en banca de inversión</strong> sin la diversificación retail de JPMorgan es el riesgo principal. Vencimientos de deuda a corto plazo a vigilar.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Decisión crediticia</div>
+        <div class="analysis-text"><strong>Mantendría el límite pero con revisión trimestral.</strong> Sin reducción inmediata justificada, pero el perfil de riesgo requiere monitorización activa más frecuente que el resto del grupo.</div>
+      </div>`,
+      metrics: `
+        <div class="metric-row"><span class="metric-name">PER</span><div><span class="metric-value">16.2x</span><span class="metric-signal ms-good">Razonable</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen neto</span><div><span class="metric-value">19.4%</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen operativo</span><div><span class="metric-value">24.1%</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROE</span><div><span class="metric-value">11.8%</span><span class="metric-signal ms-warn">Bajo para sector</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROA</span><div><span class="metric-value">0.89%</span><span class="metric-signal ms-warn">Bajo</span></div></div>
+        <div class="metric-row"><span class="metric-name">EPS</span><div><span class="metric-value">$38.10</span><span class="metric-signal ms-good">Alto</span></div></div>
+        <div class="metric-row"><span class="metric-name">Dividendo</span><div><span class="metric-value">2.11%</span><span class="metric-signal ms-good">Bueno</span></div></div>
+        <div class="metric-row"><span class="metric-name">Crec. ingresos</span><div><span class="metric-value">+3.2%</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">Score salud</span><div><span class="metric-value" style="color:var(--amber)">61/100</span><span class="metric-signal ms-warn">Vigilar</span></div></div>`
+    },
+    xom: {
+      name: 'ExxonMobil Corp. (XOM)',
+      score: 44, color: 'red',
+      verdict: 'Empresa con riesgo elevado',
+      vdesc: 'Alta dependencia del precio del crudo. Estructura de deuda a vigilar en entorno de transición energética.',
+      analysis: `<div class="analysis-section">
+        <div class="analysis-section-title">Estructura de capital y solvencia</div>
+        <div class="analysis-text">ExxonMobil tiene una deuda considerable y sus ingresos dependen directamente del precio del barril de petróleo. En el escenario actual de transición energética, el riesgo estructural a largo plazo es el más elevado del grupo. <span class="num">Margen neto: 8.9%</span> muy inferior a tecnológicas.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Riesgos identificados</div>
+        <div class="analysis-text"><strong>Tres riesgos simultáneos:</strong> volatilidad del precio del crudo, presión regulatoria por transición energética, y capex masivo necesario para mantener producción. Si el petróleo cae a 60$/barril, los márgenes se comprimen severamente.</div>
+      </div>
+      <div class="analysis-section">
+        <div class="analysis-section-title">Decisión crediticia</div>
+        <div class="analysis-text">Como responsable de riesgos, <strong>reduciría el límite de crédito corporativo en un 20%</strong> preventivo. El perfil de riesgo no justifica la exposición actual dado el contexto macro de tipos altos y transición energética acelerada.</div>
+      </div>`,
+      metrics: `
+        <div class="metric-row"><span class="metric-name">PER</span><div><span class="metric-value">13.8x</span><span class="metric-signal ms-good">Barato</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen neto</span><div><span class="metric-value">8.9%</span><span class="metric-signal ms-bad">Bajo</span></div></div>
+        <div class="metric-row"><span class="metric-name">Margen operativo</span><div><span class="metric-value">12.3%</span><span class="metric-signal ms-bad">Bajo</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROE</span><div><span class="metric-value">14.2%</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">ROA</span><div><span class="metric-value">7.1%</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">EPS</span><div><span class="metric-value">$8.89</span><span class="metric-signal ms-warn">Moderado</span></div></div>
+        <div class="metric-row"><span class="metric-name">Dividendo</span><div><span class="metric-value">3.52%</span><span class="metric-signal ms-good">Alto</span></div></div>
+        <div class="metric-row"><span class="metric-name">Crec. ingresos</span><div><span class="metric-value">-4.1%</span><span class="metric-signal ms-bad">Negativo</span></div></div>
+        <div class="metric-row"><span class="metric-name">Score salud</span><div><span class="metric-value" style="color:var(--red)">44/100</span><span class="metric-signal ms-bad">Riesgo</span></div></div>`
+    }
+  };
+
+  const d = data[company];
+  document.getElementById('company-name-label').textContent = d.name;
+  document.getElementById('analysis-content').innerHTML = d.analysis;
+  document.getElementById('metrics-content').innerHTML = d.metrics;
+
+  const s = document.getElementById('semaforo');
+  s.className = `semaforo semaforo-${d.color}`;
+  const circle = s.querySelector('.semaforo-circle');
+  circle.className = `semaforo-circle sc-${d.color}`;
+  circle.textContent = d.color === 'green' ? '✓' : d.color === 'amber' ? '◐' : '✕';
+  s.querySelector('.semaforo-verdict').textContent = d.verdict;
+  s.querySelector('.semaforo-desc').textContent = d.vdesc;
+}
+</script>
+</body>
+</html>
