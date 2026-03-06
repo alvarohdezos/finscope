@@ -1198,6 +1198,64 @@ document.getElementById('fecha').textContent = now.toLocaleDateString('es-ES', {
   weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
 });
 
+// GOOGLE SHEETS — CARGAR ANÁLISIS REAL DE LA IA
+const SHEET_ID = '1S7UmMQLLAfKfML7YXW3FhOd4DtIC1Y2pHmYlhhluSBc';
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Hoja1`;
+
+async function loadAIAnalysis() {
+  try {
+    const res = await fetch(SHEET_URL);
+    const text = await res.text();
+    // Google devuelve JSONP, hay que limpiar el wrapper
+    const json = JSON.parse(text.substring(47).slice(0, -2));
+    const rows = json.table.rows;
+    if (!rows || rows.length === 0) return;
+
+    // Última fila con datos
+    const lastRow = rows[rows.length - 1];
+    const fecha = lastRow.c[0]?.v || '';
+    const outputIA = lastRow.c[2]?.v || '';
+
+    if (!outputIA) return;
+
+    // Mostrar fecha de actualización real
+    if (fecha) {
+      const d = new Date(fecha);
+      if (!isNaN(d)) {
+        document.getElementById('fecha').textContent =
+          d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      }
+    }
+
+    // Convertir markdown del output a HTML legible
+    const htmlOutput = outputIA
+      .replace(/### (.*?)(\n|$)/g, '<div class="analysis-section-title">$1</div>')
+      .replace(/## (.*?)(\n|$)/g, '<div class="analysis-section-title">$1</div>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+
+    // Inyectar en el panel de análisis IA real
+    const livePanel = document.getElementById('live-ai-panel');
+    if (livePanel) {
+      livePanel.innerHTML = `
+        <div class="analysis-section">
+          <div class="analysis-section-title">Análisis completo generado esta semana</div>
+          <div class="analysis-text" style="line-height:1.9">${htmlOutput}</div>
+        </div>`;
+    }
+
+    // Actualizar badge
+    const badge = document.getElementById('live-badge');
+    if (badge) badge.textContent = '● Datos en vivo desde Google Sheets';
+
+  } catch(e) {
+    console.log('Sheet no accesible aún:', e.message);
+  }
+}
+
+loadAIAnalysis();
+
 // CHART
 const ctx = document.getElementById('rankChart').getContext('2d');
 new Chart(ctx, {
