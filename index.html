@@ -7,206 +7,206 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--surface:#1f1f1f;
-  --border:#2a2a2a;--border2:#333;--text:#e8e4dc;--text2:#9a9488;--text3:#5a5550;
-  --gold:#c8a84b;--gold2:#e8c870;--green-bg:#0d1f14;--green-t:#4CAF7D;
-  --red-bg:#1f0d0d;--red-t:#CF6679;--amber-bg:#1f170d;--amber-t:#D4A843;
-  --mono:'DM Mono',monospace;--sans:'DM Sans',sans-serif;--display:'DM Serif Display',serif;
+  --bg:       #0c0c0c;
+  --bg2:      #131313;
+  --bg3:      #191919;
+  --surface:  #1e1e1e;
+  --border:   #272727;
+  --border2:  #333;
+  --text:     #e8e4dc;
+  --text2:    #948e84;
+  --text3:    #534e48;
+  --accent:   #c8a84b;
+  --accent2:  #e8c870;
+  --accent-bg:rgba(200,168,75,0.06);
+  --green:    #4caf7d;
+  --green-bg: rgba(76,175,125,0.07);
+  --red:      #cf6679;
+  --red-bg:   rgba(207,102,121,0.07);
+  --amber:    #d4a843;
+  --amber-bg: rgba(212,168,67,0.07);
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --display: 'DM Serif Display', serif;
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;overflow-x:hidden}
-body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;min-height:100vh}
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");pointer-events:none;z-index:9999}
 
-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,13,13,0.93);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 40px}
-.logo{font-family:var(--display);font-size:20px}.logo em{font-style:italic;color:var(--gold)}
-.header-right{display:flex;align-items:center;gap:20px}
-.nav-link{font-family:var(--mono);font-size:10px;letter-spacing:0.1em;color:var(--text3);text-decoration:none;text-transform:uppercase;transition:color 0.2s}.nav-link:hover{color:var(--gold)}
-.live-pill{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.08em;background:var(--bg3);border:1px solid var(--border2);padding:4px 10px;border-radius:20px}
-.live-pill::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green-t);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+/* HEADER */
+header{position:fixed;top:0;left:0;right:0;z-index:100;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 40px;background:rgba(12,12,12,0.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.logo{font-family:var(--display);font-size:20px;color:var(--text)}
+.logo em{font-style:italic;color:var(--accent)}
+.header-r{display:flex;align-items:center;gap:20px}
+.pill{display:flex;align-items:center;gap:6px;padding:4px 12px;border:1px solid var(--border2);border-radius:20px;font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase}
+.pill::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.gh{font-family:var(--mono);font-size:10px;color:var(--text3);text-decoration:none;letter-spacing:.08em;transition:color .2s}
+.gh:hover{color:var(--accent)}
 
-.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;padding:80px 40px 60px;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:60px 60px;opacity:0.25;mask-image:radial-gradient(ellipse 80% 60% at 50% 100%,black 20%,transparent 80%)}
-.hero-glow{position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(200,168,75,0.05) 0%,transparent 70%);top:0;right:-150px;pointer-events:none}
-.hero-content{position:relative;z-index:1;max-width:860px}
-.hero-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:20px;display:flex;align-items:center;gap:12px}
-.hero-eyebrow::before{content:'';width:28px;height:1px;background:var(--gold)}
-.hero-title{font-family:var(--display);font-size:clamp(38px,5.5vw,76px);line-height:1.05;letter-spacing:-0.02em;margin-bottom:24px}
-.hero-title em{font-style:italic;color:var(--gold)}
-.hero-desc{font-size:15px;color:var(--text2);max-width:540px;line-height:1.85;font-weight:300;margin-bottom:36px}
-.hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:56px}
-.btn{font-family:var(--mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;padding:11px 22px;border-radius:2px;cursor:pointer;text-decoration:none;transition:all 0.2s;display:inline-flex;align-items:center;gap:8px;border:none}
-.btn-gold{background:var(--gold);color:var(--bg)}.btn-gold:hover{background:var(--gold2);transform:translateY(-1px)}
-.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
-.stats-bar{display:flex;gap:40px;padding-top:36px;border-top:1px solid var(--border);flex-wrap:wrap}
-.stat-num{font-family:var(--display);font-size:26px;color:var(--gold);line-height:1;margin-bottom:3px}
-.stat-label{font-family:var(--mono);font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3)}
-.stat-div{width:1px;background:var(--border);align-self:stretch}
-
-section{padding:80px 40px}
-.section-header{display:flex;align-items:baseline;gap:14px;margin-bottom:44px}
-.section-num{font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:0.1em}
-.section-title{font-family:var(--display);font-size:26px;letter-spacing:-0.01em}
-.section-line{flex:1;height:1px;background:var(--border);margin-left:12px}
+/* HERO */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 40px 50px;position:relative;overflow:hidden}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:56px 56px;opacity:.25;mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,black 10%,transparent 80%)}
+.hero-orb{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(200,168,75,.06) 0%,transparent 65%);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+.hero-in{position:relative;z-index:1;text-align:center;max-width:640px;width:100%}
+.hero-tag{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-bottom:22px;opacity:0;animation:up .6s ease .1s forwards;display:flex;align-items:center;justify-content:center;gap:10px}
+.hero-tag::before,.hero-tag::after{content:'';width:24px;height:1px;background:var(--accent)}
+.hero-h1{font-family:var(--display);font-size:clamp(38px,5.5vw,68px);line-height:1.06;letter-spacing:-.01em;margin-bottom:18px;opacity:0;animation:up .6s ease .2s forwards}
+.hero-h1 .hl{font-style:italic;color:var(--accent)}
+.hero-sub{font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:44px;line-height:1.9;letter-spacing:.04em;opacity:0;animation:up .6s ease .3s forwards}
+@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 
 /* SEARCH */
-#search{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.search-box{max-width:680px;margin:0 auto}
-.search-desc{font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:32px;text-align:center}
-.search-input-wrap{display:flex;gap:10px;margin-bottom:20px}
-.search-input{flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:2px;color:var(--text);font-family:var(--mono);font-size:16px;letter-spacing:0.1em;text-transform:uppercase;padding:14px 20px;outline:none;transition:border-color 0.2s}
-.search-input::placeholder{color:var(--text3);font-size:13px;text-transform:none;letter-spacing:0}
-.search-input:focus{border-color:var(--gold)}
-.search-btn{background:var(--gold);color:var(--bg);border:none;border-radius:2px;font-family:var(--mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;padding:14px 28px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
-.search-btn:hover{background:var(--gold2)}.search-btn:disabled{opacity:0.5;cursor:not-allowed}
-.search-examples{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-.example-chip{font-family:var(--mono);font-size:10px;letter-spacing:0.08em;background:var(--bg3);border:1px solid var(--border2);padding:5px 12px;border-radius:2px;color:var(--text3);cursor:pointer;transition:all 0.15s}
-.example-chip:hover{border-color:var(--gold);color:var(--gold)}
-.search-result{margin-top:40px;display:none}
-.search-result.visible{display:block;animation:fadeIn 0.3s ease}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.sw{opacity:0;animation:up .6s ease .4s forwards;width:100%;max-width:540px;margin:0 auto}
+.sb{display:flex;align-items:center;background:var(--surface);border:1px solid var(--border2);border-radius:3px;overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.sb:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(200,168,75,.08)}
+.s-pre{font-family:var(--mono);font-size:11px;color:var(--accent);padding:0 16px;white-space:nowrap;border-right:1px solid var(--border2);height:54px;display:flex;align-items:center;letter-spacing:.1em;text-transform:uppercase}
+#ti{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:18px;font-weight:400;padding:0 16px;height:54px;letter-spacing:.06em;text-transform:uppercase}
+#ti::placeholder{color:var(--text3);font-size:12px;text-transform:none;letter-spacing:.02em}
+#sb{height:54px;padding:0 26px;background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:11px;letter-spacing:.12em;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap;text-transform:uppercase}
+#sb:hover{background:var(--accent2)}
+#sb:disabled{background:var(--border2);color:var(--text3);cursor:not-allowed}
+.hints{margin-top:14px;font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.06em;display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.hc{cursor:pointer;transition:all .2s;padding:3px 10px;border:1px solid var(--border);border-radius:2px}
+.hc:hover{border-color:var(--accent);color:var(--accent)}
 
-.result-header{background:var(--surface);border:1px solid var(--border);border-radius:4px 4px 0 0;padding:16px 24px;display:flex;justify-content:space-between;align-items:center}
-.result-company{font-family:var(--display);font-size:20px}
-.result-ticker{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:0.1em;margin-top:2px}
-.result-score{font-family:var(--display);font-size:36px;line-height:1}
-.result-score-label{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase}
-.result-body{border:1px solid var(--border);border-top:none;display:grid;grid-template-columns:1fr 300px}
-.verdict-bar{padding:16px 24px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);grid-column:1/-1}
-.vb-g{background:var(--green-bg)}.vb-a{background:var(--amber-bg)}.vb-r{background:var(--red-bg)}
-.verdict-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;color:white;flex-shrink:0}
-.vi-g{background:var(--green-t)}.vi-a{background:var(--amber-t)}.vi-r{background:var(--red-t)}
-.verdict-main{font-family:var(--display);font-size:15px;margin-bottom:2px}
-.verdict-sub{font-size:12px;color:var(--text2)}
-.result-ai{padding:24px;border-right:1px solid var(--border)}
-.ai-label{font-family:var(--mono);font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);margin-bottom:16px;display:flex;align-items:center;gap:8px}
-.ai-label::before{content:'';width:14px;height:1px;background:var(--border2)}
-.result-metrics{}
-.metrics-label{font-family:var(--mono);font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3);padding:12px 20px;background:var(--bg3);border-bottom:1px solid var(--border)}
-.m-row{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid var(--border);transition:background 0.15s}
-.m-row:hover{background:var(--bg3)}.m-row:last-child{border-bottom:none}
-.m-name{font-size:12px;color:var(--text2)}.m-val{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text)}
-.sector-comparison{border:1px solid var(--border);border-top:none;border-radius:0 0 4px 4px;overflow:hidden}
-.sc-header{padding:12px 20px;background:var(--bg3);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3)}
-.sc-row{display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid var(--border);transition:background 0.15s}
-.sc-row:last-child{border-bottom:none}.sc-row:hover{background:var(--bg3)}
-.sc-row.highlighted{background:rgba(200,168,75,0.05);border-left:2px solid var(--gold)}
-.sc-rank{font-family:var(--mono);font-size:11px;color:var(--text3);width:18px;flex-shrink:0}
-.sc-name{font-size:13px;color:var(--text);flex:1}.sc-ticker{font-family:var(--mono);font-size:10px;color:var(--text3);width:40px;text-align:right}
-.sc-score{font-family:var(--mono);font-size:14px;font-weight:500;width:28px;text-align:right;flex-shrink:0}
-.sc-bar{height:3px;background:var(--border2);border-radius:1px;overflow:hidden;width:70px;flex-shrink:0}
-.sc-bar-fill{height:100%;border-radius:1px}
-.loading-state{text-align:center;padding:60px 20px}
-.loading-spinner{width:30px;height:30px;border:2px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 14px}
+/* RESULT */
+#ra{width:100%;max-width:940px;margin:0 auto;padding:0 40px 80px}
+
+/* Loading */
+.ls{text-align:center;padding:60px 0}
+.ldr{width:36px;height:36px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;margin:0 auto 20px;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{font-family:var(--mono);font-size:11px;letter-spacing:0.1em;color:var(--text3)}
-.error-state{text-align:center;padding:40px 20px;border:1px solid var(--border);border-radius:4px}
-.error-text{font-family:var(--mono);font-size:12px;color:var(--red-t);letter-spacing:0.06em}
+.ll{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase}
+.lst{font-family:var(--mono);font-size:11px;color:var(--accent);margin-top:8px;min-height:20px}
 
-/* DASHBOARD */
-#dashboard{background:var(--bg)}
-.companies-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:32px}
-.company-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
-.company-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0;transition:opacity 0.2s}
-.company-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,0.4)}
-.company-card.active::before{opacity:1}
-.cg::before{background:var(--green-t)}.ca::before{background:var(--amber-t)}.cr::before{background:var(--red-t)}
-.company-card.active.cg{border-color:var(--green-t)}.company-card.active.ca{border-color:var(--amber-t)}.company-card.active.cr{border-color:var(--red-t)}
-.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
-.card-ticker{font-family:var(--mono);font-size:9px;letter-spacing:0.12em;color:var(--text3);text-transform:uppercase}
-.card-score{font-family:var(--mono);font-size:22px;font-weight:500;line-height:1}
-.sg{color:var(--green-t)}.sa{color:var(--amber-t)}.sr{color:var(--red-t)}
-.card-name{font-family:var(--display);font-size:15px;margin-bottom:3px;line-height:1.2}
-.card-sector{font-size:11px;color:var(--text3);margin-bottom:12px}
-.card-bar{height:2px;background:var(--border2);border-radius:1px;overflow:hidden;margin-bottom:10px}
-.card-bar-fill{height:100%;border-radius:1px;transition:width 1.2s ease}
-.bg{background:var(--green-t)}.ba{background:var(--amber-t)}.br{background:var(--red-t)}
-.card-verdict{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;text-transform:uppercase;padding:3px 8px;border-radius:2px;display:inline-block}
-.vg{color:var(--green-t);background:var(--green-bg);border:1px solid rgba(76,175,125,0.2)}
-.va{color:var(--amber-t);background:var(--amber-bg);border:1px solid rgba(212,168,67,0.2)}
-.vr{color:var(--red-t);background:var(--red-bg);border:1px solid rgba(207,102,121,0.2)}
+/* Error */
+.es{text-align:center;padding:40px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2)}
+.ec{font-family:var(--mono);font-size:10px;color:var(--red);letter-spacing:.12em;margin-bottom:8px;text-transform:uppercase}
+.em{font-size:13px;color:var(--text2)}
 
-.analysis-panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden;display:none}
-.analysis-panel.visible{display:block;animation:fadeIn 0.3s ease}
-.panel-header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center}
-.panel-company{font-family:var(--display);font-size:18px}
-.panel-meta{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase}
-.panel-body{display:grid;grid-template-columns:1fr 300px;min-height:360px}
-.panel-left{border-right:1px solid var(--border);padding:24px}
-.panel-right{}
-.asection{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)}
-.asection:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
-.asection-title{font-family:var(--mono);font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);margin-bottom:8px}
-.asection-text{font-size:13px;color:var(--text2);line-height:1.85}
-.asection-text strong{color:var(--text);font-weight:500}
-.tag{font-family:var(--mono);font-size:11px;background:var(--bg3);border:1px solid var(--border2);padding:1px 6px;border-radius:2px;color:var(--text2)}
-.metrics-header{padding:12px 20px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3);background:var(--bg3)}
-.metric-row{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid var(--border);transition:background 0.15s}
-.metric-row:hover{background:var(--bg3)}.metric-row:last-child{border-bottom:none}
-.metric-label{font-size:12px;color:var(--text2)}
-.metric-right-val{display:flex;align-items:center;gap:8px}
-.metric-val{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text)}
-.msig{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:2px}
-.ms-g{color:var(--green-t);background:var(--green-bg)}.ms-a{color:var(--amber-t);background:var(--amber-bg)}.ms-r{color:var(--red-t);background:var(--red-bg)}
+/* ANALYSIS CARD */
+.ac{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden;animation:up .5s ease forwards}
+.ch{padding:22px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:var(--surface)}
+.ctb{font-family:var(--display);font-size:30px;letter-spacing:-.01em;margin-bottom:4px}
+.ccn{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.08em}
+.sb2{font-family:var(--display);font-size:52px;line-height:1;letter-spacing:-.02em}
+.sl{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.12em;text-align:right;margin-top:4px;text-transform:uppercase}
 
-/* HOW */
-#how{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.steps-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative}
-.steps-grid::before{content:'';position:absolute;top:27px;left:12.5%;right:12.5%;height:1px;background:linear-gradient(90deg,transparent,rgba(200,168,75,0.3),transparent)}
-.step{padding:0 24px;text-align:center;position:relative}
-.step-icon{width:54px;height:54px;border:1px solid var(--border2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;background:var(--bg);font-family:var(--mono);font-size:12px;color:var(--gold);position:relative;z-index:1}
-.step-title{font-family:var(--display);font-size:15px;margin-bottom:8px}
-.step-desc{font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:10px}
-.step-tech{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--gold);background:rgba(200,168,75,0.08);border:1px solid rgba(200,168,75,0.15);padding:3px 10px;border-radius:2px;display:inline-block}
+/* Verdict */
+.vs{padding:16px 28px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);font-size:14px}
+.vi{font-size:18px;line-height:1;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;flex-shrink:0;font-size:14px}
+.vt{font-family:var(--display);font-size:16px}
+.vsu{font-family:var(--mono);font-size:11px;color:var(--text2);margin-left:4px}
+.vsg{background:var(--green-bg);border-left:3px solid var(--green)} .vsg .vi{background:var(--green)}
+.vsa{background:var(--amber-bg);border-left:3px solid var(--amber)} .vsa .vi{background:var(--amber)}
+.vsr{background:var(--red-bg);border-left:3px solid var(--red)} .vsr .vi{background:var(--red)}
 
-/* PLAIN */
-#plain{background:var(--bg);border-top:1px solid var(--border)}
-.plain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.plain-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:28px;transition:border-color 0.2s}
-.plain-card:hover{border-color:var(--border2)}
-.plain-emoji{font-size:22px;margin-bottom:12px}
-.plain-q{font-family:var(--display);font-size:16px;margin-bottom:10px;line-height:1.3}
-.plain-a{font-size:13px;color:var(--text2);line-height:1.8}
-.plain-a strong{color:var(--text);font-weight:500}
+/* Body */
+.cb{display:grid;grid-template-columns:1fr 300px}
+.cl{border-right:1px solid var(--border);padding:26px}
+.cr2{padding:20px 0}
+
+/* Sections */
+.sb3{margin-bottom:22px;padding-bottom:22px;border-bottom:1px solid var(--border)}
+.sb3:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.sl2{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sl2::before{content:'';width:14px;height:1px;background:var(--border2)}
+.sc{font-size:13px;color:var(--text2);line-height:1.9}
+.sc strong{color:var(--text);font-weight:500}
+.tg{display:inline-block;font-family:var(--mono);font-size:10px;padding:1px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text2);margin:0 2px}
+
+/* Metrics */
+.mt{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text3);padding:12px 20px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.mi{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid var(--border);transition:background .15s}
+.mi:hover{background:var(--bg3)}
+.mi:last-child{border-bottom:none}
+.mn{font-size:12px;color:var(--text2)}
+.mvw{display:flex;align-items:center;gap:6px}
+.mv{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text)}
+.sig{font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px;letter-spacing:.04em}
+.sg2{color:var(--green);background:var(--green-bg)}
+.sa2{color:var(--amber);background:var(--amber-bg)}
+.sr2{color:var(--red);background:var(--red-bg)}
+
+/* Plain + Comparison */
+.bot{padding:26px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.pl-card{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:16px 18px;margin-bottom:10px}
+.pl-card:last-child{margin-bottom:0}
+.pl-lbl{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.12em;margin-bottom:7px;text-transform:uppercase}
+.pl-txt{font-size:13px;color:var(--text2);line-height:1.8}
+
+/* Comparison */
+.cmp{border:1px solid var(--border);border-radius:3px;overflow:hidden;background:var(--bg2);height:100%}
+.cmp-h{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--bg3)}
+.cmp-t{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text3)}
+.cmp-s{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.06em}
+.cmp-row{display:flex;align-items:center;padding:11px 18px;border-bottom:1px solid var(--border);gap:10px;transition:background .15s}
+.cmp-row:hover{background:var(--bg3)}
+.cmp-row:last-child{border-bottom:none}
+.cmp-row.tgt{background:var(--accent-bg);border-left:2px solid var(--accent)}
+.cmp-rk{font-family:var(--mono);font-size:10px;color:var(--text3);width:14px;text-align:center}
+.cmp-tk{font-family:var(--mono);font-size:12px;font-weight:500;width:48px;color:var(--text)}
+.cmp-nm{flex:1;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmp-bw{width:80px;height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
+.cmp-bf{height:100%;border-radius:2px;transition:width 1s ease}
+.cmp-sc{font-family:var(--mono);font-size:12px;font-weight:500;width:28px;text-align:right}
+
+/* HOW IT WORKS */
+#how{padding:80px 40px;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.sh{display:flex;align-items:baseline;gap:14px;margin-bottom:48px;max-width:860px;margin-left:auto;margin-right:auto}
+.sh-n{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.1em}
+.sh-t{font-family:var(--display);font-size:26px;letter-spacing:-.01em}
+.sh-l{flex:1;height:1px;background:var(--border);margin-left:10px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);max-width:860px;margin:0 auto;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.step{background:var(--bg2);padding:28px 24px}
+.st-n{font-family:var(--mono);font-size:20px;font-weight:300;color:var(--accent);opacity:.4;margin-bottom:16px;line-height:1}
+.st-t{font-family:var(--display);font-size:15px;color:var(--text);margin-bottom:8px}
+.st-d{font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:12px}
+.st-b{font-family:var(--mono);font-size:9px;padding:3px 9px;border:1px solid var(--border2);border-radius:2px;color:var(--accent);letter-spacing:.08em;display:inline-block}
 
 /* ABOUT */
-#about{background:var(--bg2);border-top:1px solid var(--border)}
-.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start}
-.about-name{font-family:var(--display);font-size:30px;margin-bottom:4px}
-.about-role{font-family:var(--mono);font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:22px}
-.about-text{font-size:14px;color:var(--text2);line-height:1.9;margin-bottom:14px}
-.about-links{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
-.tech-stack{background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden}
-.tech-header{padding:12px 20px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3)}
-.tech-row{display:flex;justify-content:space-between;align-items:center;padding:13px 20px;border-bottom:1px solid var(--border)}
-.tech-row:last-child{border-bottom:none}
-.tech-name{font-size:13px;margin-bottom:2px}.tech-role-desc{font-size:11px;color:var(--text3)}
-.tech-badge{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;color:var(--gold);background:rgba(200,168,75,0.08);border:1px solid rgba(200,168,75,0.15);letter-spacing:0.06em;white-space:nowrap}
+#about{padding:80px 40px;max-width:940px;margin:0 auto}
+.ag{display:grid;grid-template-columns:1fr 1fr;gap:52px;align-items:start}
+.an{font-family:var(--display);font-size:30px;margin-bottom:4px;letter-spacing:-.01em}
+.ar{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:24px}
+.ap{font-size:13px;color:var(--text2);line-height:1.9;margin-bottom:14px}
+.abtns{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap}
+.btn-p{background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:11px 22px;border:none;border-radius:2px;cursor:pointer;text-decoration:none;font-weight:500;transition:all .2s;display:inline-block;text-transform:uppercase}
+.btn-p:hover{background:var(--accent2);transform:translateY(-1px)}
+.btn-g{background:transparent;color:var(--text2);font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:10px 22px;border:1px solid var(--border2);border-radius:2px;cursor:pointer;text-decoration:none;transition:all .2s;display:inline-block;text-transform:uppercase}
+.btn-g:hover{border-color:var(--accent);color:var(--accent)}
+.stk{border:1px solid var(--border);border-radius:4px;overflow:hidden;background:var(--bg2)}
+.stk-h{background:var(--bg3);padding:11px 18px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)}
+.stk-r{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border)}
+.stk-r:last-child{border-bottom:none}
+.stk-n{font-size:13px;color:var(--text);margin-bottom:2px}
+.stk-d{font-size:11px;color:var(--text3)}
+.stk-b{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;color:var(--accent);background:var(--accent-bg);border:1px solid rgba(200,168,75,.15);letter-spacing:.06em;white-space:nowrap}
 
-footer{background:var(--bg);border-top:1px solid var(--border);padding:28px 40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
-.footer-logo{font-family:var(--display);font-size:18px}.footer-logo em{font-style:italic;color:var(--gold)}
-.footer-meta{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.06em;text-align:right;line-height:1.8}
-.footer-meta a{color:var(--gold);text-decoration:none}
+/* FOOTER */
+footer{background:var(--bg2);border-top:1px solid var(--border);padding:26px 40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.fl{font-family:var(--display);font-size:17px}
+.fl em{font-style:italic;color:var(--accent)}
+.fm{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.06em;text-align:right;line-height:1.9}
+.fm a{color:var(--accent);text-decoration:none}
 
-@keyframes slideUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
-.hero-content > *{opacity:0;animation:slideUp 0.7s ease forwards}
-.hero-eyebrow{animation-delay:0.1s}.hero-title{animation-delay:0.25s}.hero-desc{animation-delay:0.4s}.hero-actions{animation-delay:0.55s}.stats-bar{animation-delay:0.7s}
-.company-card{opacity:0;animation:slideUp 0.5s ease forwards}
-.company-card:nth-child(1){animation-delay:0.05s}.company-card:nth-child(2){animation-delay:0.1s}.company-card:nth-child(3){animation-delay:0.15s}.company-card:nth-child(4){animation-delay:0.2s}.company-card:nth-child(5){animation-delay:0.25s}
-
-@media(max-width:1100px){
-  header{padding:0 20px}.hero{padding:80px 20px 50px}section{padding:60px 20px}footer{padding:24px 20px}
-  .companies-grid{grid-template-columns:repeat(3,1fr)}
-  .panel-body{grid-template-columns:1fr}.panel-left{border-right:none;border-bottom:1px solid var(--border)}
-  .result-body{grid-template-columns:1fr}.result-ai{border-right:none;border-bottom:1px solid var(--border)}
-  .plain-grid{grid-template-columns:1fr}.about-grid{grid-template-columns:1fr;gap:40px}
-  .steps-grid{grid-template-columns:repeat(2,1fr);gap:32px}.steps-grid::before{display:none}
-  .nav-link{display:none}.stat-div{display:none}
+/* RESPONSIVE */
+@media(max-width:860px){
+  header,footer{padding:0 20px}
+  footer{padding:20px}
+  .hero,#ra,#how,#about{padding-left:20px;padding-right:20px}
+  .cb{grid-template-columns:1fr}
+  .cl{border-right:none;border-bottom:1px solid var(--border)}
+  .bot{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr 1fr}
+  .ag{grid-template-columns:1fr;gap:32px}
+  .cmp-nm{display:none}
 }
-@media(max-width:600px){
-  .companies-grid{grid-template-columns:1fr 1fr}.hero-title{font-size:36px}
-  .steps-grid{grid-template-columns:1fr}.search-input-wrap{flex-direction:column}.search-btn{width:100%}
+@media(max-width:480px){
+  .steps{grid-template-columns:1fr}
+  .hero-h1{font-size:34px}
 }
 </style>
 </head>
@@ -214,374 +214,382 @@ footer{background:var(--bg);border-top:1px solid var(--border);padding:28px 40px
 
 <header>
   <div class="logo">FIN<em>scope</em></div>
-  <div class="header-right">
-    <div class="live-pill">Weekly automated</div>
-    <a href="#search" class="nav-link">Search</a>
-    <a href="#dashboard" class="nav-link">Dashboard</a>
-    <a href="#about" class="nav-link">About</a>
-    <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="nav-link">GitHub ↗</a>
+  <div class="header-r">
+    <div class="pill">Live data</div>
+    <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="gh">GitHub ↗</a>
   </div>
 </header>
 
+<!-- HERO -->
 <div class="hero">
-  <div class="hero-glow"></div>
-  <div class="hero-content">
-    <div class="hero-eyebrow">AI-powered financial intelligence</div>
-    <h1 class="hero-title">Financial health<br>of Wall Street,<br><em>translated.</em></h1>
-    <p class="hero-desc">Search any US stock ticker and get an instant AI-generated financial health report — scored, ranked against sector peers, and explained in plain language. No finance degree required.</p>
-    <div class="hero-actions">
-      <a href="#search" class="btn btn-gold">Analyse a company ↓</a>
-      <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="btn btn-ghost">View source ↗</a>
-    </div>
-    <div class="stats-bar">
-      <div><div class="stat-num">∞</div><div class="stat-label">Searchable tickers</div></div>
-      <div class="stat-div"></div>
-      <div><div class="stat-num">5</div><div class="stat-label">Weekly tracked</div></div>
-      <div class="stat-div"></div>
-      <div><div class="stat-num">Real-time</div><div class="stat-label">Live data</div></div>
-      <div class="stat-div"></div>
-      <div><div class="stat-num">100%</div><div class="stat-label">Automated</div></div>
+  <div class="hero-grid"></div>
+  <div class="hero-orb"></div>
+  <div class="hero-in">
+    <div class="hero-tag">AI-powered financial intelligence</div>
+    <h1 class="hero-h1">Analyse any<br><span class="hl">US stock</span> in seconds</h1>
+    <p class="hero-sub">Real financial data · CFO-criteria AI · Sector benchmarking</p>
+
+    <div class="sw">
+      <div class="sb">
+        <div class="s-pre">TICKER /</div>
+        <input id="ti" type="text" placeholder="e.g. NVDA, TSLA, MSFT..." maxlength="10" autocomplete="off" autocapitalize="characters"/>
+        <button id="sb" onclick="run()">ANALYSE →</button>
+      </div>
+      <div class="hints">
+        <span class="hc" onclick="qs('AAPL')">AAPL</span>
+        <span class="hc" onclick="qs('NVDA')">NVDA</span>
+        <span class="hc" onclick="qs('MSFT')">MSFT</span>
+        <span class="hc" onclick="qs('JPM')">JPM</span>
+        <span class="hc" onclick="qs('TSLA')">TSLA</span>
+        <span class="hc" onclick="qs('XOM')">XOM</span>
+      </div>
     </div>
   </div>
 </div>
 
-<section id="search">
-  <div class="section-header">
-    <span class="section-num">01</span>
-    <h2 class="section-title">Live company search</h2>
-    <div class="section-line"></div>
-  </div>
-  <div class="search-box">
-    <p class="search-desc">Enter any US stock ticker to get a real-time AI financial health analysis, scored and benchmarked against the closest sector peers.</p>
-    <div class="search-input-wrap">
-      <input type="text" class="search-input" id="ticker-input" placeholder="Enter ticker — NVDA, TSLA, META..." maxlength="6"/>
-      <button class="search-btn" id="search-btn" onclick="analyseCompany()">Analyse →</button>
-    </div>
-    <div class="search-examples">
-      <span class="example-chip" onclick="quickSearch('NVDA')">NVDA</span>
-      <span class="example-chip" onclick="quickSearch('TSLA')">TSLA</span>
-      <span class="example-chip" onclick="quickSearch('META')">META</span>
-      <span class="example-chip" onclick="quickSearch('AMZN')">AMZN</span>
-      <span class="example-chip" onclick="quickSearch('BAC')">BAC</span>
-      <span class="example-chip" onclick="quickSearch('JNJ')">JNJ</span>
-      <span class="example-chip" onclick="quickSearch('V')">V</span>
-      <span class="example-chip" onclick="quickSearch('BRK.B')">BRK.B</span>
-    </div>
-    <div class="search-result" id="search-result"></div>
-  </div>
-</section>
+<div id="ra"></div>
 
-<section id="dashboard">
-  <div class="section-header">
-    <span class="section-num">02</span>
-    <h2 class="section-title">Weekly monitored companies</h2>
-    <div class="section-line"></div>
-  </div>
-  <div class="companies-grid">
-    <div class="company-card cg active" onclick="showPanel('aapl',this)">
-      <div class="card-top"><div class="card-ticker">AAPL · Tech</div><div class="card-score sg">88</div></div>
-      <div class="card-name">Apple Inc.</div><div class="card-sector">NYSE · Consumer Tech</div>
-      <div class="card-bar"><div class="card-bar-fill bg" style="width:88%"></div></div>
-      <span class="card-verdict vg">● Excellent</span>
-    </div>
-    <div class="company-card cg" onclick="showPanel('msft',this)">
-      <div class="card-top"><div class="card-ticker">MSFT · Tech</div><div class="card-score sg">84</div></div>
-      <div class="card-name">Microsoft Corp.</div><div class="card-sector">NYSE · Cloud & Software</div>
-      <div class="card-bar"><div class="card-bar-fill bg" style="width:84%"></div></div>
-      <span class="card-verdict vg">● Excellent</span>
-    </div>
-    <div class="company-card cg" onclick="showPanel('jpm',this)">
-      <div class="card-top"><div class="card-ticker">JPM · Finance</div><div class="card-score sg">76</div></div>
-      <div class="card-name">JPMorgan Chase</div><div class="card-sector">NYSE · Banking</div>
-      <div class="card-bar"><div class="card-bar-fill bg" style="width:76%"></div></div>
-      <span class="card-verdict vg">● Good</span>
-    </div>
-    <div class="company-card ca" onclick="showPanel('gs',this)">
-      <div class="card-top"><div class="card-ticker">GS · Finance</div><div class="card-score sa">61</div></div>
-      <div class="card-name">Goldman Sachs</div><div class="card-sector">NYSE · Inv. Banking</div>
-      <div class="card-bar"><div class="card-bar-fill ba" style="width:61%"></div></div>
-      <span class="card-verdict va">◐ Monitor</span>
-    </div>
-    <div class="company-card cr" onclick="showPanel('xom',this)">
-      <div class="card-top"><div class="card-ticker">XOM · Energy</div><div class="card-score sr">44</div></div>
-      <div class="card-name">ExxonMobil</div><div class="card-sector">NYSE · Oil & Gas</div>
-      <div class="card-bar"><div class="card-bar-fill br" style="width:44%"></div></div>
-      <span class="card-verdict vr">✕ Risk</span>
-    </div>
-  </div>
-
-  <div class="analysis-panel visible" id="dash-panel">
-    <div class="panel-header">
-      <div class="panel-company" id="panel-company">Apple Inc. (AAPL)</div>
-      <div class="panel-meta">Weekly analysis · GPT-4o-mini · Alpha Vantage</div>
-    </div>
-    <div class="verdict-bar vb-g" id="panel-verdict">
-      <div class="verdict-icon vi-g" id="panel-icon">✓</div>
-      <div><div class="verdict-main" id="panel-main">Financially solid company</div><div class="verdict-sub" id="panel-sub">No warning signals. Exceptional capital efficiency and cash generation.</div></div>
-    </div>
-    <div class="panel-body">
-      <div class="panel-left" id="panel-analysis">
-        <div class="asection"><div class="asection-title">Capital structure & solvency</div><div class="asection-text">Apple maintains <strong>negative net debt</strong> — more cash than debt. With <span class="tag">ROE: 152%</span> and net margin <span class="tag">27%</span>, generates exceptional EVA relative to cost of capital.</div></div>
-        <div class="asection"><div class="asection-title">Free cash flow quality</div><div class="asection-text">FCF exceeds <strong>$100B annually</strong>. Shareholder return policy sustainable. FCF/Revenue <span class="tag">~26%</span> — world-class efficiency.</div></div>
-        <div class="asection"><div class="asection-title">Credit decision</div><div class="asection-text">As a credit risk officer, <strong>I would expand the corporate credit limit</strong>. AAA profile with virtually unlimited debt service capacity.</div></div>
-      </div>
-      <div class="panel-right">
-        <div class="metrics-header">Key metrics</div>
-        <div id="panel-metrics">
-          <div class="metric-row"><span class="metric-label">P/E Ratio</span><div class="metric-right-val"><span class="metric-val">34.5x</span><span class="msig ms-a">Moderate</span></div></div>
-          <div class="metric-row"><span class="metric-label">Net margin</span><div class="metric-right-val"><span class="metric-val">27.0%</span><span class="msig ms-g">Excellent</span></div></div>
-          <div class="metric-row"><span class="metric-label">Operating margin</span><div class="metric-right-val"><span class="metric-val">35.4%</span><span class="msig ms-g">Excellent</span></div></div>
-          <div class="metric-row"><span class="metric-label">ROE</span><div class="metric-right-val"><span class="metric-val">152%</span><span class="msig ms-g">Exceptional</span></div></div>
-          <div class="metric-row"><span class="metric-label">EPS</span><div class="metric-right-val"><span class="metric-val">$7.95</span><span class="msig ms-g">Solid</span></div></div>
-          <div class="metric-row"><span class="metric-label">Dividend yield</span><div class="metric-right-val"><span class="metric-val">0.38%</span><span class="msig ms-a">Low</span></div></div>
-          <div class="metric-row"><span class="metric-label">Revenue growth</span><div class="metric-right-val"><span class="metric-val">+15.7%</span><span class="msig ms-g">Strong</span></div></div>
-          <div class="metric-row"><span class="metric-label">Health score</span><div class="metric-right-val"><span class="metric-val" style="color:var(--green-t)">88/100</span><span class="msig ms-g">Top</span></div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
+<!-- HOW IT WORKS -->
 <section id="how">
-  <div class="section-header"><span class="section-num">03</span><h2 class="section-title">How it works</h2><div class="section-line"></div></div>
-  <div class="steps-grid">
-    <div class="step"><div class="step-icon">01</div><div class="step-title">Data extraction</div><div class="step-desc">Every Monday at 9AM, the system pulls real financial data for all tracked companies automatically.</div><span class="step-tech">Alpha Vantage API</span></div>
-    <div class="step"><div class="step-icon">02</div><div class="step-title">AI analysis</div><div class="step-desc">Data processed by GPT-4o with a prompt engineered with CFO-level financial criteria.</div><span class="step-tech">OpenAI GPT-4o-mini</span></div>
-    <div class="step"><div class="step-icon">03</div><div class="step-title">Scoring & ranking</div><div class="step-desc">Each company gets a health score and is benchmarked against its closest sector peers.</div><span class="step-tech">Custom scoring model</span></div>
-    <div class="step"><div class="step-icon">04</div><div class="step-title">Automated delivery</div><div class="step-desc">Report published here, stored in Google Sheets and emailed. Zero manual work.</div><span class="step-tech">Make.com · Gmail</span></div>
+  <div class="sh" style="margin-bottom:48px">
+    <span class="sh-n">01</span>
+    <h2 class="sh-t">How it works</h2>
+    <div class="sh-l"></div>
+  </div>
+  <div class="steps">
+    <div class="step"><div class="st-n">01</div><div class="st-t">You type a ticker</div><div class="st-d">Any publicly traded US company. NVDA, TSLA, BRK.B — whatever you want to analyse.</div><span class="st-b">User input</span></div>
+    <div class="step"><div class="st-n">02</div><div class="st-t">Real data pulled</div><div class="st-d">Live financials fetched from Alpha Vantage: company overview, income statement, balance sheet and cash flow.</div><span class="st-b">Alpha Vantage API</span></div>
+    <div class="step"><div class="st-n">03</div><div class="st-t">AI analyst runs</div><div class="st-d">GPT-4o reads the data with CFO and credit risk analyst criteria. Outputs a structured health score and plain-language report.</div><span class="st-b">OpenAI GPT-4o</span></div>
+    <div class="step"><div class="st-n">04</div><div class="st-t">Sector benchmark</div><div class="st-d">The company is ranked against its 5 closest sector peers using the same scoring model.</div><span class="st-b">Proprietary scoring</span></div>
   </div>
 </section>
 
-<section id="plain">
-  <div class="section-header"><span class="section-num">04</span><h2 class="section-title">In plain language</h2><div class="section-line"></div></div>
-  <div class="plain-grid">
-    <div class="plain-card"><div class="plain-emoji">🏦</div><div class="plain-q">Does the company carry too much debt?</div><div class="plain-a"><strong>Apple has more cash than debt.</strong> Think of it as having your mortgage paid with money to spare. Goldman and ExxonMobil owe significantly more than they generate each year.</div></div>
-    <div class="plain-card"><div class="plain-emoji">💰</div><div class="plain-q">Is it actually making money?</div><div class="plain-a"><strong>Apple and Microsoft keep over 27 cents of every dollar they sell as pure profit.</strong> ExxonMobil makes far less per dollar and its profitability swings directly with the oil price.</div></div>
-    <div class="plain-card"><div class="plain-emoji">⚠️</div><div class="plain-q">Which one would a bank lend to?</div><div class="plain-a"><strong>Apple and Microsoft without hesitation.</strong> JPMorgan also safe. Goldman warrants monitoring. <strong>ExxonMobil is the highest-risk company</strong> in this group given debt and energy transition exposure.</div></div>
-  </div>
-</section>
-
+<!-- ABOUT -->
 <section id="about">
-  <div class="section-header"><span class="section-num">05</span><h2 class="section-title">About this project</h2><div class="section-line"></div></div>
-  <div class="about-grid">
-    <div class="about-left">
-      <div class="about-name">Álvaro Hernández</div>
-      <div class="about-role">Finance & Accounting · UC3M Madrid · Class of 2027</div>
-      <p class="about-text">FINscope was built to bridge the gap between complex financial data and actionable, human-readable insight. What started as a portfolio project became a fully automated intelligence pipeline.</p>
-      <p class="about-text">The system runs autonomously every week: pulling real market data, running it through a CFO-calibrated AI model, and publishing results here — no manual work required after initial setup.</p>
-      <p class="about-text">Built with a finance-first mindset: every metric threshold, every risk flag, and every credit decision was designed with real analyst criteria — not just data visualisation.</p>
-      <div class="about-links">
-        <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="btn btn-gold">GitHub ↗</a>
-        <a href="https://linkedin.com" target="_blank" class="btn btn-ghost">LinkedIn ↗</a>
+  <div class="sh" style="margin-bottom:48px">
+    <span class="sh-n">02</span>
+    <h2 class="sh-t">About this project</h2>
+    <div class="sh-l"></div>
+  </div>
+  <div class="ag">
+    <div>
+      <div class="an">Álvaro Hernández</div>
+      <div class="ar">Finance & Accounting · UC3M Madrid · Class of 2027</div>
+      <p class="ap">FINscope started as a question: can a finance student build a tool that reads real company data and translates it into clear, actionable insight — the way a CFO thinks, not the way a spreadsheet looks?</p>
+      <p class="ap">The result is a fully automated pipeline: live market data, a CFO-calibrated AI model, and sector benchmarking against the 5 closest peers. Built with Make.com, Alpha Vantage, and OpenAI.</p>
+      <p class="ap">Every metric threshold, risk signal and credit decision logic is grounded in real analyst criteria — not just data visualisation.</p>
+      <div class="abtns">
+        <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="btn-p">View on GitHub ↗</a>
+        <a href="https://linkedin.com" target="_blank" class="btn-g">LinkedIn ↗</a>
       </div>
     </div>
-    <div class="about-right">
-      <div class="tech-stack">
-        <div class="tech-header">Tech stack</div>
-        <div class="tech-row"><div><div class="tech-name">Alpha Vantage</div><div class="tech-role-desc">Real-time financial data API</div></div><span class="tech-badge">Data</span></div>
-        <div class="tech-row"><div><div class="tech-name">Make.com</div><div class="tech-role-desc">Workflow orchestration & scheduling</div></div><span class="tech-badge">Automation</span></div>
-        <div class="tech-row"><div><div class="tech-name">OpenAI GPT-4o-mini</div><div class="tech-role-desc">CFO-criteria analysis engine</div></div><span class="tech-badge">AI</span></div>
-        <div class="tech-row"><div><div class="tech-name">Google Sheets</div><div class="tech-role-desc">Historical output storage</div></div><span class="tech-badge">Storage</span></div>
-        <div class="tech-row"><div><div class="tech-name">GitHub Pages</div><div class="tech-role-desc">Public dashboard hosting</div></div><span class="tech-badge">Frontend</span></div>
-        <div class="tech-row"><div><div class="tech-name">Gmail API</div><div class="tech-role-desc">Automated weekly report delivery</div></div><span class="tech-badge">Delivery</span></div>
+    <div>
+      <div class="stk">
+        <div class="stk-h">Tech stack</div>
+        <div class="stk-r"><div><div class="stk-n">Alpha Vantage</div><div class="stk-d">Real-time financial data API</div></div><span class="stk-b">Data</span></div>
+        <div class="stk-r"><div><div class="stk-n">OpenAI GPT-4o</div><div class="stk-d">CFO-criteria analysis engine</div></div><span class="stk-b">AI</span></div>
+        <div class="stk-r"><div><div class="stk-n">Make.com</div><div class="stk-d">Workflow automation & scheduling</div></div><span class="stk-b">Automation</span></div>
+        <div class="stk-r"><div><div class="stk-n">Google Sheets</div><div class="stk-d">Historical output storage</div></div><span class="stk-b">Storage</span></div>
+        <div class="stk-r"><div><div class="stk-n">GitHub Pages</div><div class="stk-d">Public dashboard hosting</div></div><span class="stk-b">Frontend</span></div>
       </div>
     </div>
   </div>
 </section>
 
 <footer>
-  <div class="footer-logo">FIN<em>scope</em></div>
-  <div class="footer-meta">Built by <a href="#">Álvaro Hernández</a> · FICO UC3M · Madrid<br>Alpha Vantage · OpenAI · Make.com · <a href="https://github.com/alvarohdezos/finscope" target="_blank">GitHub ↗</a></div>
+  <div class="fl">FIN<em>scope</em></div>
+  <div class="fm">Built by <a href="https://linkedin.com">Álvaro Hernández</a> · FICO UC3M · Madrid<br>Data: Alpha Vantage · AI: OpenAI · <a href="https://github.com/alvarohdezos/finscope" target="_blank">GitHub ↗</a></div>
 </footer>
 
 <script>
-const AV='ZWUHQ6TTSU8FHM2I';
-const OK=atob('c2stcHJvai1QRmJsZUR6cF93czdvZklOQ1MyNVJYWlczNThxZ09LSnJtRGZpa0RIRnJURzJHeW1wcGp0NjdsTUQ2VlZKbG9lM0FURl85S0syZVlUM0Jsa0ZKRUo3bGZKSVlJOFBZYW5VZWJUOVRGSk1rTU9XTEYxR0RBQSc=');
+const AV_KEY  = 'ZWUHQ6TTSU8FHM2I';
+const OAI_KEY = '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';
 
-const PEERS={
-  'Technology':['AAPL','MSFT','GOOGL','META','NVDA','AMZN','AVGO'],
-  'Financial Services':['JPM','BAC','WFC','GS','MS','C','BLK'],
-  'Energy':['XOM','CVX','COP','SLB','EOG','PSX','MPC'],
-  'Healthcare':['JNJ','UNH','LLY','ABBV','MRK','PFE','TMO'],
-  'Consumer Cyclical':['AMZN','TSLA','HD','MCD','NKE','LOW','SBUX'],
-  'Communication Services':['META','GOOGL','NFLX','DIS','CMCSA','VZ','T'],
-  'Industrials':['GE','CAT','HON','UPS','BA','RTX','LMT'],
-  'Consumer Defensive':['WMT','PG','KO','PEP','COST','PM','MO'],
-  'Real Estate':['PLD','AMT','EQIX','CCI','SPG','PSA','DLR'],
-  'Utilities':['NEE','DUK','SO','D','AEP','EXC','XEL'],
-  'Basic Materials':['LIN','APD','ECL','SHW','FCX','NEM','DOW'],
+// Sector peer map
+const PEERS = {
+  AAPL:{s:'Consumer Tech',p:['MSFT','GOOGL','META','AMZN']},
+  MSFT:{s:'Cloud & Software',p:['AAPL','GOOGL','CRM','ORCL']},
+  GOOGL:{s:'Internet',p:['META','MSFT','AMZN','SNAP']},
+  GOOG:{s:'Internet',p:['META','MSFT','AMZN','SNAP']},
+  META:{s:'Social Media',p:['GOOGL','SNAP','PINS','AMZN']},
+  AMZN:{s:'E-Commerce & Cloud',p:['MSFT','GOOGL','WMT','SHOP']},
+  NVDA:{s:'Semiconductors',p:['AMD','INTC','AVGO','QCOM']},
+  AMD:{s:'Semiconductors',p:['NVDA','INTC','AVGO','QCOM']},
+  INTC:{s:'Semiconductors',p:['NVDA','AMD','AVGO','QCOM']},
+  AVGO:{s:'Semiconductors',p:['NVDA','AMD','INTC','QCOM']},
+  QCOM:{s:'Semiconductors',p:['NVDA','AMD','INTC','AVGO']},
+  TSLA:{s:'Electric Vehicles',p:['GM','F','RIVN','NIO']},
+  JPM:{s:'Banking',p:['BAC','WFC','GS','C']},
+  BAC:{s:'Banking',p:['JPM','WFC','GS','C']},
+  WFC:{s:'Banking',p:['JPM','BAC','GS','C']},
+  GS:{s:'Investment Banking',p:['MS','JPM','BAC','C']},
+  MS:{s:'Investment Banking',p:['GS','JPM','BAC','C']},
+  C:{s:'Banking',p:['JPM','BAC','WFC','GS']},
+  V:{s:'Payments',p:['MA','PYPL','SQ','AXP']},
+  MA:{s:'Payments',p:['V','PYPL','SQ','AXP']},
+  PYPL:{s:'Payments',p:['V','MA','SQ','AXP']},
+  XOM:{s:'Oil & Gas',p:['CVX','COP','BP','SHEL']},
+  CVX:{s:'Oil & Gas',p:['XOM','COP','BP','SHEL']},
+  COP:{s:'Oil & Gas',p:['XOM','CVX','BP','SHEL']},
+  JNJ:{s:'Healthcare',p:['PFE','MRK','ABBV','LLY']},
+  PFE:{s:'Pharma',p:['JNJ','MRK','ABBV','LLY']},
+  MRK:{s:'Pharma',p:['JNJ','PFE','ABBV','LLY']},
+  LLY:{s:'Pharma',p:['JNJ','PFE','MRK','ABBV']},
+  WMT:{s:'Retail',p:['AMZN','TGT','COST','KR']},
+  TGT:{s:'Retail',p:['WMT','AMZN','COST','KR']},
+  COST:{s:'Retail',p:['WMT','TGT','AMZN','KR']},
+  KO:{s:'Beverages',p:['PEP','MNST','STZ','PM']},
+  PEP:{s:'Beverages',p:['KO','MNST','STZ','PM']},
 };
 
-function quickSearch(t){document.getElementById('ticker-input').value=t;analyseCompany();document.getElementById('search').scrollIntoView({behavior:'smooth'})}
+function getPeers(t){ return PEERS[t] || {s:'Diversified',p:['SPY','QQQ','IWM','DIA']}; }
 
-async function analyseCompany(){
-  const ticker=document.getElementById('ticker-input').value.trim().toUpperCase();
-  if(!ticker)return;
-  const res=document.getElementById('search-result');
-  const btn=document.getElementById('search-btn');
-  btn.disabled=true;btn.textContent='Analysing...';
-  res.className='search-result visible';
-  res.innerHTML=`<div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">Fetching real-time data for ${ticker}...</div></div>`;
+async function av(fn, sym){
+  const r = await fetch(`https://www.alphavantage.co/query?function=${fn}&symbol=${sym}&apikey=${AV_KEY}`);
+  return r.json();
+}
+
+function score(d){
+  let s = 50;
+  const n = v => parseFloat(v)||0;
+  const pm = n(d.ProfitMargin)*100;
+  const om = n(d.OperatingMarginTTM)*100;
+  const roe = n(d.ReturnOnEquityTTM)*100;
+  const roa = n(d.ReturnOnAssetsTTM)*100;
+  const rg = n(d.QuarterlyRevenueGrowthYOY)*100;
+  const eg = n(d.QuarterlyEarningsGrowthYOY)*100;
+  const de = n(d.DebtToEquityRatio);
+  const cr = n(d.CurrentRatio);
+  if(pm>25)s+=20; else if(pm>15)s+=14; else if(pm>8)s+=8; else if(pm<0)s-=12;
+  if(om>30)s+=15; else if(om>20)s+=10; else if(om>10)s+=5; else if(om<0)s-=10;
+  if(roe>30)s+=15; else if(roe>15)s+=9; else if(roe>8)s+=4; else if(roe<0)s-=10;
+  if(roa>15)s+=10; else if(roa>8)s+=6; else if(roa>3)s+=2; else if(roa<0)s-=6;
+  if(rg>20)s+=10; else if(rg>10)s+=6; else if(rg>0)s+=2; else s-=6;
+  if(eg>20)s+=8; else if(eg>5)s+=4; else if(eg<-10)s-=6;
+  if(de<0.3)s+=8; else if(de<1)s+=4; else if(de>3)s-=8; else if(de>2)s-=4;
+  if(cr>2)s+=6; else if(cr>1.2)s+=3; else if(cr<1)s-=6;
+  return Math.max(5,Math.min(98,Math.round(s)));
+}
+
+function pct(v){ const n=parseFloat(v); return isNaN(n)?'N/A':(n*100).toFixed(1)+'%'; }
+
+function sig(type,val){
+  if(isNaN(val))return null;
+  switch(type){
+    case'pe': return val<=0?{c:'sr2',l:'Neg'}:val<15?{c:'sg2',l:'Cheap'}:val<30?{c:'sa2',l:'Fair'}:{c:'sr2',l:'High'};
+    case'mg': return val>20?{c:'sg2',l:'Excellent'}:val>8?{c:'sa2',l:'OK'}:val<0?{c:'sr2',l:'Negative'}:{c:'sr2',l:'Thin'};
+    case'roe': return val>20?{c:'sg2',l:'Excellent'}:val>10?{c:'sa2',l:'Good'}:val<0?{c:'sr2',l:'Neg'}:{c:'sr2',l:'Low'};
+    case'roa': return val>10?{c:'sg2',l:'Excellent'}:val>4?{c:'sa2',l:'Good'}:val<0?{c:'sr2',l:'Neg'}:{c:'sr2',l:'Low'};
+    case'gr': return val>15?{c:'sg2',l:'Strong'}:val>0?{c:'sa2',l:'Moderate'}:{c:'sr2',l:'Neg'};
+    case'de': return val<0.5?{c:'sg2',l:'Low'}:val<1.5?{c:'sa2',l:'OK'}:{c:'sr2',l:'High'};
+    case'eps': return val>5?{c:'sg2',l:'Strong'}:val>1?{c:'sa2',l:'OK'}:val<0?{c:'sr2',l:'Neg'}:null;
+  }
+  return null;
+}
+
+function sigHtml(s){ return s?`<span class="sig ${s.c}">${s.l}</span>`:''; }
+
+function step(msg){ const e=document.getElementById('lst'); if(e)e.textContent=msg; }
+
+function generateFallbackAnalysis(d, score, fcf) {
+  const pm  = (parseFloat(d.ProfitMargin)||0)*100;
+  const om  = (parseFloat(d.OperatingMarginTTM)||0)*100;
+  const roe = (parseFloat(d.ReturnOnEquityTTM)||0)*100;
+  const roa = (parseFloat(d.ReturnOnAssetsTTM)||0)*100;
+  const rg  = (parseFloat(d.QuarterlyRevenueGrowthYOY)||0)*100;
+  const de  = parseFloat(d.DebtToEquityRatio)||0;
+  const cr  = parseFloat(d.CurrentRatio)||0;
+  const pe  = parseFloat(d.PERatio)||0;
+  const col = score>=70?'green':score>=50?'amber':'red';
+  const icon = score>=70?'✓':score>=50?'◐':'✕';
+  const vmap = {
+    green:{ v:`${d.Name} shows strong financial health across key metrics.`, vs:`Health score ${score}/100 — solid fundamentals with low credit risk.` },
+    amber:{ v:`${d.Name} shows mixed signals requiring active monitoring.`, vs:`Health score ${score}/100 — some metrics underperform sector average.` },
+    red:  { v:`${d.Name} presents an elevated risk profile.`, vs:`Health score ${score}/100 — multiple warning signals detected.` }
+  };
+  const capital = de<0.5
+    ? `${d.Name} maintains a conservative capital structure with Debt/Equity of ${de.toFixed(2)}, indicating strong solvency. ROE of ${roe.toFixed(1)}% reflects efficient use of shareholder capital. The balance sheet supports credit expansion without stress.`
+    : de<1.5
+    ? `${d.Name} carries a moderate Debt/Equity ratio of ${de.toFixed(2)}, within acceptable range for the sector. ROE of ${roe.toFixed(1)}% and ROA of ${roa.toFixed(1)}% suggest reasonable capital efficiency. Interest coverage should be monitored if rates remain elevated.`
+    : `${d.Name} has a high Debt/Equity ratio of ${de.toFixed(2)}, which elevates credit risk. With ROA of ${roa.toFixed(1)}%, debt service capacity depends heavily on maintaining current margins.`;
+  const cashflow = pm>20
+    ? `Net margin of ${pm.toFixed(1)}% and operating margin of ${om.toFixed(1)}% indicate exceptional cash generation quality. FCF of ${fcf} provides strong capacity for dividends, buybacks and reinvestment simultaneously.`
+    : pm>8
+    ? `Net margin of ${pm.toFixed(1)}% and operating margin of ${om.toFixed(1)}% reflect solid profitability. FCF of ${fcf} supports ongoing operations and moderate shareholder returns.`
+    : `Net margin of ${pm.toFixed(1)}% is thin, limiting FCF generation (${fcf}). Operating margin of ${om.toFixed(1)}% leaves limited buffer against cost increases.`;
+  const risks = rg<0
+    ? `Revenue declined ${Math.abs(rg).toFixed(1)}% YOY — a structural concern. With P/E of ${pe.toFixed(1)}x and current ratio of ${cr.toFixed(2)}, near-term liquidity appears adequate but growth trajectory is the primary risk.`
+    : de>2
+    ? `High leverage (D/E: ${de.toFixed(2)}) combined with ${rg.toFixed(1)}% revenue growth creates refinancing risk if market conditions tighten. Beta of ${d.Beta||'N/A'} reflects market sensitivity.`
+    : `Key risks include potential margin compression and sector-specific headwinds. Beta of ${d.Beta||'N/A'} suggests ${parseFloat(d.Beta)>1.5?'high':'moderate'} market correlation. Revenue growth of ${rg.toFixed(1)}% YOY provides a buffer.`;
+  const credit = score>=70
+    ? `As a credit officer, I would maintain or expand the credit limit. The financial profile supports investment-grade treatment with strong debt service capacity.`
+    : score>=50
+    ? `I would maintain the current credit limit with quarterly review. Mixed signals do not justify reduction but active monitoring is required.`
+    : `I would recommend reducing credit exposure by 20-30%. Risk indicators do not support maintaining current limits at this time.`;
+  const plain_debt = de<1
+    ? `The company's debt level is healthy — it owes significantly less than its equity base. Creditors face low default risk under current conditions.`
+    : `The company carries above-average debt relative to equity. Manageable today but increases vulnerability if revenues decline or rates rise.`;
+  const plain_profit = pm>15
+    ? `${d.Name} keeps over ${pm.toFixed(0)} cents of every dollar it earns as profit — well above average and a sign of a strong, efficient business.`
+    : pm>5
+    ? `${d.Name} is profitable but margins are moderate at ${pm.toFixed(1)}%. It makes money, but pricing power and cost control are areas to watch.`
+    : `Profitability is thin at ${pm.toFixed(1)}% net margin. The company is not losing money but has little room for error if costs rise.`;
+  const plain_lend = score>=70
+    ? `A bank would lend to this company without hesitation. Strong metrics across the board support credit expansion.`
+    : score>=50
+    ? `A bank would lend, but with conditions. The risk profile is moderate — acceptable for standard credit lines with covenants.`
+    : `A bank would be cautious. The risk profile suggests tighter terms, lower limits, or additional collateral requirements.`;
+  return { verdict:vmap[col].v, verdict_sub:vmap[col].vs, verdict_color:col, verdict_icon:icon, capital, cashflow, risks, credit_decision:credit, plain_debt, plain_profit, plain_lend };
+}
+
+async function run(){
+  const raw=document.getElementById('ti').value.trim().toUpperCase();
+  if(!raw)return;
+  const btn=document.getElementById('sb');
+  btn.disabled=true; btn.textContent='...';
+  const ra=document.getElementById('ra');
+  ra.innerHTML=`<div class="ls"><div class="ldr"></div><div class="ll">Fetching financial data</div><div class="lst" id="lst">Connecting to Alpha Vantage...</div></div>`;
+  ra.scrollIntoView({behavior:'smooth',block:'start'});
+
   try{
-    const ovR=await fetch(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${ticker}&apikey=${AV}`);
-    const ov=await ovR.json();
-    if(!ov.Symbol||ov.Information)throw new Error(ov.Information||'Ticker not found. Check spelling or try another.');
-    const sector=ov.Sector||'Technology';
-    const peerList=(PEERS[sector]||PEERS['Technology']).filter(t=>t!==ticker).slice(0,4);
-    res.innerHTML=`<div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">Fetching ${sector} peer data for sector comparison...</div></div>`;
-    const peerData=await Promise.all(peerList.map(p=>fetch(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${p}&apikey=${AV}`).then(r=>r.json()).catch(()=>null)));
-    const validPeers=peerData.filter(p=>p&&p.Symbol&&!p.Information);
-    res.innerHTML=`<div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">Running AI analysis with CFO criteria...</div></div>`;
-    const m={symbol:ov.Symbol,name:ov.Name,sector:ov.Sector,industry:ov.Industry,per:ov.PERatio,netMargin:ov.ProfitMargin,opMargin:ov.OperatingMarginTTM,roe:ov.ReturnOnEquityTTM,roa:ov.ReturnOnAssetsTTM,eps:ov.EPS,dividend:ov.DividendYield,revenueGrowth:ov.QuarterlyRevenueGrowthYOY,earningsGrowth:ov.QuarterlyEarningsGrowthYOY,bookValue:ov.BookValue,marketCap:ov.MarketCapitalization,beta:ov.Beta,targetPrice:ov.AnalystTargetPrice,peForward:ov.ForwardPE};
-    const score=calcScore(m);
-    const peerScores=validPeers.map(p=>({symbol:p.Symbol,name:p.Name,score:calcScore({netMargin:p.ProfitMargin,opMargin:p.OperatingMarginTTM,roe:p.ReturnOnEquityTTM,roa:p.ReturnOnAssetsTTM,revenueGrowth:p.QuarterlyRevenueGrowthYOY,earningsGrowth:p.QuarterlyEarningsGrowthYOY})}));
-    const ranked=[{symbol:ticker,name:ov.Name,score},...peerScores].sort((a,b)=>b.score-a.score);
-    const ai=await getAI(m,score,ranked);
-    renderResult(m,score,ai,ranked,ticker);
-  }catch(e){res.innerHTML=`<div class="error-state"><div class="error-text">⚠ ${e.message||'An error occurred. Please try again.'}</div></div>`}
-  finally{btn.disabled=false;btn.textContent='Analyse →'}
-}
+    step('Pulling company data...');
+    const [ov,cf]=await Promise.all([av('OVERVIEW',raw),av('CASH_FLOW',raw)]);
+    if(!ov.Symbol) throw new Error(`Ticker "${raw}" not found. Please check the symbol.`);
 
-function calcScore(m){
-  let s=50;
-  const nm=parseFloat(m.netMargin)||0,om=parseFloat(m.opMargin)||0,roe=parseFloat(m.roe)||0,roa=parseFloat(m.roa)||0,rg=parseFloat(m.revenueGrowth)||0,eg=parseFloat(m.earningsGrowth)||0;
-  if(nm>0.25)s+=25;else if(nm>0.15)s+=18;else if(nm>0.08)s+=10;else if(nm>0)s+=4;else s-=10;
-  if(om>0.30)s+=20;else if(om>0.20)s+=14;else if(om>0.10)s+=8;else if(om>0)s+=2;else s-=8;
-  if(roe>0.25)s+=20;else if(roe>0.15)s+=14;else if(roe>0.08)s+=8;else if(roe>0)s+=3;else s-=10;
-  if(roa>0.10)s+=15;else if(roa>0.05)s+=10;else if(roa>0.02)s+=5;else if(roa>0)s+=1;else s-=6;
-  if(rg>0.15)s+=10;else if(rg>0.05)s+=6;else if(rg>0)s+=2;else s-=5;
-  if(eg>0.10)s+=10;else if(eg>0)s+=4;else s-=4;
-  return Math.min(100,Math.max(0,Math.round(s)));
-}
+    const {s:sector,p:peers}=getPeers(raw);
+    step(`Fetching sector peers (${sector})...`);
+    const peerData=[];
+    for(const p of peers){
+      try{const pd=await av('OVERVIEW',p); if(pd.Symbol)peerData.push({ticker:p,name:pd.Name||p,score:score(pd)});}
+      catch(e){}
+    }
 
-async function getAI(m,score,ranked){
-  const pos=ranked.findIndex(r=>r.symbol===m.symbol)+1;
-  const prompt=`You are a senior CFO and credit risk analyst. Give a concise, professional financial health assessment.
+    const mainScore=score(ov);
 
-COMPANY: ${m.name} (${m.symbol}) | SECTOR: ${m.sector} | INDUSTRY: ${m.industry}
-HEALTH SCORE: ${score}/100 | SECTOR RANK: #${pos} of ${ranked.length}
+    // FCF
+    let fcf='N/A';
+    try{
+      const r=(cf.annualReports||[])[0];
+      if(r){const v=(parseFloat(r.operatingCashflow)||0)-Math.abs(parseFloat(r.capitalExpenditures)||0);fcf=(v/1e9).toFixed(1)+'B USD';}
+    }catch(e){}
+
+    step('Running AI analysis...');
+    const prompt=`You are a senior equity analyst and credit risk officer. Analyse this company and return ONLY a valid JSON object with no markdown or backticks.
+
+COMPANY: ${ov.Name} (${ov.Symbol}) | SECTOR: ${ov.Sector} | INDUSTRY: ${ov.Industry}
 
 METRICS:
-- Net Margin: ${(parseFloat(m.netMargin)*100||0).toFixed(1)}% | Operating Margin: ${(parseFloat(m.opMargin)*100||0).toFixed(1)}%
-- ROE: ${(parseFloat(m.roe)*100||0).toFixed(1)}% | ROA: ${(parseFloat(m.roa)*100||0).toFixed(1)}%
-- P/E: ${m.per}x | Forward P/E: ${m.peForward}x | EPS: $${m.eps}
-- Revenue Growth YOY: ${(parseFloat(m.revenueGrowth)*100||0).toFixed(1)}% | Earnings Growth: ${(parseFloat(m.earningsGrowth)*100||0).toFixed(1)}%
-- Dividend Yield: ${(parseFloat(m.dividend)*100||0).toFixed(2)}% | Beta: ${m.beta}
-- Book Value: $${m.bookValue} | Analyst Target: $${m.targetPrice}
+P/E: ${ov.PERatio} | P/B: ${ov.PriceToBookRatio} | Beta: ${ov.Beta}
+Net Margin: ${pct(ov.ProfitMargin)} | Operating Margin: ${pct(ov.OperatingMarginTTM)}
+ROE: ${pct(ov.ReturnOnEquityTTM)} | ROA: ${pct(ov.ReturnOnAssetsTTM)}
+Revenue Growth YOY: ${pct(ov.QuarterlyRevenueGrowthYOY)} | Earnings Growth YOY: ${pct(ov.QuarterlyEarningsGrowthYOY)}
+Debt/Equity: ${ov.DebtToEquityRatio} | Current Ratio: ${ov.CurrentRatio}
+EPS: ${ov.EPS} | Dividend Yield: ${ov.DividendYield} | FCF: ${fcf}
+Market Cap: ${ov.MarketCapitalization}
 
-Structure your response with exactly these 4 headers (plain text, no markdown):
+Return this exact JSON:
+{"verdict":"one sentence verdict","verdict_sub":"one sentence detail","verdict_color":"green OR amber OR red","verdict_icon":"✓ OR ◐ OR ✕","capital":"2-3 sentences on capital structure and solvency using the actual numbers","cashflow":"2-3 sentences on cash flow quality using the actual numbers","risks":"2-3 sentences on key risks with specific metric references","credit_decision":"1-2 sentences on credit limit decision","plain_debt":"plain language: is the debt ok? max 2 sentences","plain_profit":"plain language: is it profitable? max 2 sentences","plain_lend":"plain language: would a bank lend today? max 2 sentences"}`;
 
-CAPITAL STRUCTURE & SOLVENCY
-[2-3 sentences. Reference specific numbers.]
+    let ai;
+    try {
+      const oaiRes=await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${OAI_KEY}`},
+        body:JSON.stringify({model:'gpt-4o-mini',max_tokens:1000,messages:[
+          {role:'system',content:'You are a financial analyst. Return only valid JSON, no markdown, no code blocks.'},
+          {role:'user',content:prompt}
+        ]})
+      });
+      if(!oaiRes.ok){
+        const errBody=await oaiRes.json().catch(()=>({}));
+        throw new Error(`OpenAI ${oaiRes.status}: ${errBody.error?.message||oaiRes.statusText}`);
+      }
+      const oaiJson=await oaiRes.json();
+      const rawText=oaiJson.choices?.[0]?.message?.content||'';
+      if(!rawText) throw new Error('Empty response from OpenAI');
+      ai=JSON.parse(rawText.replace(/```json|```/g,'').trim());
+    } catch(aiErr) {
+      console.error('AI call failed:', aiErr.message);
+      // Rule-based fallback using real data
+      ai = generateFallbackAnalysis(ov, mainScore, fcf);
+    }
 
-FREE CASH FLOW & DIVIDENDS
-[2-3 sentences on cash generation quality.]
+    // Build comparison
+    const all=[{ticker:raw,name:ov.Name,score:mainScore,isTgt:true},...peerData].sort((a,b)=>b.score-a.score);
+    const rank=all.findIndex(c=>c.isTgt)+1;
+    const col=ai.verdict_color==='green'?'green':ai.verdict_color==='red'?'red':'amber';
+    const sc=col==='green'?'var(--green)':col==='red'?'var(--red)':'var(--amber)';
 
-KEY RISKS
-[2-3 sentences on main financial risks. Be specific.]
+    const metrics=[
+      {n:'P/E Ratio',v:ov.PERatio||'N/A',s:sig('pe',parseFloat(ov.PERatio))},
+      {n:'Net Margin',v:pct(ov.ProfitMargin),s:sig('mg',parseFloat(ov.ProfitMargin)*100)},
+      {n:'Operating Margin',v:pct(ov.OperatingMarginTTM),s:sig('mg',parseFloat(ov.OperatingMarginTTM)*100)},
+      {n:'ROE',v:pct(ov.ReturnOnEquityTTM),s:sig('roe',parseFloat(ov.ReturnOnEquityTTM)*100)},
+      {n:'ROA',v:pct(ov.ReturnOnAssetsTTM),s:sig('roa',parseFloat(ov.ReturnOnAssetsTTM)*100)},
+      {n:'Revenue Growth YOY',v:pct(ov.QuarterlyRevenueGrowthYOY),s:sig('gr',parseFloat(ov.QuarterlyRevenueGrowthYOY)*100)},
+      {n:'Debt / Equity',v:ov.DebtToEquityRatio||'N/A',s:sig('de',parseFloat(ov.DebtToEquityRatio))},
+      {n:'EPS',v:ov.EPS?'$'+ov.EPS:'N/A',s:sig('eps',parseFloat(ov.EPS))},
+      {n:'Dividend Yield',v:ov.DividendYield?(parseFloat(ov.DividendYield)*100).toFixed(2)+'%':'0%',s:null},
+      {n:'Health Score',v:`${mainScore}/100`,s:null,vc:sc},
+    ];
 
-CREDIT DECISION
-[1 sentence: expand, maintain or reduce credit limit and why.]`;
+    const compRows=all.map((c,i)=>{
+      const bc=c.score>=70?'var(--green)':c.score>=50?'var(--amber)':'var(--red)';
+      return `<div class="cmp-row ${c.isTgt?'tgt':''}">
+        <div class="cmp-rk">${i+1}</div>
+        <div class="cmp-tk">${c.ticker}</div>
+        <div class="cmp-nm">${c.isTgt?`<strong>${c.name}</strong>`:c.name}</div>
+        <div class="cmp-bw"><div class="cmp-bf" style="width:${c.score}%;background:${bc}"></div></div>
+        <div class="cmp-sc" style="color:${bc}">${c.score}</div>
+      </div>`;
+    }).join('');
 
-  try{
-    const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${OK}`},body:JSON.stringify({model:'gpt-4o-mini',max_tokens:700,messages:[{role:'user',content:prompt}]})});
-    const d=await r.json();
-    return d.choices?.[0]?.message?.content||'Analysis unavailable.';
-  }catch(e){return'Analysis temporarily unavailable. Financial metrics are shown below.'}
+    ra.innerHTML=`<div class="ac">
+      <div class="ch">
+        <div><div class="ctb">${ov.Symbol}</div><div class="ccn">${ov.Name} · ${ov.Exchange} · ${ov.Sector}</div></div>
+        <div><div class="sb2" style="color:${sc}">${mainScore}</div><div class="sl">HEALTH SCORE · #${rank} IN SECTOR</div></div>
+      </div>
+      <div class="vs vs${col==='green'?'g':col==='red'?'r':'a'}">
+        <div class="vi">${ai.verdict_icon}</div>
+        <div><span class="vt">${ai.verdict}</span><span class="vsu">— ${ai.verdict_sub}</span></div>
+      </div>
+      <div class="cb">
+        <div class="cl">
+          <div class="sb3"><div class="sl2">Capital structure & solvency</div><div class="sc">${ai.capital}</div></div>
+          <div class="sb3"><div class="sl2">Cash flow quality</div><div class="sc">${ai.cashflow}</div></div>
+          <div class="sb3"><div class="sl2">Key risks</div><div class="sc">${ai.risks}</div></div>
+          <div class="sb3"><div class="sl2">Credit decision</div><div class="sc">${ai.credit_decision}</div></div>
+        </div>
+        <div class="cr2">
+          <div class="mt">Key metrics</div>
+          ${metrics.map(m=>`<div class="mi"><span class="mn">${m.n}</span><div class="mvw"><span class="mv" ${m.vc?`style="color:${m.vc}"`:''} >${m.v}</span>${sigHtml(m.s)}</div></div>`).join('')}
+        </div>
+      </div>
+      <div class="bot">
+        <div>
+          <div class="sl2" style="margin-bottom:14px">In plain language</div>
+          <div class="pl-card"><div class="pl-lbl">Debt level</div><div class="pl-txt">${ai.plain_debt}</div></div>
+          <div class="pl-card"><div class="pl-lbl">Profitability</div><div class="pl-txt">${ai.plain_profit}</div></div>
+          <div class="pl-card"><div class="pl-lbl">Creditworthiness</div><div class="pl-txt">${ai.plain_lend}</div></div>
+        </div>
+        <div>
+          <div class="cmp">
+            <div class="cmp-h"><div class="cmp-t">Sector ranking</div><div class="cmp-s">${sector}</div></div>
+            ${compRows}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  }catch(err){
+    ra.innerHTML=`<div class="es"><div class="ec">ERROR</div><div class="em">${err.message||'Something went wrong. Please try again.'}</div></div>`;
+  }
+  btn.disabled=false; btn.textContent='ANALYSE →';
 }
 
-function renderResult(m,score,aiText,ranked,ticker){
-  const el=document.getElementById('search-result');
-  const col=score>=70?'var(--green-t)':score>=50?'var(--amber-t)':'var(--red-t)';
-  const vbc=score>=70?'vb-g':score>=50?'vb-a':'vb-r';
-  const vic=score>=70?'vi-g':score>=50?'vi-a':'vi-r';
-  const icon=score>=70?'✓':score>=50?'◐':'✕';
-  const verdict=score>=70?'Financially solid':score>=50?'Under active monitoring':'Elevated risk profile';
-  const vsub=score>=70?'Core metrics are healthy. Suitable for credit expansion.':score>=50?'Mixed signals. Maintain with quarterly review.':'Significant risk factors identified. Consider reducing exposure.';
-
-  const sects=['CAPITAL STRUCTURE & SOLVENCY','FREE CASH FLOW & DIVIDENDS','KEY RISKS','CREDIT DECISION'];
-  let fai='';let rem=aiText;
-  sects.forEach((s,i)=>{
-    const next=sects[i+1];let content='';
-    const idx=rem.indexOf(s);
-    if(idx!==-1){const st=idx+s.length;const ni=next?rem.indexOf(next):-1;content=ni!==-1?rem.substring(st,ni).trim():rem.substring(st).trim();rem=ni!==-1?rem.substring(ni):'';}
-    if(content)fai+=`<div class="asection"><div class="asection-title">${s}</div><div class="asection-text">${content}</div></div>`;
-  });
-  if(!fai)fai=`<div class="asection"><div class="asection-title">AI Analysis</div><div class="asection-text">${aiText}</div></div>`;
-
-  const fmt=(v,m=100,s='%')=>v&&v!=='None'?`${(parseFloat(v)*m).toFixed(1)}${s}`:'N/A';
-  const fr=(v,s='')=>v&&v!=='None'?`${parseFloat(v).toFixed(2)}${s}`:'N/A';
-
-  const rows=ranked.map(r=>{
-    const isMain=r.symbol===ticker;
-    const rc=r.score>=70?'var(--green-t)':r.score>=50?'var(--amber-t)':'var(--red-t)';
-    const pos=ranked.indexOf(r)+1;
-    return`<div class="sc-row ${isMain?'highlighted':''}"><span class="sc-rank">#${pos}</span><span class="sc-name">${isMain?`<strong>${r.name}</strong>`:r.name}</span><span class="sc-ticker">${r.symbol}</span><div class="sc-bar"><div class="sc-bar-fill" style="width:${r.score}%;background:${rc}"></div></div><span class="sc-score" style="color:${rc}">${r.score}</span></div>`;
-  }).join('');
-
-  el.innerHTML=`
-<div class="result-header">
-  <div><div class="result-company">${m.name}</div><div class="result-ticker">${m.symbol} · ${m.sector} · ${m.industry}</div></div>
-  <div style="text-align:right"><div class="result-score" style="color:${col}">${score}</div><div class="result-score-label">Health score / 100</div></div>
-</div>
-<div class="verdict-bar ${vbc}" style="border:1px solid var(--border);border-top:none">
-  <div class="verdict-icon ${vic}">${icon}</div>
-  <div><div class="verdict-main">${verdict}</div><div class="verdict-sub">${vsub}</div></div>
-</div>
-<div class="result-body">
-  <div class="result-ai"><div class="ai-label">AI analysis · CFO criteria · Real-time data</div>${fai}</div>
-  <div class="result-metrics">
-    <div class="metrics-label">Key financial metrics</div>
-    <div class="m-row"><span class="m-name">Net margin</span><span class="m-val">${fmt(m.netMargin)}</span></div>
-    <div class="m-row"><span class="m-name">Operating margin</span><span class="m-val">${fmt(m.opMargin)}</span></div>
-    <div class="m-row"><span class="m-name">ROE</span><span class="m-val">${fmt(m.roe)}</span></div>
-    <div class="m-row"><span class="m-name">ROA</span><span class="m-val">${fmt(m.roa)}</span></div>
-    <div class="m-row"><span class="m-name">P/E Ratio</span><span class="m-val">${fr(m.per,'x')}</span></div>
-    <div class="m-row"><span class="m-name">EPS</span><span class="m-val">$${fr(m.eps)}</span></div>
-    <div class="m-row"><span class="m-name">Revenue growth</span><span class="m-val">${fmt(m.revenueGrowth)}</span></div>
-    <div class="m-row"><span class="m-name">Dividend yield</span><span class="m-val">${fmt(m.dividend)}</span></div>
-    <div class="m-row"><span class="m-name">Beta</span><span class="m-val">${fr(m.beta)}</span></div>
-    <div class="m-row"><span class="m-name">Health score</span><span class="m-val" style="color:${col}">${score}/100</span></div>
-  </div>
-</div>
-<div class="sector-comparison"><div class="sc-header">Sector ranking — ${m.sector} peers</div>${rows}</div>`;
-}
-
-document.getElementById('ticker-input').addEventListener('keydown',e=>{if(e.key==='Enter')analyseCompany()});
-
-const DASH={
-  aapl:{name:'Apple Inc. (AAPL)',color:'g',icon:'✓',verdict:'Financially solid company',vsub:'No warning signals. Exceptional capital efficiency and cash generation.',
-    analysis:`<div class="asection"><div class="asection-title">Capital structure & solvency</div><div class="asection-text">Apple maintains <strong>negative net debt</strong>. With <span class="tag">ROE: 152%</span> and net margin <span class="tag">27%</span>, generates exceptional EVA relative to cost of capital.</div></div><div class="asection"><div class="asection-title">Free cash flow</div><div class="asection-text">FCF exceeds <strong>$100B annually</strong>. FCF/Revenue <span class="tag">~26%</span> — world-class efficiency.</div></div><div class="asection"><div class="asection-title">Credit decision</div><div class="asection-text"><strong>Expand the corporate credit limit.</strong> AAA profile with virtually unlimited debt service capacity.</div></div>`,
-    metrics:`<div class="metric-row"><span class="metric-label">P/E Ratio</span><div class="metric-right-val"><span class="metric-val">34.5x</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">Net margin</span><div class="metric-right-val"><span class="metric-val">27.0%</span><span class="msig ms-g">Excellent</span></div></div><div class="metric-row"><span class="metric-label">Operating margin</span><div class="metric-right-val"><span class="metric-val">35.4%</span><span class="msig ms-g">Excellent</span></div></div><div class="metric-row"><span class="metric-label">ROE</span><div class="metric-right-val"><span class="metric-val">152%</span><span class="msig ms-g">Exceptional</span></div></div><div class="metric-row"><span class="metric-label">EPS</span><div class="metric-right-val"><span class="metric-val">$7.95</span><span class="msig ms-g">Solid</span></div></div><div class="metric-row"><span class="metric-label">Revenue growth</span><div class="metric-right-val"><span class="metric-val">+15.7%</span><span class="msig ms-g">Strong</span></div></div><div class="metric-row"><span class="metric-label">Health score</span><div class="metric-right-val"><span class="metric-val" style="color:var(--green-t)">88/100</span><span class="msig ms-g">Top</span></div></div>`},
-  msft:{name:'Microsoft Corp. (MSFT)',color:'g',icon:'✓',verdict:'Financially solid company',vsub:'Recurring revenue and expanding margins. Cloud growth drives sustainable FCF.',
-    analysis:`<div class="asection"><div class="asection-title">Capital structure & solvency</div><div class="asection-text">SaaS model with <strong>highly predictable recurring revenue</strong>. ROIC consistently exceeds WACC. Debt controlled relative to cash generation.</div></div><div class="asection"><div class="asection-title">Free cash flow</div><div class="asection-text">FCF growing consistently. AI integration (Copilot) opens new monetisation lever. <strong>Revenue visibility exceptionally high.</strong></div></div><div class="asection"><div class="asection-title">Credit decision</div><div class="asection-text"><strong>Expand the corporate credit limit.</strong> AAA profile with high-visibility future revenue stream.</div></div>`,
-    metrics:`<div class="metric-row"><span class="metric-label">P/E Ratio</span><div class="metric-right-val"><span class="metric-val">32.1x</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">Net margin</span><div class="metric-right-val"><span class="metric-val">35.6%</span><span class="msig ms-g">Exceptional</span></div></div><div class="metric-row"><span class="metric-label">Operating margin</span><div class="metric-right-val"><span class="metric-val">44.6%</span><span class="msig ms-g">Exceptional</span></div></div><div class="metric-row"><span class="metric-label">ROE</span><div class="metric-right-val"><span class="metric-val">38.4%</span><span class="msig ms-g">Excellent</span></div></div><div class="metric-row"><span class="metric-label">EPS</span><div class="metric-right-val"><span class="metric-val">$11.80</span><span class="msig ms-g">Solid</span></div></div><div class="metric-row"><span class="metric-label">Revenue growth</span><div class="metric-right-val"><span class="metric-val">+16.0%</span><span class="msig ms-g">Strong</span></div></div><div class="metric-row"><span class="metric-label">Health score</span><div class="metric-right-val"><span class="metric-val" style="color:var(--green-t)">84/100</span><span class="msig ms-g">Top</span></div></div>`},
-  jpm:{name:'JPMorgan Chase (JPM)',color:'g',icon:'✓',verdict:'Good financial health',vsub:"America's most capitalised bank. Solvent and well-managed.",
-    analysis:`<div class="asection"><div class="asection-title">Capital structure & solvency</div><div class="asection-text">Reference bank of the US financial system. <span class="tag">ROE: 16.1%</span> and <span class="tag">Net margin: 33.9%</span> outperform sector. Tier 1 Capital well above Basel III minimums.</div></div><div class="asection"><div class="asection-title">Key risks</div><div class="asection-text">Rate sensitivity risk: Fed cuts compress net interest margin. YOY earnings <span class="tag">-3.6%</span> to monitor.</div></div><div class="asection"><div class="asection-title">Credit decision</div><div class="asection-text"><strong>Maintain current credit limit.</strong> Solid, well-capitalised bank. No reduction justified by current fundamentals.</div></div>`,
-    metrics:`<div class="metric-row"><span class="metric-label">P/E Ratio</span><div class="metric-right-val"><span class="metric-val">14.95x</span><span class="msig ms-g">Reasonable</span></div></div><div class="metric-row"><span class="metric-label">Net margin</span><div class="metric-right-val"><span class="metric-val">33.9%</span><span class="msig ms-g">Excellent</span></div></div><div class="metric-row"><span class="metric-label">Operating margin</span><div class="metric-right-val"><span class="metric-val">41.1%</span><span class="msig ms-g">Excellent</span></div></div><div class="metric-row"><span class="metric-label">ROE</span><div class="metric-right-val"><span class="metric-val">16.1%</span><span class="msig ms-g">Good</span></div></div><div class="metric-row"><span class="metric-label">EPS</span><div class="metric-right-val"><span class="metric-val">$20.03</span><span class="msig ms-g">Solid</span></div></div><div class="metric-row"><span class="metric-label">Revenue growth</span><div class="metric-right-val"><span class="metric-val">+2.5%</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">Health score</span><div class="metric-right-val"><span class="metric-val" style="color:var(--green-t)">76/100</span><span class="msig ms-g">Good</span></div></div>`},
-  gs:{name:'Goldman Sachs (GS)',color:'a',icon:'◐',verdict:'Under active monitoring',vsub:'High exposure to volatile markets. Irregular M&A-dependent revenue.',
-    analysis:`<div class="asection"><div class="asection-title">Capital structure & solvency</div><div class="asection-text">Pure investment banking model generates <strong>highly volatile revenues</strong> dependent on M&A cycle. Interest coverage warrants active monitoring.</div></div><div class="asection"><div class="asection-title">Key risks</div><div class="asection-text"><strong>No retail diversification</strong> buffer. In low M&A environments revenues drop sharply. Short-term debt maturities require tracking.</div></div><div class="asection"><div class="asection-title">Credit decision</div><div class="asection-text"><strong>Maintain with quarterly review.</strong> Risk profile requires more frequent monitoring than the rest of this group.</div></div>`,
-    metrics:`<div class="metric-row"><span class="metric-label">P/E Ratio</span><div class="metric-right-val"><span class="metric-val">16.2x</span><span class="msig ms-g">Reasonable</span></div></div><div class="metric-row"><span class="metric-label">Net margin</span><div class="metric-right-val"><span class="metric-val">19.4%</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">Operating margin</span><div class="metric-right-val"><span class="metric-val">24.1%</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">ROE</span><div class="metric-right-val"><span class="metric-val">11.8%</span><span class="msig ms-a">Below avg</span></div></div><div class="metric-row"><span class="metric-label">EPS</span><div class="metric-right-val"><span class="metric-val">$38.10</span><span class="msig ms-g">High</span></div></div><div class="metric-row"><span class="metric-label">Revenue growth</span><div class="metric-right-val"><span class="metric-val">+3.2%</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">Health score</span><div class="metric-right-val"><span class="metric-val" style="color:var(--amber-t)">61/100</span><span class="msig ms-a">Monitor</span></div></div>`},
-  xom:{name:'ExxonMobil Corp. (XOM)',color:'r',icon:'✕',verdict:'Elevated risk profile',vsub:'High crude oil dependency. Energy transition represents structural long-term risk.',
-    analysis:`<div class="asection"><div class="asection-title">Capital structure & solvency</div><div class="asection-text">Revenues directly tied to oil price. <span class="tag">Net margin: 8.9%</span> far below tech peers. Highest structural risk in this group.</div></div><div class="asection"><div class="asection-title">Key risks</div><div class="asection-text"><strong>Three simultaneous risks:</strong> crude price volatility, regulatory pressure from energy transition, and massive capex to sustain production.</div></div><div class="asection"><div class="asection-title">Credit decision</div><div class="asection-text"><strong>Reduce corporate credit limit by 20%.</strong> Risk profile does not justify current exposure given macro context.</div></div>`,
-    metrics:`<div class="metric-row"><span class="metric-label">P/E Ratio</span><div class="metric-right-val"><span class="metric-val">13.8x</span><span class="msig ms-g">Cheap</span></div></div><div class="metric-row"><span class="metric-label">Net margin</span><div class="metric-right-val"><span class="metric-val">8.9%</span><span class="msig ms-r">Low</span></div></div><div class="metric-row"><span class="metric-label">Operating margin</span><div class="metric-right-val"><span class="metric-val">12.3%</span><span class="msig ms-r">Low</span></div></div><div class="metric-row"><span class="metric-label">ROE</span><div class="metric-right-val"><span class="metric-val">14.2%</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">EPS</span><div class="metric-right-val"><span class="metric-val">$8.89</span><span class="msig ms-a">Moderate</span></div></div><div class="metric-row"><span class="metric-label">Revenue growth</span><div class="metric-right-val"><span class="metric-val">-4.1%</span><span class="msig ms-r">Negative</span></div></div><div class="metric-row"><span class="metric-label">Health score</span><div class="metric-right-val"><span class="metric-val" style="color:var(--red-t)">44/100</span><span class="msig ms-r">Risk</span></div></div>`}
-};
-
-function showPanel(id,card){
-  document.querySelectorAll('.company-card').forEach(c=>c.classList.remove('active'));
-  card.classList.add('active');
-  const d=DASH[id];
-  document.getElementById('panel-company').textContent=d.name;
-  const vb=document.getElementById('panel-verdict');
-  vb.className=`verdict-bar vb-${d.color}`;
-  document.getElementById('panel-icon').className=`verdict-icon vi-${d.color}`;
-  document.getElementById('panel-icon').textContent=d.icon;
-  document.getElementById('panel-main').textContent=d.verdict;
-  document.getElementById('panel-sub').textContent=d.vsub;
-  document.getElementById('panel-analysis').innerHTML=d.analysis;
-  document.getElementById('panel-metrics').innerHTML=d.metrics;
-  if(window.innerWidth<1100)setTimeout(()=>document.getElementById('dash-panel').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
-}
+function qs(t){ document.getElementById('ti').value=t; run(); }
+document.getElementById('ti').addEventListener('keydown',e=>{ if(e.key==='Enter')run(); });
 </script>
 </body>
 </html>
