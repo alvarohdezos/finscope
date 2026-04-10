@@ -392,7 +392,7 @@ footer { background:var(--ink); padding:28px 48px; display:flex; justify-content
       <div class="step"><div class="step-n">01</div><div class="step-t">Enter a ticker</div><div class="step-d">Any US publicly traded company. NVDA, BRK.B, GS, PLTR — whatever you want to examine.</div><span class="step-tag">Input</span></div>
       <div class="step"><div class="step-n">02</div><div class="step-t">7 parallel data pulls</div><div class="step-d">Profile, fundamentals, price, candles, earnings, analyst ratings, consensus target — simultaneously via Finnhub + FRED live macro.</div><span class="step-tag">Finnhub + FRED</span></div>
       <div class="step"><div class="step-n">03</div><div class="step-t">Server-side calculations</div><div class="step-d">RSI, MACD, SMA, Altman Z-Score, Piotroski F-Score, WACC benchmark comparison — all computed in Python before AI sees it.</div><span class="step-tag">Python backend</span></div>
-      <div class="step"><div class="step-n">04</div><div class="step-t">Institutional synthesis</div><div class="step-d">GPT-4o uses a 5-section Goldman Sachs analyst prompt with 25-sector WACC table, live macro overlay, and dynamic methodology caveats per ticker.</div><span class="step-tag">OpenAI GPT-4o</span></div>
+      <div class="step"><div class="step-n">04</div><div class="step-t">Institutional synthesis</div><div class="step-d">GPT-4o-mini uses a 5-section Goldman Sachs analyst prompt with 25-sector WACC table, live macro overlay, and dynamic methodology caveats per ticker.</div><span class="step-tag">OpenAI GPT-4o-mini</span></div>
     </div>
     <div class="model">
       <div class="mi"><div class="mi-pct">35%</div><div class="mi-name">Fundamental</div><div class="mi-desc">P/E, margins, ROE, ROA, ROIC vs sector WACC, revenue growth, EPS</div></div>
@@ -411,11 +411,11 @@ footer { background:var(--ink); padding:28px 48px; display:flex; justify-content
         <div class="a-name">Álvaro Hernández</div>
         <div class="a-role">Finance & Accounting · UC3M Madrid · Class of 2027</div>
         <p class="a-p">FINscope is a full-stack financial intelligence platform demonstrating how modern tooling can deliver institutional-grade equity analysis at near-zero marginal cost.</p>
-        <p class="a-p">The backend is a Python serverless API on Vercel that queries Finnhub in parallel, pulls live macro data from FRED (10Y yield, Fed Funds, VIX), runs quantitative calculations server-side, then passes the full structured dataset to GPT-4o using a Goldman Sachs equity research prompt with a 25-sector WACC benchmark table.</p>
+        <p class="a-p">The backend is a Python serverless API on Vercel that queries Finnhub in parallel, pulls live macro data from FRED (10Y yield, Fed Funds, VIX), runs quantitative calculations server-side, then passes the full structured dataset to GPT-4o-mini using a Goldman Sachs equity research prompt with a 25-sector WACC benchmark table.</p>
         <p class="a-p">The system generates dynamic methodology caveats per ticker — automatically flagging Z-Score invalidity for banks, cyclicality warnings for energy, and technical limitations when candle data is unavailable.</p>
         <div class="abtns">
           <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="btn-p">GitHub ↗</a>
-          <a href="https://linkedin.com/in/alvarohernandez" target="_blank" class="btn-s">LinkedIn ↗</a>
+          <a href="https://www.linkedin.com/in/alvaro-hernandez-79872a216" target="_blank" class="btn-s">LinkedIn ↗</a>
         </div>
       </div>
       <div>
@@ -424,7 +424,7 @@ footer { background:var(--ink); padding:28px 48px; display:flex; justify-content
           <div class="stk-r"><div><div class="sr-n">Finnhub</div><div class="sr-d">Real-time fundamentals, earnings, analyst data</div></div><span class="sr-tag">Data</span></div>
           <div class="stk-r"><div><div class="sr-n">FRED API</div><div class="sr-d">Live 10Y yield, Fed Funds rate, VIX for macro overlay</div></div><span class="sr-tag">Macro</span></div>
           <div class="stk-r"><div><div class="sr-n">Python + urllib</div><div class="sr-d">Async backend, financial calculations, zero dependencies</div></div><span class="sr-tag">Backend</span></div>
-          <div class="stk-r"><div><div class="sr-n">OpenAI GPT-4o</div><div class="sr-d">Goldman Sachs prompt, 25-sector WACC table, dynamic caveats</div></div><span class="sr-tag">AI</span></div>
+          <div class="stk-r"><div><div class="sr-n">OpenAI GPT-4o-mini</div><div class="sr-d">Goldman Sachs prompt, 25-sector WACC table, dynamic caveats</div></div><span class="sr-tag">AI</span></div>
           <div class="stk-r"><div><div class="sr-n">Vercel Serverless</div><div class="sr-d">Python API, 60s timeout, zero config deployment</div></div><span class="sr-tag">Infra</span></div>
           <div class="stk-r"><div><div class="sr-n">Make.com</div><div class="sr-d">Weekly email automation pipeline</div></div><span class="sr-tag">Automation</span></div>
         </div>
@@ -539,7 +539,7 @@ async function run(){
       {n:'Beta',             v:fmt(m.beta),           b:''},
       {n:'52W High',         v:fmtC(m.week52_high),   b:''},
       {n:'52W Low',          v:fmtC(m.week52_low),    b:''},
-      {n:'RSI (14)',         v:rsi||'N/A',            b:''},
+      {n:'RSI (14)',         v:rsi!=null?rsi:'N/A',   b:''},
       {n:'Composite Score',  v:`${sc}/100`,           b:'',vc:sc_col},
     ];
     const peerRows=allCo.map((c,i)=>{const bc=col(c.score);return`<div class="sc-row ${c.isMe?'me':''}"><div class="sc-rk">${i+1}</div><div class="sc-tk">${c.ticker}</div><div class="sc-nm">${c.isMe?`<strong>${c.name}</strong>`:c.name}</div><div class="sc-bar-wrap"><div class="sc-bar-fill" style="width:${c.score}%;background:${bc}"></div></div><div class="sc-sc" style="color:${bc}">${c.score}</div></div>`;}).join('');
@@ -548,6 +548,7 @@ async function run(){
     const caveatsHtml=Array.isArray(ai.methodology_notes)&&ai.methodology_notes.length>0
       ?`<div class="asec"><div class="albl">Methodology notes</div><div class="caveats">${ai.methodology_notes.map(c=>`<div class="caveat">${c}</div>`).join('')}</div></div>`:'';
     const rs=ai.retail_summary||{};
+
     ra.innerHTML=`<div class="report">
       <div class="rh">
         <div class="rh-left">
@@ -576,7 +577,7 @@ async function run(){
           <div class="asec">
             <div class="albl">Technical analysis</div><div class="atxt">${ai.technical||''}</div>
             <div class="tgrid">
-              <div class="tc"><div class="tc-lbl">RSI (14)</div><div class="tc-val">${rsi||'N/A'}</div><div class="tc-sig ${rsi>70?'bear':rsi<30?'bull':rsi?'neut':'na'}">${rsi>70?'Overbought':rsi<30?'Oversold':rsi?'Neutral zone':'N/A — free tier'}</div></div>
+              <div class="tc"><div class="tc-lbl">RSI (14)</div><div class="tc-val">${rsi!=null?rsi:'N/A'}</div><div class="tc-sig ${rsi>70?'bear':rsi<30?'bull':rsi!=null?'neut':'na'}">${rsi>70?'Overbought':rsi<30?'Oversold':rsi!=null?'Neutral zone':'N/A — free tier'}</div></div>
               <div class="tc"><div class="tc-lbl">SMA Trend</div><div class="tc-val">${trend}</div><div class="tc-sig ${tclass}">${sma50&&sma200?`$${sma50} / $${sma200}`:'Candles unavailable'}</div></div>
               <div class="tc"><div class="tc-lbl">MACD</div><div class="tc-val">${macd!=null?macd:'N/A'}</div><div class="tc-sig ${macd!=null?(macd>0?'bull':'bear'):'na'}">${macd!=null?(macd>0?'Positive momentum':'Negative momentum'):'Candles unavailable'}</div></div>
               <div class="tc"><div class="tc-lbl">Analyst Target</div><div class="tc-val">${analyst.target_price?fmtC(analyst.target_price):'N/A'}</div><div class="tc-sig ${analyst.upside!=null?(analyst.upside>0?'bull':'bear'):'na'}">${analyst.upside!=null?`${analyst.upside>=0?'+':''}${analyst.upside?.toFixed(1)}% implied upside`:'N/A'}</div></div>
@@ -604,10 +605,12 @@ async function run(){
         <div>
           <div class="albl" style="margin-bottom:16px">In plain language</div>
           ${rs.what_they_do?`<div class="plcard"><div class="pl-lbl">What they do</div><div class="pl-txt">${rs.what_they_do}</div></div>`:''}
+          ${rs.price_story?`<div class="plcard"><div class="pl-lbl">Price story</div><div class="pl-txt">${rs.price_story}</div></div>`:''}
           ${rs.is_it_cheap?`<div class="plcard"><div class="pl-lbl">Valuation</div><div class="pl-txt">${rs.is_it_cheap}</div></div>`:''}
           ${rs.making_money?`<div class="plcard"><div class="pl-lbl">Profitability</div><div class="pl-txt">${rs.making_money}</div></div>`:''}
           ${rs.debt_plain?`<div class="plcard"><div class="pl-lbl">Debt</div><div class="pl-txt">${rs.debt_plain}</div></div>`:''}
           ${rs.main_risk_plain?`<div class="plcard"><div class="pl-lbl">Main risk</div><div class="pl-txt">${rs.main_risk_plain}</div></div>`:''}
+          ${rs.analyst_take_plain?`<div class="plcard"><div class="pl-lbl">Analyst take</div><div class="pl-txt">${rs.analyst_take_plain}</div></div>`:''}
           ${rs.verdict_plain?`<div class="plcard" style="border-left:3px solid var(--blue2);background:var(--blue-bg)"><div class="pl-lbl" style="color:var(--blue2)">Overall verdict</div><div class="pl-txt" style="color:var(--ink);font-weight:500">${rs.verdict_plain}</div></div>`:''}
         </div>
         <div>
@@ -618,6 +621,7 @@ async function run(){
         </div>
       </div>
     </div>`;
+
     if(earnsData.length>0){
       const ctx=document.getElementById('earnsChart')?.getContext('2d');
       if(ctx){
