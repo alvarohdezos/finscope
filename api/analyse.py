@@ -412,7 +412,7 @@ def call_openai(ticker, name, industry, price, metrics_combined, macro, sc, z, f
     }
     try:
         payload = json.dumps({
-            'model':'gpt-4o-mini', 'max_tokens':6000,
+            'model':'gpt-4o-mini', 'max_tokens':4000,
             'messages':[
                 {'role':'system','content':SYSTEM_PROMPT},
                 {'role':'user','content':json.dumps(user_data)}
@@ -421,7 +421,7 @@ def call_openai(ticker, name, industry, price, metrics_combined, macro, sc, z, f
         req = urllib.request.Request(
             'https://api.openai.com/v1/chat/completions', data=payload,
             headers={'Content-Type':'application/json','Authorization':f'Bearer {OPENAI}'})
-        with urllib.request.urlopen(req, timeout=35) as r:
+        with urllib.request.urlopen(req, timeout=55) as r:
             data = json.loads(r.read())
             text = data['choices'][0]['message']['content']
             result = json.loads(text.replace('```json','').replace('```','').strip())
