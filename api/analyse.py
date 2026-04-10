@@ -471,7 +471,7 @@ def fallback(name, m, sc, z, fs):
 def analyse(ticker):
     now=int(time.time()); yr_ago=now-366*24*3600
 
-    with ThreadPoolExecutor(max_workers=7) as ex:
+    with ThreadPoolExecutor(max_workers=8) as ex:
         futs = {
             'profile': ex.submit(fh,'stock/profile2',{'symbol':ticker}),
             'quote':   ex.submit(fh,'quote',{'symbol':ticker}),
@@ -480,6 +480,7 @@ def analyse(ticker):
             'target':  ex.submit(fh,'stock/price-target',{'symbol':ticker}),
             'earnings':ex.submit(fh,'stock/earnings',{'symbol':ticker}),
             'macro':   ex.submit(get_macro),
+            'yf':      ex.submit(get_yfinance_data, ticker),
         }
         res = {k: v.result() for k, v in futs.items()}
 
@@ -493,10 +494,7 @@ def analyse(ticker):
     target  = res['target'] if isinstance(res['target'], dict) else {}
     earnings= res['earnings'] if isinstance(res['earnings'], list) else []
     macro   = res['macro']
-
-    # yfinance for gaps (runs in parallel already via ThreadPoolExecutor above,
-    # but we call it sequentially here to avoid Vercel memory spikes)
-    yf = get_yfinance_data(ticker)
+    yf      = res['yf'] or {}
 
     # Price
     price     = quote.get('c')
