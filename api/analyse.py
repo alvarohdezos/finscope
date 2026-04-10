@@ -412,7 +412,7 @@ def call_openai(ticker, name, industry, price, metrics_combined, macro, sc, z, f
     }
     try:
         payload = json.dumps({
-            'model':'gpt-5.4-mini', 'max_tokens':6000,
+            'model':'gpt-4o-mini', 'max_tokens':6000,
             'messages':[
                 {'role':'system','content':SYSTEM_PROMPT},
                 {'role':'user','content':json.dumps(user_data)}
