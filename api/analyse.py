@@ -187,9 +187,7 @@ def calc_sma(c, p):
 def resolve(fh_val, yf_val, is_pct=False):
     """Use Finnhub value if valid, else fall back to yfinance"""
     if fh_val is not None:
-        try:
-            v = float(fh_val)
-            if v != 0.0: return v
+        try: return float(fh_val)
         except: pass
     if yf_val is not None:
         try: return float(yf_val)
@@ -200,9 +198,7 @@ def gm(m, *keys):
     for k in keys:
         v = m.get(k)
         if v is not None:
-            try:
-                f = float(v)
-                if f != 0.0: return f
+            try: return float(v)
             except: pass
     return None
 
@@ -350,9 +346,10 @@ CRITICAL OUTPUT RULES:
 - verdict_icon must be exactly: bull, bear, neutral, or watch
 - Every analysis sentence MUST contain a specific number
 - If RSI/MACD/SMA are N/A, say so in ONE sentence and move on
-- methodology_notes: generate 2-5 SPECIFIC caveats for THIS ticker only
+- methodology_notes: generate 2-4 SPECIFIC caveats for THIS ticker only
+- WRITE DENSELY: 4-5 sentences per section. Do not truncate.
 Return ONLY valid JSON — no markdown, no preamble:
-{"verdict":"Capitalized 2-4 word verdict with key number","verdict_sub":"1 sentence core thesis with 2+ specific numbers","verdict_color":"green|yellow|red|gray","verdict_icon":"bull|bear|neutral|watch","capital":"3 sentences: PE vs sector median, ROIC vs sector WACC with value-creation or destruction statement, margin trend — every sentence with a number","cashflow":"3 sentences: FCF absolute value and yield, FCF vs net income signal, capital allocation — numbers in every sentence","technical":"2-3 sentences: RSI, SMA50 vs SMA200, MACD. If all N/A state in one sentence only","analyst_view":"3 sentences: analyst count, buy/hold/sell breakdown with %, consensus target and upside credibility","solvency":"3 sentences: Altman Z zone, Piotroski F tier, D/E vs sector norm and liquidity","risks":"3 sentences: one valuation risk, one operational risk, one macro risk — each with a specific number","credit_decision":"2 sentences: FCF coverage, Z-Score context, explicit recommendation","retail_summary":{"what_they_do":"2 sentences, no jargon, main revenue source","price_story":"2 sentences plain language, RSI and SMA in plain terms, N/A if unavailable","is_it_cheap":"2 sentences: PE vs sector, FCF yield as dollars per $100, verdict: undervalued/fairly priced/expensive","making_money":"2 sentences: net margin as keeps $X per $100 revenue","debt_plain":"2 sentences: debt without jargon, sector context","main_risk_plain":"2 sentences: top 2 risks in plain language with data","analyst_take_plain":"2 sentences: buy vs sell count, target price","verdict_plain":"1 direct sentence with at least 1 number. End with buy, hold, or avoid."},"methodology_notes":["Caveat 1: metric + limitation + implication","Caveat 2","2-3 total"]}"""
+{"verdict":"Capitalized 2-4 word verdict with key number","verdict_sub":"1 sentence core thesis with 2+ specific numbers","verdict_color":"green|yellow|red|gray","verdict_icon":"bull|bear|neutral|watch","capital":"4-5 sentences: PE vs sector median AND 5Y avg, FCF yield, ROIC vs sector WACC with explicit value-creation or destruction, margin trend, valuation premium — every sentence with a number","cashflow":"4-5 sentences: FCF absolute value and yield, FCF vs net income divergence, capital allocation priorities, cash conversion quality — numbers in every sentence","technical":"2-3 sentences: RSI, SMA50 vs SMA200, MACD. If all N/A state in one sentence only","analyst_view":"3-4 sentences: analyst count and statistical weight, buy/hold/sell % breakdown, consensus target credibility, upside vs fundamentals","solvency":"3-4 sentences: Altman Z zone with default context, Piotroski F tier, D/E vs sector norm, refinancing risk","risks":"4-5 sentences: one valuation risk, one operational risk, one macro risk from VIX/rates/HY spread — each anchored to a specific number","credit_decision":"2 sentences: FCF coverage, Z-Score context, explicit recommendation","retail_summary":{"what_they_do":"2 sentences, no jargon, main revenue source","price_story":"2 sentences plain language, RSI and SMA in plain terms, N/A if unavailable","is_it_cheap":"2 sentences: PE vs sector, FCF yield as dollars per $100, verdict: undervalued/fairly priced/expensive","making_money":"2 sentences: net margin as keeps $X per $100 revenue","debt_plain":"2 sentences: debt without jargon, sector context","main_risk_plain":"2 sentences: top 2 risks in plain language with data","analyst_take_plain":"2 sentences: buy vs sell count, target price","verdict_plain":"1 direct sentence with at least 1 number. End with buy, hold, or avoid."},"methodology_notes":["Caveat 1: metric + limitation + implication","Caveat 2","2-3 total"]}"""
 
 # ── OpenAI call ───────────────────────────────────────────────────────────────
 def call_openai(ticker, name, industry, price, metrics_combined, macro, sc, z, fs):
@@ -410,7 +407,7 @@ def call_openai(ticker, name, industry, price, metrics_combined, macro, sc, z, f
     }
     try:
         payload = json.dumps({
-            'model':'gpt-4o-mini', 'max_tokens':2000,
+            'model':'gpt-4o-mini', 'max_tokens':2500,
             'messages':[
                 {'role':'system','content':SYSTEM_PROMPT},
                 {'role':'user','content':json.dumps(user_data)}
@@ -480,7 +477,6 @@ def analyse(ticker):
             'target':  ex.submit(fh,'stock/price-target',{'symbol':ticker}),
             'earnings':ex.submit(fh,'stock/earnings',{'symbol':ticker}),
             'macro':   ex.submit(get_macro),
-            'yf':      ex.submit(get_yfinance_data, ticker),
         }
         res = {k: v.result() for k, v in futs.items()}
 
@@ -494,7 +490,15 @@ def analyse(ticker):
     target  = res['target'] if isinstance(res['target'], dict) else {}
     earnings= res['earnings'] if isinstance(res['earnings'], list) else []
     macro   = res['macro']
-    yf      = res['yf'] or {}
+
+    # yfinance sequential with hard timeout — more reliable than parallel in Vercel
+    import concurrent.futures as cf
+    with cf.ThreadPoolExecutor(max_workers=1) as ex:
+        fut = ex.submit(get_yfinance_data, ticker)
+        try:
+            yf = fut.result(timeout=14) or {}
+        except Exception:
+            yf = {}
 
     # Price
     price     = quote.get('c')
