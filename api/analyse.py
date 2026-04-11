@@ -4,15 +4,25 @@ from concurrent.futures import ThreadPoolExecutor
 
 FINNHUB = os.environ.get('FINNHUB_KEY', '')
 OPENAI  = os.environ.get('OPENAI_KEY', '')
+AV_KEY  = os.environ.get('AV_KEY', '')  # Alpha Vantage — add to Vercel env vars
 
-YF_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Accept': 'application/json,text/plain,*/*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Referer': 'https://finance.yahoo.com/',
+PEERS_MAP = {
+    'AAPL':['MSFT','GOOGL','META','AMZN'],   'MSFT':['AAPL','GOOGL','CRM','ORCL'],
+    'GOOGL':['META','MSFT','AMZN','SNAP'],   'GOOG':['META','MSFT','AMZN','SNAP'],
+    'META':['GOOGL','SNAP','PINS','AMZN'],   'AMZN':['MSFT','GOOGL','WMT','SHOP'],
+    'NVDA':['AMD','INTC','AVGO','QCOM'],     'AMD':['NVDA','INTC','AVGO','QCOM'],
+    'TSLA':['GM','F','RIVN','NIO'],          'JPM':['BAC','WFC','GS','C'],
+    'BAC':['JPM','WFC','GS','C'],            'GS':['MS','JPM','BAC','C'],
+    'MS':['GS','JPM','BAC','C'],             'V':['MA','PYPL','SQ','AXP'],
+    'MA':['V','PYPL','SQ','AXP'],            'XOM':['CVX','COP','BP','SHEL'],
+    'CVX':['XOM','COP','BP','SHEL'],         'JNJ':['PFE','MRK','ABBV','LLY'],
+    'LLY':['JNJ','PFE','MRK','ABBV'],        'PLTR':['CRM','NOW','SNOW','DDOG'],
+    'INTC':['NVDA','AMD','AVGO','QCOM'],     'AVGO':['NVDA','AMD','INTC','QCOM'],
+    'ORCL':['MSFT','CRM','SAP','NOW'],       'CRM':['ORCL','NOW','MSFT','SAP'],
+    'NFLX':['DIS','PARA','WBD','AMZN'],      'DIS':['NFLX','PARA','WBD','CMCSA'],
 }
 
-# ── Finnhub ───────────────────────────────────────────────────────────────────
+# ── Finnhub ──────────────────────────────────────────────────────────────────
 def fh(path, params, timeout=12):
     params['token'] = FINNHUB
     url = 'https://finnhub.io/api/v1/' + path + '?' + urllib.parse.urlencode(params)
@@ -23,7 +33,7 @@ def fh(path, params, timeout=12):
     except:
         return {}
 
-# ── FRED ──────────────────────────────────────────────────────────────────────
+# ── FRED ─────────────────────────────────────────────────────────────────────
 def fred(series_id):
     try:
         url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
@@ -32,7 +42,7 @@ def fred(series_id):
             lines = r.read().decode().strip().split('\n')
             for line in reversed(lines):
                 parts = line.split(',')
-                if len(parts)==2 and parts[1].strip() not in ('','.','.'):
+                if len(parts) == 2 and parts[1].strip() not in ('', '.'):
                     try: return float(parts[1].strip())
                     except: continue
     except:
@@ -51,165 +61,172 @@ def get_macro():
         return {
             'risk_free_rate':   res.get('treasury_10y') or 4.42,
             'policy_rate':      res.get('fed_funds') or 5.33,
-            'cpi_yoy':          3.2,
-            'pmi_composite':    51.0,
+            'cpi_yoy':          3.2, 'pmi_composite': 51.0,
             'credit_spread_hy': 320,
             'vix':              res.get('vix') or 18.0,
-            'macro_note': 'Federal Reserve holding rates; inflation moderating toward 2% target.'
         }
     except:
         return {'risk_free_rate':4.42,'policy_rate':5.33,'cpi_yoy':3.2,
-                'pmi_composite':51.0,'credit_spread_hy':320,'vix':18.0,
-                'macro_note':'Macro data temporarily unavailable.'}
+                'pmi_composite':51.0,'credit_spread_hy':320,'vix':18.0}
 
-# ── Yahoo Finance direct (no yfinance library) ────────────────────────────────
-def _yf_get(url, timeout=12):
-    """Raw urllib call to Yahoo Finance with browser headers."""
-    req = urllib.request.Request(url, headers=YF_HEADERS)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode('utf-8'))
+# ── Alpha Vantage — proper REST API, not web scraping, works from Vercel ──────
+def _av(function, extra_params, timeout=12):
+    params = {'function': function, 'apikey': AV_KEY, 'datatype': 'json'}
+    params.update(extra_params)
+    url = 'https://www.alphavantage.co/query?' + urllib.parse.urlencode(params)
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'FINscope/2.0'})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.loads(r.read())
+            # Detect rate-limit message
+            if isinstance(data, dict) and ('Information' in data or 'Note' in data):
+                return {}
+            return data
+    except:
+        return {}
 
-def _yv(d, key):
-    """Extract raw numeric value from Yahoo Finance dict or plain number."""
-    v = d.get(key)
-    if v is None: return None
-    if isinstance(v, dict): return v.get('raw')
-    return v
+def _sf(v):
+    """Safe float from Alpha Vantage string values."""
+    if v in (None, 'None', '-', '', 'N/A'): return None
+    try: return float(str(v).replace(',', ''))
+    except: return None
 
-def get_yahoo_data(ticker):
-    """
-    Direct Yahoo Finance API calls — no yfinance library.
-    Two endpoints: quoteSummary (fundamentals) + chart (historical closes).
-    Tries query1 then query2 as fallback for each.
-    """
-    summary = {}
-    closes  = []
+def _sfpct(v):
+    """Safe float as percentage (AV returns 0.553, we want 55.3)."""
+    raw = _sf(v)
+    if raw is None: return None
+    return round(raw * 100, 1)
 
-    # ── 1. Fundamentals via quoteSummary ──
-    modules = 'defaultKeyStatistics,financialData,summaryDetail,recommendationTrend,price'
-    for host in ['query2', 'query1']:
-        try:
-            url = (f'https://{host}.finance.yahoo.com/v10/finance/quoteSummary/{ticker}'
-                   f'?modules={modules}&corsDomain=finance.yahoo.com&formatted=true')
-            data = _yf_get(url, timeout=12)
-            result = data.get('quoteSummary', {}).get('result') or []
-            if result:
-                summary = result[0]
-                break
-        except:
-            continue
+def _av_overview(ticker):
+    return _av('OVERVIEW', {'symbol': ticker}, timeout=10)
 
-    # ── 2. Historical closes via chart (for RSI/MACD/SMA) ──
-    for host in ['query1', 'query2']:
-        try:
-            url = (f'https://{host}.finance.yahoo.com/v8/finance/chart/{ticker}'
-                   f'?interval=1d&range=1y&includePrePost=false')
-            data = _yf_get(url, timeout=12)
-            raw_closes = (data.get('chart', {})
-                             .get('result', [{}])[0]
-                             .get('indicators', {})
-                             .get('quote', [{}])[0]
-                             .get('close', []))
-            closes = [c for c in raw_closes if c is not None]
-            if closes:
-                break
-        except:
-            continue
+def _av_income(ticker):
+    data = _av('INCOME_STATEMENT', {'symbol': ticker}, timeout=12)
+    return (data.get('annualReports') or [])[:4]
 
-    # ── Extract from summary sections ──
-    fd = summary.get('financialData',      {})
-    ks = summary.get('defaultKeyStatistics',{})
-    sd = summary.get('summaryDetail',      {})
-    pr = summary.get('price',              {})
-    rt = summary.get('recommendationTrend',{})
+def _av_cashflow(ticker):
+    data = _av('CASH_FLOW', {'symbol': ticker}, timeout=12)
+    return (data.get('annualReports') or [])[:4]
 
-    ev_ebitda    = _yv(ks, 'enterpriseToEbitda')
-    fcf_raw      = _yv(fd, 'freeCashflow')
-    rev          = _yv(fd, 'totalRevenue')
-    net_margin   = _yv(fd, 'profitMargins')
-    if net_margin   is not None: net_margin   = round(net_margin   * 100, 1)
-    op_margin    = _yv(fd, 'operatingMargins')
-    if op_margin    is not None: op_margin    = round(op_margin    * 100, 1)
-    gross_margin = _yv(fd, 'grossMargins')
-    if gross_margin is not None: gross_margin = round(gross_margin * 100, 1)
-    roe          = _yv(fd, 'returnOnEquity')
-    if roe          is not None: roe          = round(roe          * 100, 1)
-    roa          = _yv(fd, 'returnOnAssets')
-    if roa          is not None: roa          = round(roa          * 100, 1)
-    rev_growth   = _yv(fd, 'revenueGrowth')
-    if rev_growth   is not None: rev_growth   = round(rev_growth   * 100, 1)
-    current_ratio= _yv(fd, 'currentRatio')
-    quick_ratio  = _yv(fd, 'quickRatio')
-    target_mean  = _yv(fd, 'targetMeanPrice')
-    current_price= _yv(fd, 'currentPrice') or _yv(pr, 'regularMarketPrice')
+def _av_timeseries(ticker):
+    """Get last ~100 daily adjusted closes for technical calculations."""
+    data = _av('TIME_SERIES_DAILY_ADJUSTED', {'symbol': ticker, 'outputsize': 'compact'}, timeout=12)
+    ts = data.get('Time Series (Daily)') or {}
+    dates = sorted(ts.keys())  # ascending (oldest first for chronological order)
+    closes = []
+    for d in dates:
+        v = (ts[d] or {}).get('5. adjusted close')
+        if v:
+            try: closes.append(float(v))
+            except: pass
+    return closes  # ~100 points, chronological
 
-    pe_ttm    = _yv(sd, 'trailingPE')
-    pe_forward= _yv(ks, 'forwardPE')
-    pb        = _yv(ks, 'priceToBook')
-    eps_ttm   = _yv(ks, 'trailingEps')
-    beta      = _yv(sd, 'beta') or _yv(ks, 'beta')
-    week52h   = _yv(sd, 'fiftyTwoWeekHigh')
-    week52l   = _yv(sd, 'fiftyTwoWeekLow')
+def get_av_data(ticker):
+    """Parallel fetch of all Alpha Vantage data for a ticker."""
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_ov  = ex.submit(_av_overview,    ticker)
+        f_inc = ex.submit(_av_income,      ticker)
+        f_cf  = ex.submit(_av_cashflow,    ticker)
+        f_ts  = ex.submit(_av_timeseries,  ticker)
+        try:    ov      = f_ov.result(timeout=13)  or {}
+        except: ov      = {}
+        try:    inc_rep = f_inc.result(timeout=14) or []
+        except: inc_rep = []
+        try:    cf_rep  = f_cf.result(timeout=14)  or []
+        except: cf_rep  = []
+        try:    closes  = f_ts.result(timeout=13)  or []
+        except: closes  = []
 
-    div_yield = _yv(sd, 'dividendYield')
-    if div_yield is not None: div_yield = round(div_yield * 100, 2)
+    # ── Overview metrics ──────────────────────────────────────────────────────
+    ev_ebitda    = _sf(ov.get('EVToEBITDA'))
+    pe_ttm       = _sf(ov.get('TrailingPE'))
+    pe_forward   = _sf(ov.get('ForwardPE'))
+    pb           = _sf(ov.get('PriceToBookRatio'))
+    net_margin   = _sfpct(ov.get('ProfitMargin'))
+    op_margin    = _sfpct(ov.get('OperatingMarginTTM'))
+    roe          = _sfpct(ov.get('ReturnOnEquityTTM'))
+    roa          = _sfpct(ov.get('ReturnOnAssetsTTM'))
+    rev_growth   = _sfpct(ov.get('QuarterlyRevenueGrowthYOY'))
+    eps_growth   = _sfpct(ov.get('QuarterlyEarningsGrowthYOY'))
+    eps_ttm      = _sf(ov.get('EPS')) or _sf(ov.get('DilutedEPSTTM'))
+    beta         = _sf(ov.get('Beta'))
+    week52_high  = _sf(ov.get('52WeekHigh'))
+    week52_low   = _sf(ov.get('52WeekLow'))
+    target_price = _sf(ov.get('AnalystTargetPrice'))
+    div_yield_raw= _sf(ov.get('DividendYield'))
+    div_yield    = round(div_yield_raw * 100, 2) if div_yield_raw else None
+    rev_ttm      = _sf(ov.get('RevenueTTM'))
+    gp_ttm       = _sf(ov.get('GrossProfitTTM'))
+    market_cap_m = round(_sf(ov.get('MarketCapitalization')) / 1e6) if _sf(ov.get('MarketCapitalization')) else None
 
-    de = _yv(ks, 'debtToEquity')
-    if de is not None and de > 10: de = de / 100
+    gross_margin = round(gp_ttm / rev_ttm * 100, 1) if gp_ttm and rev_ttm else None
 
-    market_cap = _yv(pr, 'marketCap')
-    if market_cap: market_cap = market_cap / 1e6
-
-    fcf_str    = None
+    # ── FCF from cash flow statement ─────────────────────────────────────────
+    cf_latest = cf_rep[0] if cf_rep else {}
+    op_cf  = _sf(cf_latest.get('operatingCashflow'))
+    capex  = _sf(cf_latest.get('capitalExpenditures'))
+    # AV returns capex as negative, handle both signs
+    if op_cf is not None and capex is not None:
+        fcf_raw = op_cf - abs(capex)
+    else:
+        fcf_raw = None
+    fcf_str = None
     fcf_margin = None
     if fcf_raw is not None:
         fcf_str = f"${fcf_raw/1e9:.1f}B" if abs(fcf_raw) >= 1e9 else f"${fcf_raw/1e6:.0f}M"
-        if rev and rev > 0:
-            fcf_margin = round(fcf_raw / rev * 100, 1)
+        if rev_ttm and rev_ttm > 0:
+            fcf_margin = round(fcf_raw / rev_ttm * 100, 1)
 
-    upside = None
-    if target_mean and current_price and current_price > 0:
-        upside = round((target_mean - current_price) / current_price * 100, 1)
+    # ── Debt/Equity from AV overview ─────────────────────────────────────────
+    # AV doesn't provide D/E directly in OVERVIEW — use book value proxy
+    de = None  # Will fall back to Finnhub
 
-    # Analyst recs from recommendationTrend
-    sb = b = h = se = ss = 0
-    try:
-        trend_list = rt.get('trend', [])
-        if trend_list:
-            latest = trend_list[0]
-            sb = int(latest.get('strongBuy',   0) or 0)
-            b  = int(latest.get('buy',         0) or 0)
-            h  = int(latest.get('hold',        0) or 0)
-            se = int(latest.get('sell',        0) or 0)
-            ss = int(latest.get('strongSell',  0) or 0)
-    except:
-        pass
+    # ── Upside ───────────────────────────────────────────────────────────────
+    upside = None  # computed in analyse() using live price
 
-    # Technical indicators from historical closes
-    rsi_val    = calc_rsi(closes)   if len(closes) >= 15 else None
-    macd_val   = calc_macd(closes)  if len(closes) >= 35 else None
-    sma50_val  = calc_sma(closes, 50)
-    sma200_val = calc_sma(closes, 200)
+    # ── Historical financials (4 annual periods) ─────────────────────────────
+    hist_fin = []
+    for i in range(min(4, len(inc_rep))):
+        inc = inc_rep[i] or {}
+        cf  = cf_rep[i]  if i < len(cf_rep) else {}
+        year = (inc.get('fiscalDateEnding') or '')[:4]
+        r   = _sf(inc.get('totalRevenue'))
+        ni  = _sf(inc.get('netIncome'))
+        gp  = _sf(inc.get('grossProfit'))
+        op_cf_h = _sf(cf.get('operatingCashflow'))
+        capex_h = _sf(cf.get('capitalExpenditures'))
+        fcf_h   = (op_cf_h - abs(capex_h)) if (op_cf_h is not None and capex_h is not None) else None
+        if r and r > 0:
+            hist_fin.append({
+                'year':             year,
+                'revenue_m':        round(r   / 1e6),
+                'net_income_m':     round(ni  / 1e6) if ni  is not None else None,
+                'fcf_m':            round(fcf_h / 1e6) if fcf_h is not None else None,
+                'gross_margin_pct': round(gp / r * 100, 1) if gp else None,
+                'net_margin_pct':   round(ni / r * 100, 1) if ni else None,
+            })
+
+    # ── Technical indicators ─────────────────────────────────────────────────
+    rsi_val    = calc_rsi(closes)  if len(closes) >= 15 else None
+    macd_val   = calc_macd(closes) if len(closes) >= 35 else None
+    sma50_val  = calc_sma(closes,  50)
+    sma200_val = calc_sma(closes, 200)  # None if < 200 points (compact = ~100)
 
     return {
-        'rsi': rsi_val, 'macd': macd_val,
-        'sma50': sma50_val, 'sma200': sma200_val,
-        'ev_ebitda':    ev_ebitda,
-        'fcf_raw':      fcf_raw,  'fcf_str':    fcf_str,  'fcf_margin': fcf_margin,
-        'de':           de,       'div_yield':  div_yield,
-        'pe_ttm':       pe_ttm,   'pe_forward': pe_forward, 'pb': pb,
-        'net_margin':   net_margin,   'op_margin':   op_margin,
-        'gross_margin': gross_margin, 'roe':         roe, 'roa': roa,
-        'rev_growth':   rev_growth,   'eps_ttm':     eps_ttm,
-        'current_ratio':current_ratio,'quick_ratio': quick_ratio,
-        'beta':         beta,         'week52_high': week52h, 'week52_low': week52l,
-        'market_cap':   market_cap,
-        'target_price': target_mean,  'upside':      upside,
-        'analyst_sb':   sb, 'analyst_b': b, 'analyst_h': h,
-        'analyst_se':   se, 'analyst_ss': ss,
+        'ev_ebitda': ev_ebitda, 'pe_ttm': pe_ttm, 'pe_forward': pe_forward, 'pb': pb,
+        'net_margin': net_margin, 'op_margin': op_margin, 'gross_margin': gross_margin,
+        'roe': roe, 'roa': roa, 'rev_growth': rev_growth, 'eps_growth': eps_growth,
+        'eps_ttm': eps_ttm, 'beta': beta,
+        'week52_high': week52_high, 'week52_low': week52_low,
+        'target_price': target_price, 'div_yield': div_yield,
+        'fcf_raw': fcf_raw, 'fcf_str': fcf_str, 'fcf_margin': fcf_margin,
+        'de': de, 'market_cap': market_cap_m, 'rev_ttm': rev_ttm,
+        'upside': upside,
+        'rsi': rsi_val, 'macd': macd_val, 'sma50': sma50_val, 'sma200': sma200_val,
+        'historical_financials': hist_fin,
     }
 
-# ── Technical indicators ──────────────────────────────────────────────────────
+# ── Technical indicators ─────────────────────────────────────────────────────
 def calc_rsi(c, p=14):
     if len(c) < p + 1: return None
     ag = al = 0.0
@@ -218,14 +235,14 @@ def calc_rsi(c, p=14):
     ag /= p; al /= p
     for i in range(p + 1, len(c)):
         d = c[i] - c[i-1]
-        ag = (ag * (p-1) + max(d, 0)) / p
-        al = (al * (p-1) + max(-d, 0)) / p
-    return round(100 - 100 / (1 + ag / al), 1) if al else 100.0
+        ag = (ag*(p-1) + max(d, 0)) / p
+        al = (al*(p-1) + max(-d, 0)) / p
+    return round(100 - 100/(1 + ag/al), 1) if al else 100.0
 
 def calc_ema(c, p):
     if len(c) < p: return None
-    k = 2 / (p + 1); e = sum(c[:p]) / p
-    for x in c[p:]: e = x * k + e * (1 - k)
+    k = 2/(p+1); e = sum(c[:p])/p
+    for x in c[p:]: e = x*k + e*(1-k)
     return e
 
 def calc_macd(c):
@@ -234,16 +251,14 @@ def calc_macd(c):
     return round(e12 - e26, 3) if e12 and e26 else None
 
 def calc_sma(c, p):
-    return round(sum(c[-p:]) / p, 2) if len(c) >= p else None
+    return round(sum(c[-p:])/p, 2) if len(c) >= p else None
 
-# ── Metric resolution ─────────────────────────────────────────────────────────
-def resolve(fh_val, yf_val):
-    if fh_val is not None:
-        try: return float(fh_val)
-        except: pass
-    if yf_val is not None:
-        try: return float(yf_val)
-        except: pass
+# ── Metric helpers ────────────────────────────────────────────────────────────
+def resolve(fh_val, av_val):
+    for v in (fh_val, av_val):
+        if v is not None:
+            try: return float(v)
+            except: pass
     return None
 
 def gm(m, *keys):
@@ -255,27 +270,27 @@ def gm(m, *keys):
     return None
 
 def get_de_fh(m):
-    raw = gm(m, 'totalDebt/totalEquityAnnual', 'totalDebt/totalEquityQuarterly',
-              'debtToEquityAnnual', 'longTermDebt/equityAnnual')
+    raw = gm(m,'totalDebt/totalEquityAnnual','totalDebt/totalEquityQuarterly',
+              'debtToEquityAnnual','longTermDebt/equityAnnual')
     if raw is None: return None
-    return float(raw) / 100 if float(raw) > 10 else float(raw)
+    return float(raw)/100 if float(raw) > 10 else float(raw)
 
-def get_rev_growth(m):
-    v = gm(m, 'revenueGrowthTTMYoy', 'revenueGrowthQuarterlyYoy', 'revenueGrowth3Y')
+def get_rev_growth_fh(m):
+    v = gm(m,'revenueGrowthTTMYoy','revenueGrowthQuarterlyYoy','revenueGrowth3Y')
     if v is None: return None
-    return float(v) * 100 if abs(float(v)) < 3 else float(v)
+    return float(v)*100 if abs(float(v)) < 3 else float(v)
 
-def get_eps_growth(m):
-    v = gm(m, 'epsGrowthTTMYoy', 'epsGrowthQuarterlyYoy', 'epsGrowth3Y')
+def get_eps_growth_fh(m):
+    v = gm(m,'epsGrowthTTMYoy','epsGrowthQuarterlyYoy','epsGrowth3Y')
     if v is None: return None
-    return float(v) * 100 if abs(float(v)) < 3 else float(v)
+    return float(v)*100 if abs(float(v)) < 3 else float(v)
 
 # ── Composite score ───────────────────────────────────────────────────────────
 def compute_score(pm, om, roe, roa, rg, de, cr, fcf_raw,
                   rsi, s50, s200, macd, sb, b, h, se, ss, tp, price):
     f = 17.5
-    if pm  is not None: f += 7 if pm>25  else 5 if pm>15  else 2 if pm>8   else (-5 if pm<0   else 0)
-    if om  is not None: f += 6 if om>30  else 4 if om>20  else 2 if om>10  else (-4 if om<0   else 0)
+    if pm  is not None: f += 7 if pm>25  else 5 if pm>15  else 2 if pm>8   else (-5 if pm<0  else 0)
+    if om  is not None: f += 6 if om>30  else 4 if om>20  else 2 if om>10  else (-4 if om<0  else 0)
     if roe is not None: f += 6 if roe>30 else 3 if roe>15 else (-4 if roe<0 else 0)
     if roa is not None: f += 4 if roa>15 else 2 if roa>8  else (-2 if roa<0 else 0)
     if rg  is not None: f += 6 if rg>20  else 3 if rg>10  else 1 if rg>0  else -4
@@ -305,19 +320,21 @@ def compute_score(pm, om, roe, roa, rg, de, cr, fcf_raw,
     if fcf_raw is not None: acc += 2 if float(fcf_raw) > 0 else -2
     acc = max(0, min(15, acc))
 
-    total_score = max(5, min(98, round(f+t+a+acc)))
-    return {'total': total_score, 'fundamental': round(f),
-            'technical': round(t), 'analyst': round(a), 'accounting': round(acc)}
+    return {
+        'total': max(5, min(98, round(f+t+a+acc))),
+        'fundamental': round(f), 'technical': round(t),
+        'analyst': round(a), 'accounting': round(acc),
+    }
 
-def calc_altman(m, yf):
+def calc_altman(m, av):
     try:
-        roa = resolve(gm(m,'roaAnnual','roaTTM'), yf.get('roa')) or 0
+        roa = resolve(gm(m,'roaAnnual','roaTTM'), av.get('roa')) or 0
         at  = gm(m,'assetTurnoverAnnual','assetTurnoverTTM') or 0.8
-        cr  = resolve(gm(m,'currentRatioAnnual','currentRatioQuarterly'), yf.get('current_ratio')) or 1
-        de  = resolve(get_de_fh(m), yf.get('de')) or 1.0
+        cr  = resolve(gm(m,'currentRatioAnnual','currentRatioQuarterly'), av.get('current_ratio')) or 1
+        de  = resolve(get_de_fh(m), av.get('de')) or 1.0
         roa = roa/100 if roa > 1 else roa
-        x1 = max(0, (cr-1)*0.25); x2 = max(0, roa*0.4)
-        x3 = max(0, roa*1.3);     x4 = min(5.0, 1/de) if de > 0 else 3.0
+        x1 = max(0,(cr-1)*0.25); x2 = max(0,roa*0.4)
+        x3 = max(0,roa*1.3);     x4 = min(5.0,1/de) if de > 0 else 3.0
         return round(1.2*x1 + 1.4*x2 + 3.3*x3 + 0.6*x4 + at, 2)
     except: return None
 
@@ -325,124 +342,96 @@ def altman_zone(z):
     if z is None: return 'N/A'
     return 'Safe (Z>3)' if z > 2.99 else 'Grey zone' if z > 1.81 else 'Distress (Z<1.8)'
 
-def calc_piotroski(m, yf):
+def calc_piotroski(m, av):
     s = 0
-    roa  = resolve(gm(m,'roaAnnual','roaTTM'), yf.get('roa')) or 0
-    fcf  = yf.get('fcf_raw') or gm(m,'freeCashFlowAnnual','freeCashFlowTTM') or 0
-    pm   = resolve(gm(m,'netMarginAnnual','netMarginTTM','netProfitMarginAnnual'), yf.get('net_margin')) or 0
-    fcfm = resolve(gm(m,'fcfMarginAnnual','fcfMarginTTM'), yf.get('fcf_margin')) or 0
+    roa  = resolve(gm(m,'roaAnnual','roaTTM'), av.get('roa')) or 0
+    fcf  = av.get('fcf_raw') or gm(m,'freeCashFlowAnnual','freeCashFlowTTM') or 0
+    pm   = resolve(gm(m,'netMarginAnnual','netMarginTTM'), av.get('net_margin')) or 0
+    fcfm = av.get('fcf_margin') or 0
     gma  = gm(m,'grossMarginAnnual') or 0
-    gmt  = resolve(gm(m,'grossMarginTTM'), yf.get('gross_margin')) or 0
+    gmt  = resolve(gm(m,'grossMarginTTM'), av.get('gross_margin')) or 0
     ata  = gm(m,'assetTurnoverAnnual') or 0
     att  = gm(m,'assetTurnoverTTM') or 0
     cra  = gm(m,'currentRatioAnnual') or 0
-    crq  = resolve(gm(m,'currentRatioQuarterly'), yf.get('current_ratio')) or 0
-    de   = resolve(get_de_fh(m), yf.get('de')) or 0
-    rg   = resolve(get_rev_growth(m), yf.get('rev_growth')) or 0
-    eg   = get_eps_growth(m) or 0
-    if roa > 0: s+=1
-    if float(fcf) > 0: s+=1
-    if gm(m,'roaTTM') and (gm(m,'roaTTM') or 0) >= roa*0.9: s+=1
-    if fcfm > pm: s+=1
-    if de < 1.0: s+=1
-    if crq >= cra: s+=1
-    if eg >= rg*0.9: s+=1
-    if gmt >= gma: s+=1
-    if att >= ata*0.95: s+=1
+    crq  = gm(m,'currentRatioQuarterly') or 0
+    de   = resolve(get_de_fh(m), av.get('de')) or 0
+    rg   = resolve(get_rev_growth_fh(m), av.get('rev_growth')) or 0
+    eg   = get_eps_growth_fh(m) or 0
+    if roa > 0:             s += 1
+    if float(fcf) > 0:      s += 1
+    if gm(m,'roaTTM') and (gm(m,'roaTTM') or 0) >= roa*0.9: s += 1
+    if fcfm > pm:           s += 1
+    if de < 1.0:            s += 1
+    if crq >= cra:          s += 1
+    if eg >= rg*0.9:        s += 1
+    if gmt >= gma:          s += 1
+    if att >= ata*0.95:     s += 1
     return min(9, s)
 
 def piotroski_label(f):
     return 'Strong quality' if f>=7 else 'Moderate quality' if f>=4 else 'Weak signals'
 
-# ── OpenAI system prompt ──────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You are a senior equity analyst at Goldman Sachs Equity Research with 15 years of cross-sector experience. Produce institutional-grade, decisive investment analysis. Every sentence containing analysis MUST include at least one specific number. Never hedge. Be direct and decisive.
+# ── System prompt — 11 sections ───────────────────────────────────────────────
+SYSTEM_PROMPT = """You are a senior equity analyst at Goldman Sachs Equity Research. Generate an institutional-grade equity research report. Return ONLY valid JSON with the exact structure below. No markdown, no preamble, no trailing commas. Every analytical sentence MUST include at least one specific number.
 
-WACC BENCHMARKS BY SECTOR (base: risk_free_rate 3.5-4.5%; adjust +0.5-1.0pp if >4.5%):
-UTILITIES — 5.0-6.5% | REITS — 5.5-7.0% | CONSUMER STAPLES — 6.0-7.5% | TELECOM — 6.5-8.5% | HEALTHCARE DEVICES — 7.5-9.5% | INDUSTRIALS AERO — 7.0-9.0% | INDUSTRIALS DIV — 7.5-9.5% | TRANSPORT — 7.5-9.5% | LUXURY — 7.5-9.5% | RETAIL — 8.5-11.0% | TRAVEL/LEISURE — 9.5-13.0% | BANKS (use ROE vs CoE 10-13%, NOT WACC; Z-Score invalid) | INSURANCE — 8.0-10.5% | ASSET MGMT/FINTECH — 9.0-12.0% | ENERGY MAJORS — 8.0-10.0% | ENERGY E&P — 10.0-14.0% | RENEWABLES — 7.5-10.0% | MATERIALS — 9.0-12.0% | BIG PHARMA — 8.0-9.0% | SPECIALTY PHARMA — 9.0-10.5% | BIOTECH PRE-REV — 12.0-18.0% (ROIC N/A) | SEMIS FABLESS — 10.0-12.0% | SEMIS IDM — 9.5-10.5% | SOFTWARE/SAAS — 9.0-12.0% (Rule of 40 benchmark) | HARDWARE — 10.0-13.0% | INTERNET/PLATFORMS — 9.5-12.0%
+WACC BENCHMARKS (adjust +0.5-1.0pp if risk_free_rate >4.5%):
+UTILITIES 5.0-6.5% | REITS 5.5-7.0% | CONSUMER STAPLES 6.0-7.5% | TELECOM 6.5-8.5% | HEALTHCARE 7.5-9.5% | INDUSTRIALS 7.5-9.5% | RETAIL 8.5-11.0% | TRAVEL 9.5-13.0% | BANKS (ROE vs CoE 10-13%; Z-Score invalid) | INSURANCE 8.0-10.5% | FINTECH 9.0-12.0% | ENERGY MAJORS 8.0-10.0% | ENERGY E&P 10.0-14.0% | RENEWABLES 7.5-10.0% | MATERIALS 9.0-12.0% | PHARMA 8.0-9.0% | BIOTECH 12.0-18.0% | SEMIS 10.0-12.0% | SOFTWARE/SAAS 9.0-12.0% | HARDWARE 10.0-13.0% | INTERNET 9.5-12.0%
 
-ANALYTICAL RULES:
-- ROIC vs sector WACC: below WACC = value-destructive; above WACC by 5pp+ = durable advantage
-- VIX <15 low risk premium; 15-25 normal; >25 elevated — discount high-duration assets
-- Rate-sensitive sectors: 1pp rate rise compresses fair value ~10-15%
-- FCF yield <2% = expensive; >6% = value territory
-- Altman Z: >2.99 safe; 1.81-2.99 grey; <1.81 distress (NOT valid for banks/financials)
-- Piotroski F: 7-9 improving; 4-6 neutral; 0-3 deteriorating
-- RSI >70 overbought; <30 oversold. SMA50 > SMA200 = uptrend. If all technical N/A: state in one sentence only
-- Analyst count <5: flag as low statistical weight. Hold >50% = functionally sell signal
-- PEG >2.0 expensive; <1.0 potentially undervalued
-- Rule of 40 for SaaS: revenue growth% + FCF margin% >= 40 = quality benchmark
+RULES: ROIC > WACC+5pp = durable advantage. FCF yield >6% = value. Altman Z >2.99 safe (invalid for banks). Piotroski F 7-9 improving; 0-3 deteriorating. RSI >70 overbought; <30 oversold.
 
-WORD COUNT REQUIREMENTS — NON-NEGOTIABLE:
-- capital: exactly 5 sentences. cashflow: exactly 5 sentences. analyst_view: exactly 4 sentences.
-- solvency: exactly 4 sentences. risks: exactly 5 sentences. credit_decision: exactly 2 sentences.
-- Every sentence must contain at least 1 specific number. Do NOT truncate any field.
+REQUIRED:
+- revenue_segments and geographic_exposure: use your knowledge of this company's most recent 10-K. Label as "Source: Company filings / AI estimate".
+- competitors.table: ALWAYS include subject company FIRST (is_subject:true), then exactly 4 peers using real publicly available data.
+- scenarios.bull/base/bear: use company.price as anchor for all price targets.
+- macro_context: tailor SPECIFICALLY to where this company generates its revenue by country/region. Explicitly mention which macro factors matter most for THIS specific company.
+- financial_quality: use historical_financials array to discuss multi-year revenue growth trend with exact numbers.
+- sec_filings: describe material findings from the most recent 10-K/10-Q using your training knowledge. Be specific with figures.
 
-CRITICAL OUTPUT RULES:
-- verdict: capitalize first letter. verdict_color: green|yellow|red|gray. verdict_icon: bull|bear|neutral|watch
-- methodology_notes: exactly 3 caveats specific to THIS ticker
-- Return ONLY valid JSON, no markdown, no preamble
-
-{"verdict":"Capitalized verdict with key number","verdict_sub":"1 sentence thesis with 2+ numbers","verdict_color":"green|yellow|red|gray","verdict_icon":"bull|bear|neutral|watch","capital":"5 sentences: PE vs sector, FCF yield, ROIC vs WACC, margin trend, valuation — every sentence with a number","cashflow":"5 sentences: FCF absolute and yield, FCF vs net income, capex priorities, cash conversion, working capital — numbers in every sentence","technical":"3 sentences: RSI with value, SMA50 vs SMA200 with values, MACD signal. If all N/A: 1 sentence only","analyst_view":"4 sentences: analyst count, buy/hold/sell % with exact counts, consensus target price, upside vs fundamentals","solvency":"4 sentences: Altman Z exact value and zone, Piotroski F exact score and tier, D/E vs sector norm, refinancing risk","risks":"5 sentences: valuation risk with multiple, operational risk with data, macro risk from VIX/rates, competitive risk, structural risk — each with a number","credit_decision":"2 sentences: FCF coverage, Z-Score context, explicit lend/no-lend","retail_summary":{"what_they_do":"2 sentences plain language, main revenue source","price_story":"2 sentences: RSI trend and SMA meaning in plain terms, or N/A if unavailable","is_it_cheap":"2 sentences: PE vs sector, FCF yield as $ per $100 invested","making_money":"2 sentences: net margin as keeps $X per $100 revenue","debt_plain":"2 sentences: debt without jargon, vs peers","main_risk_plain":"2 sentences: top 2 risks with 1 data point each","analyst_take_plain":"2 sentences: exact buy/hold/sell counts, target price","verdict_plain":"1 sentence with 1 number ending in: buy, hold, or avoid."},"methodology_notes":["Caveat 1 specific to this ticker","Caveat 2","Caveat 3"]}"""
+Return ONLY this JSON:
+{"executive_summary":{"verdict":"3-5 word verdict with number","verdict_sub":"1 sentence with 2+ numbers","verdict_color":"green","verdict_icon":"bull","text":"5 sentences: composite score context with exact score, price vs 52W extremes with exact figures, key financial strength with number, main risk with number, investment stance with number."},"business_model":{"text":"4 sentences: primary revenue drivers with revenue figure, competitive moat with quantified metric, customer or segment concentration with percentage, strategic expansion vector with number.","revenue_segments":[{"name":"Segment","pct":56},{"name":"Segment2","pct":44}],"geographic_exposure":[{"region":"United States","pct":45},{"region":"Region2","pct":35},{"region":"Region3","pct":20}]},"performance":{"text":"5 sentences: stock return YTD vs S&P 500, 1Y total return, price vs 52W high and low with exact figures, beta and volatility context, momentum and technical trend summary."},"financial_quality":{"text":"6 sentences: gross margin level and YoY trend from historical data, operating leverage with exact operating margin, FCF absolute value and FCF margin, ROIC vs sector WACC with value-creation verdict, balance sheet strength with debt figure, Piotroski F-Score with exact number and interpretation."},"macro_context":{"text":"5 sentences: current 10Y rate and its specific valuation impact on this company, geographic revenue breakdown and country-specific macro dynamics with exact figures, currency/FX exposure for specific regions, sector-specific macro tailwind or headwind with quantified data point, VIX and credit spread context with exact numbers."},"risk_technical":{"text":"3 sentences: overall risk assessment anchored to composite score, primary operational risk with quantified data, secondary structural or competitive risk with data point.","technical_analysis":"2 sentences: RSI with exact value and signal, SMA50 vs SMA200 with exact values and cross direction. If N/A state in 1 sentence.","risks":["Valuation risk: specific concern with exact multiple vs sector median","Operational risk: specific execution risk with quantified data point","Macro risk: specific rate or FX or credit exposure with exact number","Competitive risk: specific threat with market share or revenue data"]},"ownership":{"text":"4 sentences: institutional ownership percentage and key holders, insider ownership percentage and what it signals, shareholder return policy with buyback and dividend yield figures, governance structure with a specific metric or rating."},"valuation":{"text":"5 sentences: PE vs sector median with both exact figures, EV/EBITDA vs sector peers, FCF yield as dollar return per $100 invested, DCF-implied fair value range with WACC assumption stated, margin of safety conclusion with upside or downside percentage.","fair_value_low":100,"fair_value_high":150},"competitors":{"text":"4 sentences: margin comparison vs peer median with exact figures, valuation premium or discount vs peer median with percentage, revenue growth rank in peer group with exact figure, and key differentiating metric that sets this company apart from nearest peer.","table":[{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":94.2,"net_margin_pct":55.0,"gross_margin_pct":74.6,"roe_pct":101.5,"is_subject":true},{"ticker":"P1","name":"Peer 1","pe":48.0,"ev_ebitda":28.0,"rev_growth_pct":14.0,"net_margin_pct":8.0,"gross_margin_pct":50.0,"roe_pct":15.0,"is_subject":false},{"ticker":"P2","name":"Peer 2","pe":25.0,"ev_ebitda":18.0,"rev_growth_pct":8.0,"net_margin_pct":18.0,"gross_margin_pct":55.0,"roe_pct":22.0,"is_subject":false},{"ticker":"P3","name":"Peer 3","pe":30.0,"ev_ebitda":22.0,"rev_growth_pct":12.0,"net_margin_pct":12.0,"gross_margin_pct":48.0,"roe_pct":18.0,"is_subject":false},{"ticker":"P4","name":"Peer 4","pe":20.0,"ev_ebitda":15.0,"rev_growth_pct":5.0,"net_margin_pct":15.0,"gross_margin_pct":45.0,"roe_pct":12.0,"is_subject":false}]},"scenarios":{"text":"2 sentences framing the range with current price as anchor and weighted expected return.","bull":{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"3 sentences: specific catalyst with timeline, revenue or margin expansion assumption with exact figures, implied forward multiple at target price."},"base":{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"3 sentences: central growth assumption with exact number, margin assumption, and implied multiple at target."},"bear":{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"3 sentences: primary downside catalyst with quantified impact, valuation compression with exact multiple, and trigger threshold to watch."}},"sec_filings":{"text":"5 sentences: most recent 10-K or 10-Q revenue recognition or guidance with figures, key risk factors disclosed with specific metrics, segment performance highlights from management discussion with numbers, balance sheet or capital allocation disclosure with amount, and any material accounting changes or going-concern notes.","key_disclosures":["Finding 1: specific disclosure with exact figure from recent filing","Finding 2: specific disclosure with exact figure","Finding 3: specific disclosure with exact figure"]},"methodology_notes":["Note 1: specific metric caveat for this ticker with implication","Note 2: second data or methodology limitation","Note 3: third caveat or data quality note"]}"""
 
 # ── OpenAI call ───────────────────────────────────────────────────────────────
-def call_openai(ticker, name, industry, price, mc, macro, sc, z, fs):
+def call_openai(ticker, name, industry, price, mc, macro, sc, z, fs, hist_fin, news, peers):
     user_data = {
         "company": {
-            "name": name, "ticker": ticker, "sector": industry, "price": price,
-            "market_cap_m":       mc.get('market_cap'),
-            "pe_ttm":             mc.get('pe_ttm'),
-            "pe_forward":         mc.get('pe_forward'),
-            "pb":                 mc.get('pb'),
-            "beta":               mc.get('beta'),
-            "gross_margin":       mc.get('gross_margin'),
-            "operating_margin":   mc.get('op_margin'),
-            "net_margin":         mc.get('net_margin'),
-            "roe":                mc.get('roe'),
-            "roa":                mc.get('roa'),
-            "roic":               mc.get('roic'),
-            "revenue_growth":     mc.get('rev_growth'),
-            "eps_growth":         mc.get('eps_growth'),
-            "eps_ttm":            mc.get('eps_ttm'),
-            "fcf":                mc.get('fcf_str'),
-            "fcf_margin":         mc.get('fcf_margin'),
-            "debt_equity":        mc.get('de'),
-            "current_ratio":      mc.get('current_ratio'),
-            "quick_ratio":        mc.get('quick_ratio'),
-            "div_yield":          mc.get('div_yield'),
-            "ev_ebitda":          mc.get('ev_ebitda'),
-            "altman_z":           z,
-            "altman_zone":        altman_zone(z),
-            "piotroski_f":        fs,
-            "rsi":                mc.get('rsi'),
-            "macd":               mc.get('macd'),
-            "sma50":              mc.get('sma50'),
-            "sma200":             mc.get('sma200'),
-            "technical_trend":    ('BULLISH' if mc.get('sma50') and mc.get('sma200') and mc['sma50']>mc['sma200']
-                                    else 'BEARISH' if mc.get('sma50') and mc.get('sma200') else 'N/A'),
-            "analyst_strong_buy": mc.get('analyst_sb', 0),
-            "analyst_buy":        mc.get('analyst_b',  0),
-            "analyst_hold":       mc.get('analyst_h',  0),
-            "analyst_sell":       mc.get('analyst_se', 0),
-            "analyst_strong_sell":mc.get('analyst_ss', 0),
-            "analyst_total":      sum(mc.get(k,0) for k in ['analyst_sb','analyst_b','analyst_h','analyst_se','analyst_ss']),
-            "consensus_target":   mc.get('target_price'),
-            "consensus_upside":   mc.get('upside'),
-            "composite_score":    sc['total'],
-            "score_fundamental":  sc['fundamental'],
-            "score_technical":    sc['technical'],
-            "score_analyst":      sc['analyst'],
-            "score_accounting":   sc['accounting'],
-            "week52_high":        mc.get('week52_high'),
-            "week52_low":         mc.get('week52_low'),
+            "ticker": ticker, "name": name, "sector": industry, "price": price,
+            "composite_score": sc['total'],
+            "score_fundamental": sc['fundamental'], "score_technical": sc['technical'],
+            "score_analyst": sc['analyst'],          "score_accounting": sc['accounting'],
+            "altman_z": z, "altman_zone": altman_zone(z), "piotroski_f": fs,
+            "market_cap_m":     mc.get('market_cap'),
+            "pe_ttm":           mc.get('pe_ttm'),    "pe_forward":    mc.get('pe_forward'),
+            "pb":               mc.get('pb'),          "ev_ebitda":     mc.get('ev_ebitda'),
+            "gross_margin":     mc.get('gross_margin'),"op_margin":     mc.get('op_margin'),
+            "net_margin":       mc.get('net_margin'),  "roe":           mc.get('roe'),
+            "roa":              mc.get('roa'),          "roic":          mc.get('roic'),
+            "rev_growth":       mc.get('rev_growth'),  "eps_growth":    mc.get('eps_growth'),
+            "eps_ttm":          mc.get('eps_ttm'),      "fcf":           mc.get('fcf_str'),
+            "fcf_margin":       mc.get('fcf_margin'),  "de":            mc.get('de'),
+            "current_ratio":    mc.get('current_ratio'),"quick_ratio":  mc.get('quick_ratio'),
+            "div_yield":        mc.get('div_yield'),    "beta":          mc.get('beta'),
+            "week52_high":      mc.get('week52_high'),  "week52_low":   mc.get('week52_low'),
+            "rsi":              mc.get('rsi'),           "macd":          mc.get('macd'),
+            "sma50":            mc.get('sma50'),         "sma200":        mc.get('sma200'),
+            "technical_trend":  ('BULLISH' if mc.get('sma50') and mc.get('sma200') and mc['sma50']>mc['sma200']
+                                  else 'BEARISH' if mc.get('sma50') and mc.get('sma200') else 'N/A'),
+            "analyst_strong_buy":  mc.get('analyst_sb', 0), "analyst_buy":        mc.get('analyst_b',  0),
+            "analyst_hold":        mc.get('analyst_h',  0), "analyst_sell":       mc.get('analyst_se', 0),
+            "analyst_strong_sell": mc.get('analyst_ss', 0),
+            "analyst_total":       sum(mc.get(k,0) for k in ['analyst_sb','analyst_b','analyst_h','analyst_se','analyst_ss']),
+            "consensus_target": mc.get('target_price'), "consensus_upside": mc.get('upside'),
+            "historical_financials": hist_fin,
+            "suggested_peers":  peers,
         },
-        "macro": macro
+        "macro": macro,
+        "recent_news": news,
     }
     try:
         payload = json.dumps({
-            'model': 'gpt-4o-mini', 'max_tokens': 2500,
+            'model': 'gpt-4o-mini', 'max_tokens': 3000,
             'messages': [
                 {'role': 'system', 'content': SYSTEM_PROMPT},
-                {'role': 'user',   'content': json.dumps(user_data)}
+                {'role': 'user',   'content': json.dumps(user_data)},
             ]
         }).encode()
         req = urllib.request.Request(
@@ -453,10 +442,11 @@ def call_openai(ticker, name, industry, price, mc, macro, sc, z, fs):
             data   = json.loads(r.read())
             text   = data['choices'][0]['message']['content']
             result = json.loads(text.replace('```json','').replace('```','').strip())
-            if result.get('verdict'):
-                result['verdict'] = result['verdict'][0].upper() + result['verdict'][1:]
+            es = result.get('executive_summary') or {}
+            if es.get('verdict'):
+                es['verdict'] = es['verdict'][0].upper() + es['verdict'][1:]
             return result
-    except Exception as e:
+    except Exception:
         return _fallback(name, mc, sc, z, fs)
 
 def _fallback(name, m, sc, z, fs):
@@ -464,44 +454,40 @@ def _fallback(name, m, sc, z, fs):
     col = 'green' if sv>=70 else 'red' if sv<50 else 'yellow'
     icon= 'bull'  if sv>=70 else 'bear' if sv<50 else 'neutral'
     pm  = m.get('net_margin') or 0; de = m.get('de') or 0
-    roe = m.get('roe') or 0;        rg = m.get('rev_growth') or 0
+    roe = m.get('roe') or 0;       rg = m.get('rev_growth') or 0
     total_a = sum(m.get(k,0) for k in ['analyst_sb','analyst_b','analyst_h','analyst_se','analyst_ss'])
-    v = f"Score {sv}/100 — net margin {pm:.1f}%, ROE {roe:.1f}%"
+    txt = f"Score {sv}/100 — net margin {pm:.1f}%, ROE {roe:.1f}%"
     return {
-        'verdict': v[0].upper()+v[1:], 'verdict_sub': f"Composite {sv}/100 · D/E {de:.2f}x.",
-        'verdict_color': col, 'verdict_icon': icon,
-        'capital': f"D/E {de:.2f}x leverage. ROE {roe:.1f}%. Score {sv}/100.",
-        'cashflow': f"Net margin {pm:.1f}%. Revenue growth {rg:.1f}%.",
-        'technical': "Technical indicators N/A — candle data unavailable.",
-        'analyst_view': f"{m.get('analyst_sb',0)+m.get('analyst_b',0)}/{total_a} Buy.",
-        'solvency': f"Altman Z {z or 'N/A'} ({altman_zone(z)}). Piotroski F {fs}/9.",
-        'risks': f"D/E {de:.2f}x. Revenue growth {rg:.1f}%.",
-        'credit_decision': f"D/E {de:.2f}x, net margin {pm:.1f}%.",
-        'retail_summary': {
-            'what_they_do': f"{name}.", 'price_story': "Technical data N/A.",
-            'is_it_cheap': f"Score {sv}/100.", 'making_money': f"Keeps ${pm:.1f} per $100 revenue.",
-            'debt_plain': f"D/E {de:.2f}x.", 'main_risk_plain': f"Revenue growth {rg:.1f}%.",
-            'analyst_take_plain': f"{m.get('analyst_sb',0)+m.get('analyst_b',0)} Buy of {total_a}.",
-            'verdict_plain': f"Score {sv}/100."
-        },
-        'methodology_notes': [
-            "Technical indicators N/A — candle data unavailable on free tier.",
-            "Beta period unspecified — treat as indicative only.",
-            "Fallback mode — OpenAI call failed. Retry for full report."
-        ]
+        'executive_summary':{'verdict': txt[0].upper()+txt[1:],'verdict_sub':f"Composite {sv}/100. D/E {de:.2f}x.","verdict_color":col,"verdict_icon":icon,"text":f"Composite score {sv}/100. Net margin {pm:.1f}%. D/E {de:.2f}x. ROE {roe:.1f}%. Revenue growth {rg:.1f}%."},
+        'business_model':   {'text':f"{name} — AI synthesis unavailable. Retry for full report.","revenue_segments":[],"geographic_exposure":[]},
+        'performance':      {'text':f"Score {sv}/100. Performance synthesis unavailable."},
+        'financial_quality':{'text':f"Net margin {pm:.1f}%. ROE {roe:.1f}%. D/E {de:.2f}x. Piotroski F {fs}/9. Altman Z {z or 'N/A'}."},
+        'macro_context':    {'text':"Macro synthesis unavailable in fallback mode. Retry for full analysis."},
+        'risk_technical':   {'text':f"D/E {de:.2f}x. Score {sv}/100.",'technical_analysis':"Technical N/A.",'risks':[f"D/E {de:.2f}x leverage.",f"Revenue growth {rg:.1f}%.","Market risk — beta unavailable.","Competitive risk — analysis unavailable."]},
+        'ownership':        {'text':"Ownership synthesis unavailable in fallback mode."},
+        'valuation':        {'text':f"Composite score {sv}/100. D/E {de:.2f}x.",'fair_value_low':0,'fair_value_high':0},
+        'competitors':      {'text':"Competitor analysis unavailable in fallback mode.",'table':[]},
+        'scenarios':        {'text':f"Score {sv}/100 from current price.",'bull':{'label':'Bull','price_target':0,'upside_pct':20,'probability_pct':30,'thesis':'Fallback — retry for full report.'},'base':{'label':'Base','price_target':0,'upside_pct':0,'probability_pct':50,'thesis':'Fallback — retry for full report.'},'bear':{'label':'Bear','price_target':0,'downside_pct':20,'probability_pct':20,'thesis':'Fallback — retry for full report.'}},
+        'sec_filings':      {'text':"SEC filing analysis unavailable in fallback mode. Retry for full report.",'key_disclosures':[]},
+        'methodology_notes':["AI synthesis failed — retry for full 11-section report.","Quantitative metrics computed server-side are accurate.","Check OPENAI_KEY environment variable if fallback persists."]
     }
 
 # ── Main analysis ─────────────────────────────────────────────────────────────
 def analyse(ticker):
-    # 7 parallel Finnhub calls + macro
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    now_ts    = int(time.time())
+    from_date = time.strftime('%Y-%m-%d', time.gmtime(now_ts - 30*24*3600))
+    to_date   = time.strftime('%Y-%m-%d', time.gmtime(now_ts))
+
+    # Step 1: Finnhub + FRED parallel
+    with ThreadPoolExecutor(max_workers=9) as ex:
         futs = {
             'profile': ex.submit(fh, 'stock/profile2', {'symbol': ticker}),
-            'quote':   ex.submit(fh, 'quote',          {'symbol': ticker}),
-            'metrics': ex.submit(fh, 'stock/metric',   {'symbol': ticker, 'metric': 'all'}),
+            'quote':   ex.submit(fh, 'quote',           {'symbol': ticker}),
+            'metrics': ex.submit(fh, 'stock/metric',    {'symbol': ticker, 'metric': 'all'}),
             'recs':    ex.submit(fh, 'stock/recommendation-trends', {'symbol': ticker}),
-            'target':  ex.submit(fh, 'stock/price-target', {'symbol': ticker}),
-            'earnings':ex.submit(fh, 'stock/earnings', {'symbol': ticker}),
+            'target':  ex.submit(fh, 'stock/price-target',   {'symbol': ticker}),
+            'earnings':ex.submit(fh, 'stock/earnings',        {'symbol': ticker}),
+            'news':    ex.submit(fh, 'company-news', {'symbol': ticker, 'from': from_date, 'to': to_date}),
             'macro':   ex.submit(get_macro),
         }
         res = {k: v.result() for k, v in futs.items()}
@@ -511,118 +497,122 @@ def analyse(ticker):
         raise Exception(f'Ticker "{ticker}" not found. Try AAPL, NVDA, MSFT, JPM.')
 
     quote    = res['quote']
-    m_fh     = res['metrics'].get('metric', {})
+    m_fh     = (res['metrics'].get('metric') or {})
     recs     = res['recs']     if isinstance(res['recs'],     list) else []
     target   = res['target']   if isinstance(res['target'],   dict) else {}
     earnings = res['earnings'] if isinstance(res['earnings'], list) else []
+    news_raw = res['news']     if isinstance(res['news'],     list) else []
     macro    = res['macro']
 
-    # Yahoo Finance direct — sequential, 20s timeout
+    news = [{'headline': a.get('headline',''), 'source': a.get('source','')}
+            for a in news_raw[:5] if a.get('headline')]
+
+    # Step 2: Alpha Vantage (sequential wrapper for safety)
     import concurrent.futures as cf
     with cf.ThreadPoolExecutor(max_workers=1) as ex:
-        fut = ex.submit(get_yahoo_data, ticker)
-        try:    yf = fut.result(timeout=20) or {}
-        except: yf = {}
+        fut = ex.submit(get_av_data, ticker)
+        try:    av = fut.result(timeout=22) or {}
+        except: av = {}
 
     price   = quote.get('c')
     change  = quote.get('d')
     chg_pct = quote.get('dp')
 
-    # Technical — Yahoo primary
-    rsi    = yf.get('rsi')
-    macd   = yf.get('macd')
-    sma50  = yf.get('sma50')
-    sma200 = yf.get('sma200')
+    # Technical from AV
+    rsi    = av.get('rsi');    macd   = av.get('macd')
+    sma50  = av.get('sma50'); sma200 = av.get('sma200')
 
-    # Analyst — Finnhub first, Yahoo fallback
+    # Analyst — Finnhub first, AV fallback for target
     rec_fh = recs[0] if recs else {}
-    sb = rec_fh.get('strongBuy',  0) or yf.get('analyst_sb', 0)
-    b  = rec_fh.get('buy',        0) or yf.get('analyst_b',  0)
-    h  = rec_fh.get('hold',       0) or yf.get('analyst_h',  0)
-    se = rec_fh.get('sell',       0) or yf.get('analyst_se', 0)
-    ss = rec_fh.get('strongSell', 0) or yf.get('analyst_ss', 0)
+    sb = rec_fh.get('strongBuy',  0) or 0
+    b  = rec_fh.get('buy',        0) or 0
+    h  = rec_fh.get('hold',       0) or 0
+    se = rec_fh.get('sell',       0) or 0
+    ss = rec_fh.get('strongSell', 0) or 0
+    tp_fh = target.get('targetMean')
+    tp    = tp_fh or av.get('target_price')
+    upside = (round((tp-price)/price*100, 1) if tp and price and price > 0 else None)
 
-    tp_fh  = target.get('targetMean')
-    tp     = tp_fh or yf.get('target_price')
-    upside = (round((tp-price)/price*100, 1)
-              if tp and price and price > 0
-              else yf.get('upside'))
-
-    # All metrics — Finnhub first, Yahoo fallback
-    pe_ttm     = resolve(gm(m_fh,'peBasicExclExtraTTM','peAnnual'), yf.get('pe_ttm'))
-    pe_fwd     = yf.get('pe_forward')
-    pb         = resolve(gm(m_fh,'pbAnnual'), yf.get('pb'))
-    ev_ebitda  = resolve(gm(m_fh,'evToEbitdaAnnual','evToEbitdaTTM'), yf.get('ev_ebitda'))
-    net_margin = resolve(gm(m_fh,'netMarginAnnual','netMarginTTM','netProfitMarginAnnual','netProfitMarginTTM'), yf.get('net_margin'))
-    op_margin  = resolve(gm(m_fh,'operatingMarginAnnual','operatingMarginTTM'), yf.get('op_margin'))
-    gross_m    = resolve(gm(m_fh,'grossMarginAnnual','grossMarginTTM'), yf.get('gross_margin'))
-    roe        = resolve(gm(m_fh,'roeAnnual','roeTTM'), yf.get('roe'))
-    roa        = resolve(gm(m_fh,'roaAnnual','roaTTM'), yf.get('roa'))
+    # Metrics — Finnhub first, AV fallback
+    pe_ttm     = resolve(gm(m_fh,'peBasicExclExtraTTM','peAnnual'),      av.get('pe_ttm'))
+    pe_fwd     = av.get('pe_forward')
+    pb         = resolve(gm(m_fh,'pbAnnual'),                              av.get('pb'))
+    ev_ebitda  = resolve(gm(m_fh,'evToEbitdaAnnual','evToEbitdaTTM'),     av.get('ev_ebitda'))
+    net_margin = resolve(gm(m_fh,'netMarginAnnual','netMarginTTM','netProfitMarginAnnual'), av.get('net_margin'))
+    op_margin  = resolve(gm(m_fh,'operatingMarginAnnual','operatingMarginTTM'), av.get('op_margin'))
+    gross_m    = resolve(gm(m_fh,'grossMarginAnnual','grossMarginTTM'),    av.get('gross_margin'))
+    roe        = resolve(gm(m_fh,'roeAnnual','roeTTM'),                    av.get('roe'))
+    roa        = resolve(gm(m_fh,'roaAnnual','roaTTM'),                    av.get('roa'))
     roic       = gm(m_fh,'roicAnnual','roiAnnual','roicTTM')
-    rev_growth = resolve(get_rev_growth(m_fh), yf.get('rev_growth'))
-    eps_growth = get_eps_growth(m_fh)
-    eps_ttm    = resolve(gm(m_fh,'epsTTM','epsAnnual'), yf.get('eps_ttm'))
-    de         = resolve(get_de_fh(m_fh), yf.get('de'))
-    cr         = resolve(gm(m_fh,'currentRatioAnnual','currentRatioQuarterly'), yf.get('current_ratio'))
-    qr         = resolve(gm(m_fh,'quickRatioAnnual'), yf.get('quick_ratio'))
-    div_yield  = resolve(gm(m_fh,'dividendYieldIndicatedAnnual','currentDividendYieldTTM'), yf.get('div_yield'))
-    fcf_raw    = yf.get('fcf_raw') or gm(m_fh,'freeCashFlowAnnual','freeCashFlowTTM')
-    fcf_str    = yf.get('fcf_str')
-    fcf_margin = resolve(gm(m_fh,'fcfMarginAnnual','fcfMarginTTM'), yf.get('fcf_margin'))
-    beta       = resolve(gm(m_fh,'beta'), yf.get('beta'))
-    w52h       = resolve(gm(m_fh,'52WeekHigh'), yf.get('week52_high'))
-    w52l       = resolve(gm(m_fh,'52WeekLow'),  yf.get('week52_low'))
-    market_cap = gm(m_fh,'marketCapitalization') or yf.get('market_cap')
+    rev_growth = resolve(get_rev_growth_fh(m_fh),                          av.get('rev_growth'))
+    eps_growth = resolve(get_eps_growth_fh(m_fh),                          av.get('eps_growth'))
+    eps_ttm    = resolve(gm(m_fh,'epsTTM','epsAnnual'),                    av.get('eps_ttm'))
+    de         = resolve(get_de_fh(m_fh),                                  av.get('de'))
+    cr         = gm(m_fh,'currentRatioAnnual','currentRatioQuarterly')
+    qr         = gm(m_fh,'quickRatioAnnual')
+    div_yield  = resolve(gm(m_fh,'dividendYieldIndicatedAnnual','currentDividendYieldTTM'), av.get('div_yield'))
+    fcf_raw    = av.get('fcf_raw') or gm(m_fh,'freeCashFlowAnnual','freeCashFlowTTM')
+    fcf_str    = av.get('fcf_str')
+    fcf_margin = av.get('fcf_margin')
+    beta       = resolve(gm(m_fh,'beta'),         av.get('beta'))
+    w52h       = resolve(gm(m_fh,'52WeekHigh'),   av.get('week52_high'))
+    w52l       = resolve(gm(m_fh,'52WeekLow'),    av.get('week52_low'))
+    market_cap = gm(m_fh,'marketCapitalization') or av.get('market_cap')
 
     if fcf_raw and not fcf_str:
         v = float(fcf_raw)
-        fcf_str = f"${v/1e9:.1f}B" if abs(v)>=1e9 else f"${v/1e6:.0f}M"
+        fcf_str = f"${v/1e9:.1f}B" if abs(v) >= 1e9 else f"${v/1e6:.0f}M"
 
     mc = {
-        'pe_ttm':pe_ttm,'pe_forward':pe_fwd,'pb':pb,'ev_ebitda':ev_ebitda,
-        'net_margin':net_margin,'op_margin':op_margin,'gross_margin':gross_m,
-        'roe':roe,'roa':roa,'roic':roic,'rev_growth':rev_growth,
-        'eps_growth':eps_growth,'eps_ttm':eps_ttm,
-        'de':de,'current_ratio':cr,'quick_ratio':qr,'div_yield':div_yield,
-        'fcf_raw':fcf_raw,'fcf_str':fcf_str,'fcf_margin':fcf_margin,
-        'beta':beta,'week52_high':w52h,'week52_low':w52l,'market_cap':market_cap,
-        'rsi':rsi,'macd':macd,'sma50':sma50,'sma200':sma200,
-        'analyst_sb':sb,'analyst_b':b,'analyst_h':h,'analyst_se':se,'analyst_ss':ss,
-        'target_price':tp,'upside':upside,
+        'pe_ttm':pe_ttm, 'pe_forward':pe_fwd, 'pb':pb, 'ev_ebitda':ev_ebitda,
+        'net_margin':net_margin, 'op_margin':op_margin, 'gross_margin':gross_m,
+        'roe':roe, 'roa':roa, 'roic':roic, 'rev_growth':rev_growth,
+        'eps_growth':eps_growth, 'eps_ttm':eps_ttm,
+        'de':de, 'current_ratio':cr, 'quick_ratio':qr, 'div_yield':div_yield,
+        'fcf_raw':fcf_raw, 'fcf_str':fcf_str, 'fcf_margin':fcf_margin,
+        'beta':beta, 'week52_high':w52h, 'week52_low':w52l, 'market_cap':market_cap,
+        'rsi':rsi, 'macd':macd, 'sma50':sma50, 'sma200':sma200,
+        'analyst_sb':sb, 'analyst_b':b, 'analyst_h':h, 'analyst_se':se, 'analyst_ss':ss,
+        'target_price':tp, 'upside':upside,
     }
 
-    sc = compute_score(net_margin,op_margin,roe,roa,rev_growth,de,cr,fcf_raw,
-                       rsi,sma50,sma200,macd,sb,b,h,se,ss,tp,price)
-    z  = calc_altman(m_fh, yf)
-    fs = calc_piotroski(m_fh, yf)
-    name     = profile.get('name', ticker)
-    industry = profile.get('finnhubIndustry','N/A')
-    ai = call_openai(ticker, name, industry, price, mc, macro, sc, z, fs)
+    sc   = compute_score(net_margin,op_margin,roe,roa,rev_growth,de,cr,fcf_raw,
+                         rsi,sma50,sma200,macd,sb,b,h,se,ss,tp,price)
+    z    = calc_altman(m_fh, av)
+    fs   = calc_piotroski(m_fh, av)
+    name = profile.get('name', ticker)
+    industry = profile.get('finnhubIndustry', 'N/A')
+    peers    = PEERS_MAP.get(ticker, ['SPY','QQQ','IWM','GLD'])
+    hist_fin = av.get('historical_financials', [])
+
+    ai = call_openai(ticker, name, industry, price, mc, macro, sc, z, fs, hist_fin, news, peers)
 
     return {
-        'ticker':ticker,'name':name,
-        'exchange':profile.get('exchange',''),'industry':industry,
-        'logo':profile.get('logo',''),
-        'price':price,'change':change,'change_pct':chg_pct,
-        'score':sc,'altman':z,'altman_zone':altman_zone(z),
-        'piotroski':fs,'piotroski_label':piotroski_label(fs),
-        'macro':macro,
-        'metrics':{
-            'pe':pe_ttm,'pe_forward':pe_fwd,'pb':pb,'ev_ebitda':ev_ebitda,
-            'net_margin':net_margin,'op_margin':op_margin,'gross_margin':gross_m,
-            'fcf_margin':fcf_margin,'roe':roe,'roa':roa,'roic':roic,
-            'rev_growth':rev_growth,'eps_growth':eps_growth,'eps':eps_ttm,
-            'de':de,'current_ratio':cr,'quick_ratio':qr,'div_yield':div_yield,
-            'fcf':fcf_str,'week52_high':w52h,'week52_low':w52l,'beta':beta,
+        'ticker': ticker, 'name': name, 'news': news,
+        'exchange': profile.get('exchange',''), 'industry': industry,
+        'logo': profile.get('logo',''),
+        'price': price, 'change': change, 'change_pct': chg_pct,
+        'score': sc, 'altman': z, 'altman_zone': altman_zone(z),
+        'piotroski': fs, 'piotroski_label': piotroski_label(fs),
+        'macro': macro,
+        'historical_financials': hist_fin,
+        'metrics': {
+            'pe':pe_ttm, 'pe_forward':pe_fwd, 'pb':pb, 'ev_ebitda':ev_ebitda,
+            'net_margin':net_margin, 'op_margin':op_margin, 'gross_margin':gross_m,
+            'fcf_margin':fcf_margin, 'roe':roe, 'roa':roa, 'roic':roic,
+            'rev_growth':rev_growth, 'eps_growth':eps_growth, 'eps':eps_ttm,
+            'de':de, 'current_ratio':cr, 'quick_ratio':qr, 'div_yield':div_yield,
+            'fcf':fcf_str, 'week52_high':w52h, 'week52_low':w52l, 'beta':beta,
         },
-        'technical':{'rsi':rsi,'macd':macd,'sma50':sma50,'sma200':sma200},
-        'analyst':{'strong_buy':sb,'buy':b,'hold':h,'sell':se,'strong_sell':ss,
-                   'total':sb+b+h+se+ss,'target_price':tp,'upside':upside},
-        'earnings':[{
-            'period':e.get('period'),'actual':e.get('actual'),
-            'estimate':e.get('estimate'),'surprise':e.get('surprisePercent')
-        } for e in earnings[:8]],
-        'ai':ai,
+        'technical': {'rsi':rsi,'macd':macd,'sma50':sma50,'sma200':sma200},
+        'analyst': {
+            'strong_buy':sb,'buy':b,'hold':h,'sell':se,'strong_sell':ss,
+            'total':sb+b+h+se+ss,'target_price':tp,'upside':upside,
+        },
+        'earnings': [{'period':e.get('period'),'actual':e.get('actual'),
+                      'estimate':e.get('estimate'),'surprise':e.get('surprisePercent')}
+                     for e in earnings[:8]],
+        'ai': ai,
     }
 
 class handler(BaseHTTPRequestHandler):
@@ -644,5 +634,5 @@ class handler(BaseHTTPRequestHandler):
         try:
             self.wfile.write(json.dumps(analyse(ticker)).encode())
         except Exception as e:
-            self.wfile.write(json.dumps({'error':str(e)}).encode())
-    def log_message(self,*a): pass
+            self.wfile.write(json.dumps({'error': str(e)}).encode())
+    def log_message(self, *a): pass
