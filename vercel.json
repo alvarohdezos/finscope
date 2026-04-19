@@ -1,8 +1,7 @@
 {
   "functions": {
     "api/analyse.py": {
-      "maxDuration": 60,
-      "memory": 512
+      "maxDuration": 60
     }
   }
 }
