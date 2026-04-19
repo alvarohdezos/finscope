@@ -716,6 +716,7 @@ function qs(ticker){ document.getElementById('ti').value=ticker; run(ticker); }
 document.getElementById('ti').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
 
 function renderReport(d){
+ try{
   const ai = d.ai||{};
   const m = d.metrics||{};
   const an = d.analyst||{};
@@ -873,7 +874,7 @@ function renderReport(d){
         {lbl:'Sell',       val:an.sell||0,       color:'#f97316'},
         {lbl:'Strong Sell',val:an.strong_sell||0,color:'var(--red)'},
       ].map(a=>`<div class="ab-row"><div class="ab-lbl">${a.lbl}</div><div class="ab-trk"><div class="ab-fill" style="width:${totalA>0?(a.val/totalA*100).toFixed(0):0}%;background:${a.color}"></div></div><div class="ab-cnt" style="color:${a.color}">${a.val}</div></div>`).join('')}
-      <div class="tgt-row"><div><div class="tgt-lbl">${tr.analyst_target} (${totalA})</div><div class="tgt-val">${an.target_price?fmtC(an.target_price):'N/A'}</div></div>${an.upside!=null?`<span class="uptag ${an.upside>=0?'up':'dn'}">${an.upside>=0?'+':''}${an.upside.toFixed(1)}%</span>`:''}</div>
+      <div class="tgt-row"><div><div class="tgt-lbl">${tr.analyst_target} (${totalA})</div><div class="tgt-val">${an.target_price?fmtC(an.target_price):'N/A'}</div></div>${an.upside!=null?`<span class="uptag ${Number(an.upside)>=0?'up':'dn'}">${Number(an.upside)>=0?'+':''}${Number(an.upside).toFixed(1)}%</span>`:''}</div>
     </div>`:`<div style="font-size:12px;color:var(--muted);margin-top:12px;font-style:italic">${tr.analyst_na}</div>`;
 
   const ownBreakdownCard = (ownData.pct_institutions!=null || ownData.pct_insiders!=null) ? `
@@ -885,10 +886,10 @@ function renderReport(d){
   const ownMetricsCard = `
     <div class="own-card">
       <div class="chart-lbl">${tr.own_metrics}</div>
-      <div class="own-metric"><span>${tr.own_institutional}</span><span class="v">${ownData.pct_institutions!=null?ownData.pct_institutions.toFixed(1)+'%':'N/A'}</span></div>
-      <div class="own-metric"><span>${tr.own_insiders}</span><span class="v">${ownData.pct_insiders!=null?ownData.pct_insiders.toFixed(1)+'%':'N/A'}</span></div>
-      <div class="own-metric"><span>${tr.own_insider_net}</span><span class="v" style="color:${(ownData.insider_net_change||0)>0?'var(--green)':(ownData.insider_net_change||0)<0?'var(--red)':'var(--ink)'}">${(ownData.insider_net_change||0)>0?'+':''}${(ownData.insider_net_change||0).toLocaleString()}</span></div>
-      <div class="own-metric"><span>${tr.own_mspr}</span><span class="v">${ownData.insider_mspr!=null?ownData.insider_mspr.toFixed(2):'N/A'}</span></div>
+      <div class="own-metric"><span>${tr.own_institutional}</span><span class="v">${ownData.pct_institutions!=null?Number(ownData.pct_institutions).toFixed(1)+'%':'N/A'}</span></div>
+      <div class="own-metric"><span>${tr.own_insiders}</span><span class="v">${ownData.pct_insiders!=null?Number(ownData.pct_insiders).toFixed(1)+'%':'N/A'}</span></div>
+      <div class="own-metric"><span>${tr.own_insider_net}</span><span class="v" style="color:${(ownData.insider_net_change||0)>0?'var(--green)':(ownData.insider_net_change||0)<0?'var(--red)':'var(--ink)'}">${(ownData.insider_net_change||0)>0?'+':''}${Number(ownData.insider_net_change||0).toLocaleString()}</span></div>
+      <div class="own-metric"><span>${tr.own_mspr}</span><span class="v">${ownData.insider_mspr!=null?Number(ownData.insider_mspr).toFixed(2):'N/A'}</span></div>
     </div>`;
 
   const s07 = `
@@ -904,8 +905,7 @@ function renderReport(d){
   const fvCur = d.price||0;
   let fvBarHTML = '';
   if(fvLow>0 && fvHigh>0 && fvHigh>fvLow){
-    const range = fvHigh - fvLow;
-    const pinPct = Math.max(0, Math.min(100, ((fvCur-fvLow)/range*100)));
+    const pinPct = Math.max(0, Math.min(100, ((fvCur-fvLow)/(fvHigh-fvLow)*100)||0));
     const positionLabel = fvCur<fvLow ? tr.fv_below : fvCur>fvHigh ? tr.fv_above : tr.fv_in;
     fvBarHTML = `
       <div class="fv-wrap">
@@ -1036,6 +1036,10 @@ function renderReport(d){
 
   // Render section 01 charts (it's open by default)
   setTimeout(()=>{ /* no charts in s01 */ }, 50);
+ } catch(renderErr){
+  console.error('renderReport crash:', renderErr);
+  document.getElementById('ra').innerHTML=`<div class="err-box"><div class="err-lbl">Render Error</div><div class="err-msg">${esc(renderErr.message||'Unknown error in renderReport')}<br><br><small>${esc(renderErr.stack||'')}</small></div></div>`;
+ }
 }
 
 function buildSection(num, title, content, openByDefault=false){
