@@ -613,7 +613,7 @@ function renderHistChart(data){
       ]},
     options:{responsive:true, maintainAspectRatio:false,
       plugins:{legend:{position:'bottom', labels:{color:'#6b7a99',font:CHART_FONT,padding:8,boxWidth:10}},
-               tooltip:{callbacks:{label:c=>`${c.dataset.label}: $${(c.parsed.y/1000).toFixed(1)}B`}}}},
+               tooltip:{callbacks:{label:c=>`${c.dataset.label}: $${(c.parsed.y/1000).toFixed(1)}B`}}},
       scales:{x:{ticks:{color:'#6b7a99',font:{family:'Inter',size:10}},grid:{display:false}},
               y:{ticks:{color:'#6b7a99',font:{family:'Inter',size:10},callback:v=>'$'+(v/1000).toFixed(0)+'B'},grid:{color:'#e2e6ef'}}}}
   });
