@@ -459,7 +459,8 @@ const I18N = {
     mn_rg:'Revenue Growth', mn_eg:'EPS Growth', mn_eps:'EPS TTM',
     mn_de:'Debt / Equity', mn_cr:'Current Ratio', mn_qr:'Quick Ratio',
     mn_div:'Dividend Yield', mn_fcf:'Free Cash Flow', mn_beta:'Beta',
-    mn_w52h:'52W High', mn_w52l:'52W Low', mn_score:'Composite Score'
+    mn_w52h:'52W High', mn_w52l:'52W Low', mn_score:'Composite Score',
+    econ_calendar:'Upcoming Economic Events', next_earnings:'Next Earnings Date'
   },
   es: {
     live:'Datos en vivo', hero_label:'Research Institucional de Equity',
@@ -521,7 +522,8 @@ const I18N = {
     mn_rg:'Crec. Revenue', mn_eg:'Crec. EPS', mn_eps:'EPS TTM',
     mn_de:'Deuda / Equity', mn_cr:'Ratio Corriente', mn_qr:'Quick Ratio',
     mn_div:'Dividend Yield', mn_fcf:'Free Cash Flow', mn_beta:'Beta',
-    mn_w52h:'Máximo 52S', mn_w52l:'Mínimo 52S', mn_score:'Score Compuesto'
+    mn_w52h:'Máximo 52S', mn_w52l:'Mínimo 52S', mn_score:'Score Compuesto',
+    econ_calendar:'Eventos Económicos Próximos', next_earnings:'Próxima Presentación de Resultados'
   }
 };
 
@@ -598,11 +600,12 @@ function renderPie(canvasId, items, valueKey, labelKey){
   });
 }
 
-function renderHistChart(data){
-  const el = document.getElementById('histChart'); if(!el||!data||!data.length) return;
-  destroyChart('histChart');
+function renderHistChart(data, canvasId){
+  canvasId = canvasId || 'histChart';
+  const el = document.getElementById(canvasId); if(!el||!data||!data.length) return;
+  destroyChart(canvasId);
   const rows = [...data].reverse();
-  _charts['histChart'] = new Chart(el.getContext('2d'), {
+  _charts[canvasId] = new Chart(el.getContext('2d'), {
     type:'bar',
     data:{labels:rows.map(r=>r.year),
       datasets:[
@@ -685,7 +688,10 @@ function renderSecCharts(num){
     renderPie('segChart', (ai.business_model||{}).revenue_segments||[], 'pct','name');
     renderPie('geoChart', (ai.business_model||{}).geographic_exposure||[], 'pct','region');
   }
-  if(num==='03') renderEarnsChart(d.earnings||[]);
+  if(num==='03'){
+    renderHistChart(d.historical_financials||[], 'perfHistChart');
+    renderEarnsChart(d.earnings||[]);
+  }
   if(num==='04') renderHistChart(d.historical_financials||[]);
   if(num==='06') renderTradingView(d.ticker, 'tvContainer');
   if(num==='07') renderOwnershipChart(d.ownership||{});
@@ -750,7 +756,12 @@ function renderReport(d){
           <div class="news-src">${esc(n.source||'')}</div>
         </a>`).join('')}
     </div>` : `<div class="albl">${tr.rec_headlines}</div><div class="news-item" style="border-left-color:var(--muted)"><em>${tr.no_news}</em></div>`;
-  const s01 = `<div class="atxt">${para(es_.text||'')}</div>${newsHTML}`;
+  const upcomingEarningsHTML = d.upcoming_earnings ? `
+    <div style="margin-top:12px;padding:10px 14px;background:linear-gradient(135deg,rgba(15,45,107,0.06),rgba(37,99,235,0.04));border-radius:8px;border-left:3px solid var(--blue2)">
+      <div style="font-size:11px;font-weight:700;color:var(--blue2);text-transform:uppercase;letter-spacing:.05em">${tr.next_earnings||'Next Earnings Date'}</div>
+      <div style="font-size:16px;font-weight:800;color:var(--ink);margin-top:4px">${esc(d.upcoming_earnings)}</div>
+    </div>` : '';
+  const s01 = `<div class="atxt">${para(es_.text||'')}</div>${upcomingEarningsHTML}${newsHTML}`;
 
   // ── Section 02: Business Model ──
   const bm = ai.business_model||{};
@@ -776,8 +787,14 @@ function renderReport(d){
 
   // ── Section 03: Performance ──
   const perf = ai.performance||{};
+  const hist = d.historical_financials||[];
   const s03 = `
     <div class="atxt">${para(perf.text||'')}</div>
+    ${hist.length ? `
+    <div class="chart-box-full">
+      <div class="chart-lbl">${tr.hist_chart}</div>
+      <div class="ch-wrap ch-tall"><canvas id="perfHistChart"></canvas></div>
+    </div>` : ''}
     <div class="chart-box-full">
       <div class="chart-lbl">${tr.earnings_hist}</div>
       <div class="ch-wrap"><canvas id="earnsChart"></canvas></div>
@@ -785,7 +802,6 @@ function renderReport(d){
 
   // ── Section 04: Financial Quality ──
   const fq = ai.financial_quality||{};
-  const hist = d.historical_financials||[];
   const histTableRows = hist.length ? hist.map(r=>`
     <tr>
       <td>${esc(r.year||'—')}</td>
@@ -832,6 +848,16 @@ function renderReport(d){
 
   // ── Section 05: Macro Context ──
   const mc_ai = ai.macro_context||{};
+  const calHTML = (d.economic_calendar||[]).length ? `
+    <div class="albl" style="margin-top:16px">${tr.econ_calendar||'Upcoming Economic Events'}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+      ${(d.economic_calendar||[]).map(ev=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${ev.impact==='high'?'var(--red)':'var(--amber)'}">
+          <span style="font-size:10px;color:var(--muted);min-width:80px">${esc(ev.date||'')}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--ink)">${esc(ev.event||'')}</span>
+          <span style="font-size:10px;color:var(--muted);margin-left:auto">${esc(ev.country||'')} · ${esc(ev.impact||'')}</span>
+        </div>`).join('')}
+    </div>` : '';
   const s05 = `
     <div class="atxt">${para(mc_ai.text||'')}</div>
     <div class="albl">${tr.macro_live}</div>
@@ -844,7 +870,8 @@ function renderReport(d){
         {l:tr.macro_vix, v:`${(mac.vix||0).toFixed(1)}`},
         {l:tr.macro_hy, v:`${mac.credit_spread_hy||'—'}bps`},
       ].map(x=>`<div class="solcard"><div class="sol-lbl">${x.l}</div><div style="font-size:20px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px">${x.v}</div></div>`).join('')}
-    </div>`;
+    </div>
+    ${calHTML}`;
 
   // ── Section 06: Risk Analysis + TradingView ──
   const ra_ai = ai.risk_analysis||{};
