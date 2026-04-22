@@ -1,1 +1,7 @@
-
+{
+  "functions": {
+    "api/analyse.py": {
+      "maxDuration": 60
+    }
+  }
+}
