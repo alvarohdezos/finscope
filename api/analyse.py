@@ -115,8 +115,10 @@ def get_av_data(ticker):
     mc_raw  = _sf(ov.get('MarketCapitalization'))
     market_cap_m = round(mc_raw/1e6) if mc_raw else None
     gross_margin = round(gp_ttm/rev_ttm*100, 1) if gp_ttm and rev_ttm else None
-    pct_inst = _sfpct(ov.get('PercentInstitutions'))
-    pct_insi = _sfpct(ov.get('PercentInsiders'))
+    # BUG FIX: PercentInstitutions/PercentInsiders are already percentages (e.g. "65.27" = 65.27%)
+    # Use _sf() not _sfpct() to avoid multiplying by 100 and showing 6527%
+    pct_inst = _sf(ov.get('PercentInstitutions'))
+    pct_insi = _sf(ov.get('PercentInsiders'))
     description = ov.get('Description', '') or ''
     country     = ov.get('Country', '') or ''
     sector      = ov.get('Sector', '') or ''
@@ -222,7 +224,6 @@ def compute_score(pm, om, roe, roa, rg, de, cr, fcf_raw, sb, b, h, se, ss, tp, p
     if fcf_raw is not None: acc += 3 if float(fcf_raw) > 0 else -3
     acc = max(0, min(20, acc))
     qi = 5
-    # additional quality + macro-adjusted buffer
     qi = max(0, min(10, qi))
     return {'total': max(5, min(98, round(f+a+acc+qi))),
             'fundamental':round(f), 'accounting':round(acc), 'analyst':round(a), 'context':round(qi)}
@@ -271,15 +272,14 @@ def calc_piotroski(m, av):
 
 def piotroski_label(f, lang='en'):
     if lang == 'es':
-        return 'Calidad alta' if f>=7 else 'Calidad media' if f>=4 else 'Señales débiles'
+        return 'Calidad alta' if f>=7 else 'Calidad media' if f>=4 else 'Senales debiles'
     return 'Strong quality' if f>=7 else 'Moderate quality' if f>=4 else 'Weak signals'
 
-# ───────────── PROMPT A: Exec + Business + Performance + Financial Quality + SEC ─────────────
 def prompt_a(lang='en'):
     lang_tag = 'Write all content in natural, fluent Spanish. Keep section JSON keys in English.' if lang=='es' else 'Write all content in clear, professional English suitable for institutional finance.'
-    return f"""You are a senior equity research analyst at Goldman Sachs Equity Research writing an INFORMATIONAL REPORT (not investment advice). Return ONLY valid JSON matching the schema exactly. No markdown fences, no preamble.
+    return """You are a senior equity research analyst at Goldman Sachs Equity Research writing an INFORMATIONAL REPORT (not investment advice). Return ONLY valid JSON matching the schema exactly. No markdown fences, no preamble.
 
-{lang_tag}
+""" + lang_tag + """
 
 CRITICAL STYLE RULES:
 - Every analytical sentence MUST contain at least one specific number from the input data
@@ -287,42 +287,39 @@ CRITICAL STYLE RULES:
 - Explain WHY each metric matters, not just state the value
 - Use the historical_financials array to show multi-year trends with exact YoY comparisons
 - Use the company description to understand the business. Reference specific products/segments
+- MINIMUM CONTENT: Each section text field MUST have at least 12 substantive sentences. Do not be brief. Financial professionals reading this expect depth.
 
-REQUIRED JSON SCHEMA (fill every field with substantive content):
-{{"executive_summary":{{"verdict":"3-6 word neutral status","verdict_sub":"1-2 sentence position with 2+ numbers","verdict_color":"green|amber|red","verdict_icon":"bull|neutral|bear|watch","text":"8-10 sentences covering: business in 1 sentence, composite score context with drivers, 2 key strengths with exact figures, 2 key risks with figures, valuation position, stance framing. Target ~200-250 words."}},"business_model":{{"text":"12-15 sentences covering: revenue streams (what products/services, their contribution), moat type (brand/network/scale/IP) with quantified evidence, customer or segment concentration with %, key geographic markets and why they matter, recent strategic shifts (M&A, launches, divestments), historical inflection points (e.g. 'revenue grew from $X in 2019 to $Y in 2023'), competitive positioning vs sector. Target ~300-400 words.","revenue_segments":[{{"name":"Segment","pct":50,"description":"what it covers"}}],"geographic_exposure":[{{"region":"United States","pct":45,"note":"why this market matters for the company"}}]}},"performance":{{"text":"10-12 sentences covering: stock YTD vs S&P 500 with figures, 1Y total return, price vs 52W extremes with % distance, revenue growth trajectory across last 4 years using historical_financials, operating margin trend (expansion or compression with exact pp change), EPS growth context, notable catalysts in past 12 months (earnings beats, product launches), beta interpretation, dividend/buyback contribution. Target ~250-320 words."}},"financial_quality":{{"text":"14-16 sentences deep dive: gross margin level and multi-year trend with exact pp change, operating leverage (revenue growth vs operating income growth), FCF generation with absolute figure and margin, ROIC context explaining that ROIC above sector WACC (~Xpp for this sector) signals durable value creation, debt load with D/E interpretation, working capital efficiency. Then EXPLAIN Altman Z-Score: 'The Altman Z-Score combines 5 ratios (liquidity, profitability, leverage, solvency, activity) into a bankruptcy probability score; values above 2.99 indicate safe zone, 1.81-2.99 grey zone, below 1.81 distress. This company scores X, which places it in [zone]. For banks this model is invalid due to different leverage structure.' Then EXPLAIN Piotroski F-Score: 'The Piotroski F-Score is a 9-point fundamental quality signal scoring profitability, leverage trends, and operating efficiency year-over-year. Scores 7-9 indicate improving fundamentals, 0-3 deteriorating. This company scores X/9 meaning [interpretation].' Target ~350-450 words."}},"sec_filings":{{"text":"8-10 sentences drawing on most recent 10-K/10-Q: revenue recognition highlights with figures, management guidance with specific numbers, material risk factors disclosed with quantified exposure, segment performance from MD&A with figures, related party or legal proceeding notes, recent insider transaction patterns, any critical accounting changes. Target ~180-240 words.","key_disclosures":["3-5 specific findings from recent filings, each with exact figure"]}}}}"""
+REQUIRED JSON SCHEMA:
+{"executive_summary":{"verdict":"3-6 word neutral status","verdict_sub":"1-2 sentence position with 2+ numbers","verdict_color":"green|amber|red","verdict_icon":"bull|neutral|bear|watch","text":"12-15 sentences covering: business in 1 sentence, composite score context with drivers, 2 key strengths with exact figures, 2 key risks with figures, valuation position, stance framing. Target ~250-300 words."},"business_model":{"text":"12-15 sentences covering: revenue streams (what products/services, their contribution), moat type (brand/network/scale/IP) with quantified evidence, customer or segment concentration with %, key geographic markets and why they matter, recent strategic shifts (M&A, launches, divestments), historical inflection points, competitive positioning vs sector. Target ~300-400 words.","revenue_segments":[{"name":"Segment","pct":50,"description":"what it covers"}],"geographic_exposure":[{"region":"United States","pct":45,"note":"why this market matters for the company"}]},"performance":{"text":"12-14 sentences covering: stock YTD vs S&P 500 with figures, 1Y total return, price vs 52W extremes with % distance, revenue growth trajectory across last 4 years using historical_financials, operating margin trend (expansion or compression with exact pp change), EPS growth context, notable catalysts in past 12 months, beta interpretation, dividend/buyback contribution. Target ~280-340 words."},"financial_quality":{"text":"14-16 sentences deep dive: gross margin level and multi-year trend with exact pp change, operating leverage (revenue growth vs operating income growth), FCF generation with absolute figure and margin, ROIC context, debt load with D/E interpretation. Then EXPLAIN Altman Z-Score: the 5 factors are X1=Working Capital/Total Assets (liquidity), X2=Retained Earnings/Total Assets (cumulative profitability), X3=EBIT/Total Assets (operating efficiency), X4=Market Cap/Book Value of Liabilities (solvency buffer), X5=Sales/Total Assets (asset utilization); values above 2.99 = safe zone, 1.81-2.99 = grey zone, below 1.81 = distress; note it is invalid for banks. Then EXPLAIN Piotroski F-Score: 9-point signal with Profitability (ROA positive, FCF positive, ROA improving, FCF>NI), Leverage (D/E declining, Current Ratio improving, no dilution), and Efficiency (Gross Margin improving, Asset Turnover improving); 7-9 = strong, 4-6 = moderate, 0-3 = deteriorating. Target ~380-460 words."},"sec_filings":{"text":"12-14 sentences drawing on most recent 10-K/10-Q: revenue recognition highlights with figures, management guidance with specific numbers, material risk factors disclosed with quantified exposure, segment performance from MD&A, related party or legal proceeding notes, recent insider transaction patterns, any critical accounting changes. Target ~240-300 words.","key_disclosures":["3-5 specific findings from recent filings, each with exact figure"]}}"""
 
-# ───────────── PROMPT B: Macro + Risk + Ownership + Valuation + Competitors + Scenarios ─────────────
 def prompt_b(lang='en'):
     lang_tag = 'Write all content in natural, fluent Spanish. Keep section JSON keys in English.' if lang=='es' else 'Write all content in clear, professional English suitable for institutional finance.'
-    return f"""You are a senior equity research analyst at Goldman Sachs writing an INFORMATIONAL REPORT (not investment advice). Return ONLY valid JSON. No markdown.
+    return """You are a senior equity research analyst at Goldman Sachs writing an INFORMATIONAL REPORT (not investment advice). Return ONLY valid JSON. No markdown.
 
-{lang_tag}
+""" + lang_tag + """
 
 RULES:
 - Every sentence includes specific numbers
 - Neutral tone: "The data suggests...", never "we recommend"
 - Explain WHY metrics matter (WACC, FCF yield, multiples)
 - Tailor macro analysis to THIS company's actual geographic exposure
+- MINIMUM CONTENT: Each section text field MUST have at least 12 substantive sentences. Do not be brief.
 
 SECTOR WACC BENCHMARKS (adjust +0.5-1.0pp if risk_free_rate >4.5%):
 UTILITIES 5.0-6.5% | REITS 5.5-7.0% | STAPLES 6.0-7.5% | TELECOM 6.5-8.5% | HEALTHCARE 7.5-9.5% | INDUSTRIALS 7.5-9.5% | RETAIL 8.5-11.0% | TRAVEL 9.5-13.0% | BANKS (use ROE vs CoE ~10-13%, Z-Score invalid) | INSURANCE 8.0-10.5% | FINTECH 9.0-12.0% | ENERGY MAJORS 8.0-10.0% | ENERGY E&P 10.0-14.0% | RENEWABLES 7.5-10.0% | MATERIALS 9.0-12.0% | PHARMA 8.0-9.0% | BIOTECH 12.0-18.0% | SEMIS 10.0-12.0% | SOFTWARE 9.0-12.0% | HARDWARE 10.0-13.0% | INTERNET 9.5-12.0%
 
 REQUIRED JSON SCHEMA:
-{{"macro_context":{{"text":"12-15 sentences, SPECIFIC to this company. Start with its geographic revenue breakdown using the data provided. For each key region, discuss specific macro dynamics affecting it: US (rates, consumer confidence, labor market), Europe (ECB policy, energy prices, Ukraine spillover), China (property sector, US tech restrictions, stimulus), EM (dollar strength, commodity exposure). Then sector-specific macro: for tech (capex cycle, semiconductor restrictions, AI demand), banks (NIM sensitivity to Fed path, credit quality cycle), energy (commodity prices, OPEC+ decisions), consumer (wage growth, savings rate, real income). Then specific geopolitical risks relevant to THIS company (e.g. Taiwan exposure for semis, EU regulation for Big Tech, China decoupling, Red Sea shipping). Then interest rate environment implications: at 10Y=X%, what does this mean for this company's discount rate and debt cost. Target ~280-360 words."}},"risk_analysis":{{"text":"8-10 sentences covering the MOST material risks for this company specifically. Include fundamental, operational, competitive, regulatory, and macro risks. Each risk quantified where possible. Target ~180-240 words.","risks":["6-8 specific risks, each 1-2 sentences, each with a quantified data point. Categories: Valuation risk (multiple vs sector), Operational risk (execution), Financial risk (leverage), Regulatory risk, Competitive risk, Macro risk, Technology/disruption risk, Concentration risk"]}},"ownership":{{"text":"10-12 sentences: institutional ownership percentage and implications (high = stable but herd risk, low = retail-driven volatility); name 3-5 typical top institutional holders for a company this size (e.g. Vanguard, BlackRock, State Street, and sector specialists); insider ownership and what it signals (high insider = skin in the game, low = agency risk); recent insider buying/selling sentiment; executive compensation alignment if notable; board composition; capital return policy (buybacks, dividends, payout ratio with figure); free float and liquidity. Target ~220-280 words.","top_holders":[{{"name":"Holder name","stake_pct":8.5}}]}},"valuation":{{"text":"14-16 sentences. START by EXPLAINING each multiple: 'PE Ratio (Price/Earnings) measures how much investors pay per dollar of earnings — higher PE implies higher expected growth. EV/EBITDA (Enterprise Value to EBITDA) is more comparable across capital structures as it includes debt. FCF Yield shows cash return per dollar of market cap — conceptually a bond yield equivalent.' Then compare this company's multiples to sector median with interpretation. EXPLAIN WACC: 'Weighted Average Cost of Capital is the minimum return required to create value; it blends cost of debt (after-tax) and cost of equity (CAPM-derived), weighted by capital structure. For [sector], typical WACC is X-Y%.' Discuss ROIC vs WACC spread and what it means for value creation. EXPLAIN DCF briefly: 'Discounted Cash Flow values a business by projecting future FCF and discounting at WACC.' State fair value range and the WACC assumption used. Conclude with margin of safety concept (fair value vs current price). Target ~340-420 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5}},"competitors":{{"text":"12-14 sentences positioning this company vs its peer group. First state if it's the margin leader, median, or laggard with exact figures. Compare growth rank with numbers. State valuation premium/discount vs peer median with exact %. Then briefly contextualize each top peer (1-2 sentences each): how they're performing, what differentiates them, who's gaining share. Target ~280-340 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"is_subject":false}},{{"ticker":"P2","name":"Peer 2","pe":28.0,"ev_ebitda":18.0,"rev_growth_pct":8.0,"net_margin_pct":18.0,"gross_margin_pct":55.0,"roe_pct":22.0,"is_subject":false}},{{"ticker":"P3","name":"Peer 3","pe":30.0,"ev_ebitda":22.0,"rev_growth_pct":12.0,"net_margin_pct":12.0,"gross_margin_pct":48.0,"roe_pct":18.0,"is_subject":false}},{{"ticker":"P4","name":"Peer 4","pe":22.0,"ev_ebitda":15.0,"rev_growth_pct":5.0,"net_margin_pct":14.0,"gross_margin_pct":45.0,"roe_pct":14.0,"is_subject":false}}]}},"scenarios":{{"text":"4-5 sentence intro framing the range, current price as anchor, probability-weighted expected return with figures.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"4-5 sentences: specific catalyst with timeline, revenue/margin assumption with exact figures, implied forward multiple at target, why this scenario materializes."}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"4-5 sentences with central assumptions and multiple at target."}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"4-5 sentences: downside catalyst with quantified impact, multiple compression, trigger threshold to monitor."}}}}}}"""
+{"macro_context":{"text":"12-15 sentences, SPECIFIC to this company. Start with its geographic revenue breakdown. For each key region discuss specific macro dynamics. Then sector-specific macro. Then geopolitical risks relevant to THIS company. Then interest rate implications at current 10Y yield. Target ~300-370 words."},"risk_analysis":{"text":"12-14 sentences covering the MOST material risks for this company specifically. Include fundamental, operational, competitive, regulatory, and macro risks. Each risk quantified where possible. Target ~240-300 words.","risks":["6-8 specific risks, each 1-2 sentences with a quantified data point. Categories: Valuation risk, Operational risk, Financial risk, Regulatory risk, Competitive risk, Macro risk, Technology/disruption risk, Concentration risk"]},"ownership":{"text":"12-14 sentences: EXPLAIN agency theory (principal-agent problem between shareholders and management); institutional ownership % and implications (high = stable but herd risk, low = retail volatility); name 3-5 typical top institutional holders for this size company; insider ownership and alignment signals; comment on insider MSPr (Monthly Share Purchase Ratio, positive = net buying); executive compensation alignment; board composition; capital return policy with payout ratio figure; free float and liquidity. Target ~260-320 words.","top_holders":[{"name":"Holder name","stake_pct":8.5}]},"valuation":{"text":"14-16 sentences. EXPLAIN each multiple: PE Ratio measures how much investors pay per dollar of earnings; EV/EBITDA is more comparable across capital structures; P/B measures premium over net asset value; FCF Yield is conceptually equivalent to a bond yield. Compare multiples to sector median. EXPLAIN WACC: Ke = Rf + Beta x ERP (CAPM); Kd x (1-t) for after-tax debt cost; WACC = Ke x E/V + Kd(1-t) x D/V. Discuss ROIC vs WACC spread - when ROIC exceeds WACC the company creates economic profit. EXPLAIN DCF: projects FCF discounted at WACC; terminal value is 60-80% of total and highly sensitive to terminal growth rate (1pp change moves fair value 15-25%). State fair value range, WACC assumption, margin of safety vs current price. Target ~380-460 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5},"competitors":{"text":"12-14 sentences positioning this company vs peer group. State margin leadership rank with exact figures. Compare growth rank with numbers. State valuation premium/discount vs peer median with exact %. Contextualize each peer 1-2 sentences. Target ~280-340 words.","table":[{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"is_subject":true},{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"is_subject":false},{"ticker":"P2","name":"Peer 2","pe":28.0,"ev_ebitda":18.0,"rev_growth_pct":8.0,"net_margin_pct":18.0,"gross_margin_pct":55.0,"roe_pct":22.0,"is_subject":false},{"ticker":"P3","name":"Peer 3","pe":30.0,"ev_ebitda":22.0,"rev_growth_pct":12.0,"net_margin_pct":12.0,"gross_margin_pct":48.0,"roe_pct":18.0,"is_subject":false},{"ticker":"P4","name":"Peer 4","pe":22.0,"ev_ebitda":15.0,"rev_growth_pct":5.0,"net_margin_pct":14.0,"gross_margin_pct":45.0,"roe_pct":14.0,"is_subject":false}]},"scenarios":{"text":"4-5 sentence intro framing the range, current price as anchor, probability-weighted expected return with figures.","bull":{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"4-5 sentences: specific catalyst with timeline, revenue/margin assumption with exact figures, implied forward multiple at target."},"base":{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"4-5 sentences with central assumptions and multiple at target."},"bear":{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"4-5 sentences: downside catalyst with quantified impact, multiple compression, trigger threshold."}}}"""
 
 def _repair_json(text):
-    """Attempt to fix truncated JSON from OpenAI by closing open braces/brackets."""
     text = text.strip()
     if not text:
         return None
-    # Remove markdown fences
     text = text.replace('```json','').replace('```','').strip()
-    # Try parsing as-is first
     try:
         return json.loads(text)
     except:
         pass
-    # Try closing truncated JSON
     opens = 0
     open_sq = 0
     in_str = False
@@ -343,7 +340,6 @@ def _repair_json(text):
         elif c == '}': opens -= 1
         elif c == '[': open_sq += 1
         elif c == ']': open_sq -= 1
-    # Close any open strings, arrays, objects
     if in_str:
         text += '"'
     text += ']' * max(0, open_sq)
@@ -353,7 +349,7 @@ def _repair_json(text):
     except:
         return None
 
-def call_openai(system_prompt, user_data, max_tokens=3500):
+def call_openai(system_prompt, user_data, max_tokens=2800):
     try:
         payload = json.dumps({
             'model':'gpt-4o-mini','max_tokens':max_tokens,
@@ -374,22 +370,22 @@ def call_openai(system_prompt, user_data, max_tokens=3500):
 def _fallback_a(name, sc, fs, lang='en'):
     if lang == 'es':
         return {
-            'executive_summary':{'verdict':f'Score {sc["total"]}/100','verdict_sub':'Síntesis AI no disponible.','verdict_color':'amber','verdict_icon':'neutral','text':f'Síntesis completa no disponible. Score compuesto {sc["total"]}/100. Revisa los datos cuantitativos en la barra lateral.'},
-            'business_model':{'text':f'{name} — síntesis AI no disponible.','revenue_segments':[],'geographic_exposure':[]},
-            'performance':{'text':'Síntesis AI no disponible.'},
-            'financial_quality':{'text':f'Piotroski F {fs}/9. Síntesis completa no disponible.'},
-            'sec_filings':{'text':'Síntesis AI no disponible.','key_disclosures':[]}
+            'executive_summary':{'verdict':f'Score {sc["total"]}/100','verdict_sub':'Sintesis AI no disponible.','verdict_color':'amber','verdict_icon':'neutral','text':f'Sintesis completa no disponible. Score compuesto {sc["total"]}/100. Revisa los datos cuantitativos en la barra lateral.'},
+            'business_model':{'text':f'{name} sintesis AI no disponible.','revenue_segments':[],'geographic_exposure':[]},
+            'performance':{'text':'Sintesis AI no disponible.'},
+            'financial_quality':{'text':f'Piotroski F {fs}/9. Sintesis completa no disponible.'},
+            'sec_filings':{'text':'Sintesis AI no disponible.','key_disclosures':[]}
         }
     return {
         'executive_summary':{'verdict':f'Score {sc["total"]}/100','verdict_sub':'AI synthesis unavailable.','verdict_color':'amber','verdict_icon':'neutral','text':f'Full AI synthesis unavailable. Composite score {sc["total"]}/100. Review the quantitative metrics in sidebar.'},
-        'business_model':{'text':f'{name} — AI synthesis unavailable. Please retry.','revenue_segments':[],'geographic_exposure':[]},
+        'business_model':{'text':f'{name} AI synthesis unavailable. Please retry.','revenue_segments':[],'geographic_exposure':[]},
         'performance':{'text':'AI synthesis unavailable.'},
         'financial_quality':{'text':f'Piotroski F {fs}/9. Full AI synthesis unavailable.'},
         'sec_filings':{'text':'AI synthesis unavailable.','key_disclosures':[]}
     }
 
 def _fallback_b(lang='en'):
-    msg = 'Síntesis AI no disponible.' if lang=='es' else 'AI synthesis unavailable.'
+    msg = 'Sintesis AI no disponible.' if lang=='es' else 'AI synthesis unavailable.'
     return {
         'macro_context':{'text':msg},
         'risk_analysis':{'text':msg,'risks':[]},
@@ -404,40 +400,52 @@ def analyse(ticker, lang='en'):
     from_date = time.strftime('%Y-%m-%d', time.gmtime(now_ts - 30*24*3600))
     to_date   = time.strftime('%Y-%m-%d', time.gmtime(now_ts))
 
-    with ThreadPoolExecutor(max_workers=9) as ex:
+    # Phase 1: ALL data in parallel (Finnhub + AV + Macro together — critical timing fix)
+    with ThreadPoolExecutor(max_workers=12) as ex:
         futs = {
-            'profile':ex.submit(fh,'stock/profile2',{'symbol':ticker}),
-            'quote':  ex.submit(fh,'quote',{'symbol':ticker}),
-            'metrics':ex.submit(fh,'stock/metric',{'symbol':ticker,'metric':'all'}),
-            'recs':   ex.submit(fh,'stock/recommendation-trends',{'symbol':ticker}),
-            'target': ex.submit(fh,'stock/price-target',{'symbol':ticker}),
-            'earnings':ex.submit(fh,'stock/earnings',{'symbol':ticker}),
-            'news':   ex.submit(fh,'company-news',{'symbol':ticker,'from':from_date,'to':to_date}),
-            'insider':ex.submit(fh,'stock/insider-sentiment',{'symbol':ticker,'from':from_date,'to':to_date}),
-            'macro':  ex.submit(get_macro),
+            'profile':  ex.submit(fh, 'stock/profile2', {'symbol': ticker}),
+            'quote':    ex.submit(fh, 'quote', {'symbol': ticker}),
+            'metrics':  ex.submit(fh, 'stock/metric', {'symbol': ticker, 'metric': 'all'}),
+            'recs':     ex.submit(fh, 'stock/recommendation-trends', {'symbol': ticker}),
+            'target':   ex.submit(fh, 'stock/price-target', {'symbol': ticker}),
+            'earnings': ex.submit(fh, 'stock/earnings', {'symbol': ticker}),
+            'news':     ex.submit(fh, 'company-news', {'symbol': ticker, 'from': from_date, 'to': to_date}),
+            'insider':  ex.submit(fh, 'stock/insider-sentiment', {'symbol': ticker, 'from': from_date, 'to': to_date}),
+            'macro':    ex.submit(get_macro),
+            'av':       ex.submit(get_av_data, ticker),
         }
-        res = {k:v.result() for k,v in futs.items()}
+        res = {}
+        for k, fut in futs.items():
+            try:
+                res[k] = fut.result(timeout=25)
+            except:
+                res[k] = {}
 
-    profile = res['profile']
+    profile = res.get('profile') or {}
     if not profile.get('name'):
         raise Exception(f'Ticker "{ticker}" not found. Try AAPL, NVDA, MSFT, JPM.')
 
-    quote    = res['quote']
-    m_fh     = (res['metrics'].get('metric') or {})
-    recs     = res['recs']     if isinstance(res['recs'], list) else []
-    target   = res['target']   if isinstance(res['target'], dict) else {}
-    earnings = res['earnings'] if isinstance(res['earnings'], list) else []
-    news_raw = res['news']     if isinstance(res['news'], list) else []
-    insider_raw = res['insider']
-    macro    = res['macro']
+    quote       = res.get('quote') or {}
+    m_fh        = (res.get('metrics') or {}).get('metric') or {}
+    recs_raw    = res.get('recs') or {}
+    recs        = recs_raw if isinstance(recs_raw, list) else []
+    target_raw  = res.get('target') or {}
+    target      = target_raw if isinstance(target_raw, dict) else {}
+    earnings_raw= res.get('earnings') or {}
+    earnings    = earnings_raw if isinstance(earnings_raw, list) else []
+    news_list   = res.get('news') or {}
+    news_list   = news_list if isinstance(news_list, list) else []
+    insider_raw = res.get('insider') or {}
+    macro       = res.get('macro') or {}
+    av          = res.get('av') or {}
 
-    # Filter news — keep only ones with real headline, dedupe by URL, include link
+    # Filter news
     seen_urls = set(); news = []
-    for a in news_raw[:30]:
+    for a in news_list[:30]:
         hl = (a.get('headline') or '').strip()
         url = a.get('url','')
         if not hl or url in seen_urls: continue
-        if len(hl) < 15: continue  # filter noise
+        if len(hl) < 15: continue
         seen_urls.add(url)
         news.append({
             'headline': hl[:220],
@@ -447,22 +455,16 @@ def analyse(ticker, lang='en'):
         })
         if len(news) >= 8: break
 
-    # Insider sentiment: aggregate last 3 months
+    # Insider sentiment
     insider_data = (insider_raw or {}).get('data') or []
-    insider_net = sum((d.get('change', 0) or 0) for d in insider_data[-3:])
+    insider_net  = sum((d.get('change', 0) or 0) for d in insider_data[-3:])
     insider_mspr = sum((d.get('mspr', 0) or 0) for d in insider_data[-3:])
-
-    # Alpha Vantage
-    with ThreadPoolExecutor(max_workers=1) as ex:
-        fut = ex.submit(get_av_data, ticker)
-        try: av = fut.result(timeout=22) or {}
-        except: av = {}
 
     price   = quote.get('c'); change = quote.get('d'); chg_pct = quote.get('dp')
 
     rec_fh = recs[0] if recs else {}
     sb = rec_fh.get('strongBuy', 0) or 0; b = rec_fh.get('buy', 0) or 0
-    h  = rec_fh.get('hold', 0) or 0; se = rec_fh.get('sell', 0) or 0
+    h  = rec_fh.get('hold', 0) or 0;     se = rec_fh.get('sell', 0) or 0
     ss = rec_fh.get('strongSell', 0) or 0
     tp_fh = target.get('targetMean')
     tp = tp_fh or av.get('target_price')
@@ -500,51 +502,80 @@ def analyse(ticker, lang='en'):
     sc = compute_score(net_margin, op_margin, roe, roa, rev_growth, de, cr, fcf_raw, sb, b, h, se, ss, tp, price)
     z  = calc_altman(m_fh, av)
     fs = calc_piotroski(m_fh, av)
-    name = profile.get('name', ticker)
+    name        = profile.get('name', ticker)
     fh_industry = profile.get('finnhubIndustry','')
     av_industry = av.get('industry','')
-    industry = av_industry or fh_industry or 'N/A'
-    sector = av.get('sector','') or fh_industry or ''
-    peers = PEERS_MAP.get(ticker, ['SPY','QQQ','IWM','GLD'])
-    hist_fin = av.get('historical_financials', [])
+    industry    = av_industry or fh_industry or 'N/A'
+    sector      = av.get('sector','') or fh_industry or ''
+    peers       = PEERS_MAP.get(ticker, ['SPY','QQQ','IWM','GLD'])
+    hist_fin    = av.get('historical_financials', [])
 
-    user_data = {
-        'company':{
-            'ticker':ticker, 'name':name, 'sector':sector, 'industry':industry,
-            'country':av.get('country',''), 'employees':av.get('employees',''),
-            'description':av.get('description',''),
-            'price':price, 'change':change, 'change_pct':chg_pct,
-            'market_cap_m':market_cap,
-            'composite_score':sc['total'], 'score_fund':sc['fundamental'],
-            'score_accounting':sc['accounting'], 'score_analyst':sc['analyst'],
-            'altman_z':z, 'altman_zone':altman_zone(z, lang), 'piotroski_f':fs,
-            'pe_ttm':pe_ttm, 'pe_forward':pe_fwd, 'pb':pb, 'ev_ebitda':ev_ebitda,
-            'gross_margin':gross_m, 'op_margin':op_margin, 'net_margin':net_margin,
-            'roe':roe, 'roa':roa, 'roic':roic,
-            'rev_growth':rev_growth, 'eps_growth':eps_growth, 'eps_ttm':eps_ttm,
-            'fcf':fcf_str, 'fcf_margin':fcf_margin,
-            'de':de, 'current_ratio':cr, 'quick_ratio':qr,
-            'div_yield':div_yield, 'beta':beta,
-            'week52_high':w52h, 'week52_low':w52l,
-            'pct_institutions':av.get('pct_institutions'),
-            'pct_insiders':av.get('pct_insiders'),
-            'insider_net_change_last_qtr':insider_net,
-            'insider_mspr':insider_mspr,
-            'analyst_strong_buy':sb, 'analyst_buy':b, 'analyst_hold':h,
-            'analyst_sell':se, 'analyst_strong_sell':ss,
-            'analyst_total':sb+b+h+se+ss,
-            'consensus_target':tp, 'consensus_upside':upside,
-            'historical_financials':hist_fin,
-            'peers':peers,
+    # Economic calendar - next 2 weeks of important macro events
+    econ_events = []
+    try:
+        cal_from = time.strftime('%Y-%m-%d', time.gmtime(now_ts))
+        cal_to   = time.strftime('%Y-%m-%d', time.gmtime(now_ts + 14*24*3600))
+        econ_cal = fh('calendar/economic', {'from': cal_from, 'to': cal_to}, timeout=6)
+        for ev in (econ_cal.get('economicCalendar') or [])[:8]:
+            if ev.get('impact') in ('high', 'medium'):
+                econ_events.append({
+                    'event':   ev.get('event', ''),
+                    'date':    ev.get('time', '')[:10],
+                    'impact':  ev.get('impact', ''),
+                    'country': ev.get('country', ''),
+                })
+    except:
+        econ_events = []
+
+    # Upcoming earnings date
+    upcoming_earnings = None
+    try:
+        earn_cal = fh('stock/earnings-calendar', {
+            'symbol': ticker,
+            'from': to_date,
+            'to': time.strftime('%Y-%m-%d', time.gmtime(now_ts + 90*24*3600))
+        }, timeout=6)
+        if earn_cal.get('earningsCalendar'):
+            upcoming_earnings = earn_cal['earningsCalendar'][0].get('date', None)
+    except:
+        pass
+
+    # Trimmed payload for OpenAI (description capped at 600 chars, hist_fin 3 years, news 4 items)
+    user_data_for_ai = {
+        'company': {
+            'ticker': ticker, 'name': name, 'sector': sector, 'industry': industry,
+            'country': av.get('country', ''), 'employees': av.get('employees', ''),
+            'description': (av.get('description', '') or '')[:600],
+            'price': price, 'change_pct': chg_pct, 'market_cap_m': market_cap,
+            'composite_score': sc['total'], 'score_fund': sc['fundamental'],
+            'score_accounting': sc['accounting'], 'score_analyst': sc['analyst'],
+            'altman_z': z, 'altman_zone': altman_zone(z, lang), 'piotroski_f': fs,
+            'pe_ttm': pe_ttm, 'pe_forward': pe_fwd, 'pb': pb, 'ev_ebitda': ev_ebitda,
+            'gross_margin': gross_m, 'op_margin': op_margin, 'net_margin': net_margin,
+            'roe': roe, 'roa': roa, 'roic': roic,
+            'rev_growth': rev_growth, 'eps_growth': eps_growth, 'eps_ttm': eps_ttm,
+            'fcf': fcf_str, 'fcf_margin': fcf_margin,
+            'de': de, 'current_ratio': cr, 'div_yield': div_yield, 'beta': beta,
+            'week52_high': w52h, 'week52_low': w52l,
+            'pct_institutions': av.get('pct_institutions'),
+            'pct_insiders': av.get('pct_insiders'),
+            'insider_net_change': insider_net, 'insider_mspr': round(insider_mspr, 2),
+            'analyst_strong_buy': sb, 'analyst_buy': b, 'analyst_hold': h,
+            'analyst_sell': se, 'analyst_strong_sell': ss,
+            'consensus_target': tp, 'consensus_upside': upside,
+            'historical_financials': hist_fin[:3],
+            'upcoming_earnings': upcoming_earnings,
+            'peers': peers,
         },
-        'macro':macro,
-        'recent_news':[{'headline':n['headline'],'source':n['source']} for n in news[:6]],
+        'macro': macro,
+        'recent_news': [{'headline': n['headline'], 'source': n['source']} for n in news[:4]],
+        'economic_calendar': econ_events[:6],
     }
 
-    # ── 2 parallel OpenAI calls ──
+    # 2 parallel OpenAI calls
     with ThreadPoolExecutor(max_workers=2) as ex:
-        fa = ex.submit(call_openai, prompt_a(lang), user_data, 3500)
-        fb = ex.submit(call_openai, prompt_b(lang), user_data, 3500)
+        fa = ex.submit(call_openai, prompt_a(lang), user_data_for_ai, 2800)
+        fb = ex.submit(call_openai, prompt_b(lang), user_data_for_ai, 2800)
         try: ai_a = fa.result(timeout=52)
         except: ai_a = {'_error':'timeout'}
         try: ai_b = fb.result(timeout=52)
@@ -553,7 +584,6 @@ def analyse(ticker, lang='en'):
     if ai_a.get('_error'): ai_a = _fallback_a(name, sc, fs, lang)
     if ai_b.get('_error'): ai_b = _fallback_b(lang)
 
-    # Merge into single ai object
     ai = {**ai_a, **ai_b}
 
     return {
@@ -565,6 +595,8 @@ def analyse(ticker, lang='en'):
         'score':sc, 'altman':z, 'altman_zone':altman_zone(z, lang),
         'piotroski':fs, 'piotroski_label':piotroski_label(fs, lang),
         'macro':macro, 'historical_financials':hist_fin,
+        'economic_calendar':econ_events,
+        'upcoming_earnings':upcoming_earnings,
         'metrics':{
             'pe':pe_ttm, 'pe_forward':pe_fwd, 'pb':pb, 'ev_ebitda':ev_ebitda,
             'net_margin':net_margin, 'op_margin':op_margin, 'gross_margin':gross_m,
@@ -595,7 +627,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path); qs = urllib.parse.parse_qs(parsed.query)
         ticker = (qs.get('ticker',[''])[0]).upper().strip()
-        lang = (qs.get('lang',['en'])[0]).lower().strip()
+        lang   = (qs.get('lang',['en'])[0]).lower().strip()
         if lang not in ('en','es'): lang = 'en'
         self.send_response(200); self.send_header('Content-type','application/json')
         self.send_header('Access-Control-Allow-Origin','*'); self.end_headers()
