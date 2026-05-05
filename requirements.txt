@@ -1,3 +1,1 @@
 
-# All HTTP calls use stdlib urllib — no third-party packages required.
-# httpx was used in early versions and is no longer needed.
