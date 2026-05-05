@@ -2,6 +2,12 @@
   "functions": {
     "api/analyse.py": {
       "maxDuration": 60
+    },
+    "api/watchlist_subscribe.py": {
+      "maxDuration": 20
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api/watchlist-subscribe", "destination": "/api/watchlist_subscribe" }
+  ]
 }
