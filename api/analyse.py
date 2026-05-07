@@ -386,31 +386,194 @@ def get_peer_snapshot(ticker):
 
 # ─── Scoring ─────────────────────────────────────────────────────────────────
 
-def compute_score(pm, om, roe, roa, rg, de, cr, fcf_raw, sb, b, h, se, ss, tp, price):
-    f = 20
-    if pm is not None: f += 7 if pm>25 else 5 if pm>15 else 2 if pm>8 else (-5 if pm<0 else 0)
-    if om is not None: f += 6 if om>30 else 4 if om>20 else 2 if om>10 else (-4 if om<0 else 0)
-    if roe is not None: f += 6 if roe>30 else 3 if roe>15 else (-4 if roe<0 else 0)
-    if roa is not None: f += 4 if roa>15 else 2 if roa>8 else (-2 if roa<0 else 0)
-    if rg is not None: f += 6 if rg>20 else 3 if rg>10 else 1 if rg>0 else -4
+def _t(en, es, lang):
+    return es if lang=='es' else en
+
+def compute_score(pm, om, roe, roa, roic, rg, de, cr, qr, fcf_raw, fcf_margin, fcf_ni_ratio,
+                  sb, bu, hd, se, ss, tp, price, beta, vix, hy_spread, lang='en'):
+    """
+    Returns dict with the four pillar scores AND a breakdown of each rule that fired.
+    Tighter thresholds — 40/40 fundamental requires elite quality across multiple axes.
+    breakdown[pillar] = [{pts: int, reason: str}, ...]
+    """
+    bd = {'fundamental':[], 'accounting':[], 'analyst':[], 'context':[]}
+
+    # ── FUNDAMENTAL (base 12, max 40) ──────────────────────────────────────────
+    f = 12
+    bd['fundamental'].append({'pts':12, 'reason':_t('Base score','Puntuación base', lang)})
+
+    # Net margin (max +7)
+    if pm is not None:
+        if pm > 30:
+            f += 7; bd['fundamental'].append({'pts':+7, 'reason':_t(f'Net margin {pm:.1f}% > 30% — elite profitability', f'Margen neto {pm:.1f}% > 30% — rentabilidad élite', lang)})
+        elif pm > 20:
+            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'Net margin {pm:.1f}% > 20% — strong', f'Margen neto {pm:.1f}% > 20% — sólido', lang)})
+        elif pm > 10:
+            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'Net margin {pm:.1f}% > 10%', f'Margen neto {pm:.1f}% > 10%', lang)})
+        elif pm > 3:
+            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'Net margin {pm:.1f}% positive but thin', f'Margen neto {pm:.1f}% positivo pero ajustado', lang)})
+        elif pm < 0:
+            f -= 5; bd['fundamental'].append({'pts':-5, 'reason':_t(f'Net margin {pm:.1f}% negative — loss-making', f'Margen neto {pm:.1f}% negativo — pérdidas', lang)})
+
+    # Operating margin (max +6)
+    if om is not None:
+        if om > 35:
+            f += 6; bd['fundamental'].append({'pts':+6, 'reason':_t(f'Operating margin {om:.1f}% > 35% — best-in-class', f'Margen operativo {om:.1f}% > 35% — top sector', lang)})
+        elif om > 25:
+            f += 4; bd['fundamental'].append({'pts':+4, 'reason':_t(f'Operating margin {om:.1f}% > 25%', f'Margen operativo {om:.1f}% > 25%', lang)})
+        elif om > 15:
+            f += 2; bd['fundamental'].append({'pts':+2, 'reason':_t(f'Operating margin {om:.1f}% > 15%', f'Margen operativo {om:.1f}% > 15%', lang)})
+        elif om < 0:
+            f -= 4; bd['fundamental'].append({'pts':-4, 'reason':_t(f'Operating margin {om:.1f}% negative', f'Margen operativo {om:.1f}% negativo', lang)})
+
+    # ROE (max +5) — penalised when extreme leverage drives it
+    if roe is not None:
+        if roe > 40 and (de is None or de < 1.5):
+            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'ROE {roe:.1f}% with controlled leverage', f'ROE {roe:.1f}% con apalancamiento controlado', lang)})
+        elif roe > 20:
+            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'ROE {roe:.1f}% > 20%', f'ROE {roe:.1f}% > 20%', lang)})
+        elif roe > 10:
+            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'ROE {roe:.1f}% above cost of equity proxy', f'ROE {roe:.1f}% por encima del coste de capital', lang)})
+        elif roe < 0:
+            f -= 4; bd['fundamental'].append({'pts':-4, 'reason':_t(f'ROE {roe:.1f}% negative', f'ROE {roe:.1f}% negativo', lang)})
+
+    # ROIC (max +5) — most important capital-efficiency metric
+    if roic is not None:
+        if roic > 25:
+            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'ROIC {roic:.1f}% — strong economic profit signal', f'ROIC {roic:.1f}% — fuerte señal de beneficio económico', lang)})
+        elif roic > 15:
+            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'ROIC {roic:.1f}% above sector WACC', f'ROIC {roic:.1f}% por encima del WACC sectorial', lang)})
+        elif roic > 8:
+            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'ROIC {roic:.1f}% modest spread vs WACC', f'ROIC {roic:.1f}% diferencial modesto vs WACC', lang)})
+        elif roic < 0:
+            f -= 3; bd['fundamental'].append({'pts':-3, 'reason':_t(f'ROIC {roic:.1f}% negative — value destruction', f'ROIC {roic:.1f}% negativo — destrucción de valor', lang)})
+
+    # Revenue growth (max +5)
+    if rg is not None:
+        if rg > 25:
+            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'Revenue growth +{rg:.1f}% — top decile', f'Crecimiento de ingresos +{rg:.1f}% — decil superior', lang)})
+        elif rg > 12:
+            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'Revenue growth +{rg:.1f}%', f'Crecimiento de ingresos +{rg:.1f}%', lang)})
+        elif rg > 3:
+            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'Revenue growth +{rg:.1f}% modest', f'Crecimiento de ingresos +{rg:.1f}% modesto', lang)})
+        elif rg < 0:
+            f -= 4; bd['fundamental'].append({'pts':-4, 'reason':_t(f'Revenue declining {rg:.1f}%', f'Ingresos en caída {rg:.1f}%', lang)})
+
     f = max(0, min(40, f))
-    a = 15
-    total = (sb or 0)+(b or 0)+(h or 0)+(se or 0)+(ss or 0)
-    if total > 0:
-        br = (sb+b)/total; sr = (se+ss)/total
-        a += 10 if br>0.7 else 6 if br>0.5 else 2 if br>0.3 else 0
-        a -= 8 if sr>0.5 else 4 if sr>0.3 else 0
+
+    # ── ANALYST (base 12, max 30) ──────────────────────────────────────────────
+    a = 12
+    bd['analyst'].append({'pts':12, 'reason':_t('Base score','Puntuación base', lang)})
+    total_recs = (sb or 0)+(bu or 0)+(hd or 0)+(se or 0)+(ss or 0)
+    if total_recs > 0:
+        buy_ratio = (sb+bu)/total_recs
+        sell_ratio = (se+ss)/total_recs
+        if buy_ratio > 0.75:
+            a += 8; bd['analyst'].append({'pts':+8, 'reason':_t(f'{buy_ratio*100:.0f}% Buy-rated by {total_recs} analysts', f'{buy_ratio*100:.0f}% recomendaciones Compra entre {total_recs} analistas', lang)})
+        elif buy_ratio > 0.55:
+            a += 5; bd['analyst'].append({'pts':+5, 'reason':_t(f'Majority Buy-rated ({buy_ratio*100:.0f}%)', f'Mayoría Compra ({buy_ratio*100:.0f}%)', lang)})
+        elif buy_ratio > 0.35:
+            a += 2; bd['analyst'].append({'pts':+2, 'reason':_t(f'Mixed coverage ({buy_ratio*100:.0f}% Buy)', f'Cobertura mixta ({buy_ratio*100:.0f}% Compra)', lang)})
+        if sell_ratio > 0.40:
+            a -= 6; bd['analyst'].append({'pts':-6, 'reason':_t(f'{sell_ratio*100:.0f}% Sell-rated', f'{sell_ratio*100:.0f}% recomendaciones Venta', lang)})
+        elif sell_ratio > 0.20:
+            a -= 3; bd['analyst'].append({'pts':-3, 'reason':_t(f'{sell_ratio*100:.0f}% Sell-rated', f'{sell_ratio*100:.0f}% recomendaciones Venta', lang)})
+    else:
+        bd['analyst'].append({'pts':0, 'reason':_t('No recent analyst recommendations available', 'Sin recomendaciones de analistas recientes', lang)})
+
     if tp and price and price > 0:
         up = (tp-price)/price*100
-        a += 5 if up>20 else 2 if up>10 else 1 if up>0 else (-5 if up<-10 else -2)
+        if up > 25:
+            a += 6; bd['analyst'].append({'pts':+6, 'reason':_t(f'Consensus target +{up:.1f}% above price', f'Precio objetivo consenso +{up:.1f}% sobre cotización', lang)})
+        elif up > 10:
+            a += 3; bd['analyst'].append({'pts':+3, 'reason':_t(f'Consensus target +{up:.1f}%', f'Consenso +{up:.1f}%', lang)})
+        elif up > 0:
+            a += 1; bd['analyst'].append({'pts':+1, 'reason':_t(f'Consensus target marginally above price (+{up:.1f}%)', f'Precio objetivo marginalmente sobre cotización (+{up:.1f}%)', lang)})
+        elif up < -10:
+            a -= 5; bd['analyst'].append({'pts':-5, 'reason':_t(f'Consensus target {up:.1f}% below price — overvaluation flag', f'Consenso {up:.1f}% bajo cotización — alerta de sobrevaloración', lang)})
+        elif up < 0:
+            a -= 2; bd['analyst'].append({'pts':-2, 'reason':_t(f'Consensus target {up:.1f}% below price', f'Consenso {up:.1f}% bajo cotización', lang)})
+
     a = max(0, min(30, a))
-    acc = 10
-    if de is not None: acc += 5 if de<0.3 else 3 if de<1 else (-5 if de>3 else -2 if de>2 else 0)
-    if cr is not None: acc += 3 if cr>2 else 1 if cr>1.2 else (-3 if 0<cr<1 else 0)
-    if fcf_raw is not None: acc += 3 if float(fcf_raw) > 0 else -3
+
+    # ── ACCOUNTING / SOLVENCY (base 8, max 20) ─────────────────────────────────
+    acc = 8
+    bd['accounting'].append({'pts':8, 'reason':_t('Base score','Puntuación base', lang)})
+
+    # Debt / Equity
+    if de is not None:
+        if de < 0.25:
+            acc += 5; bd['accounting'].append({'pts':+5, 'reason':_t(f'D/E {de:.2f} — minimal leverage', f'Deuda/Capital {de:.2f} — apalancamiento mínimo', lang)})
+        elif de < 0.75:
+            acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'D/E {de:.2f} — conservative', f'Deuda/Capital {de:.2f} — conservador', lang)})
+        elif de < 1.5:
+            acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'D/E {de:.2f} — moderate', f'Deuda/Capital {de:.2f} — moderado', lang)})
+        elif de > 3:
+            acc -= 5; bd['accounting'].append({'pts':-5, 'reason':_t(f'D/E {de:.2f} — heavily leveraged', f'Deuda/Capital {de:.2f} — muy apalancado', lang)})
+        elif de > 2:
+            acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t(f'D/E {de:.2f} — high leverage', f'Deuda/Capital {de:.2f} — apalancamiento alto', lang)})
+
+    # Current ratio
+    if cr is not None:
+        if cr > 2:
+            acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'Current ratio {cr:.2f} — strong liquidity', f'Ratio liquidez {cr:.2f} — sólido', lang)})
+        elif cr > 1.3:
+            acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'Current ratio {cr:.2f} — adequate liquidity', f'Ratio liquidez {cr:.2f} — adecuado', lang)})
+        elif 0 < cr < 1:
+            acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t(f'Current ratio {cr:.2f} below 1 — short-term liquidity stress', f'Ratio liquidez {cr:.2f} < 1 — tensión de tesorería', lang)})
+
+    # FCF generation (sign + magnitude vs revenue)
+    if fcf_raw is not None:
+        if float(fcf_raw) > 0 and fcf_margin and fcf_margin > 15:
+            acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'FCF margin {fcf_margin:.1f}% — high cash generation', f'Margen FCL {fcf_margin:.1f}% — alta generación de caja', lang)})
+        elif float(fcf_raw) > 0:
+            acc += 2; bd['accounting'].append({'pts':+2, 'reason':_t('Positive free cash flow', 'Flujo de caja libre positivo', lang)})
+        else:
+            acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t('Negative free cash flow', 'Flujo de caja libre negativo', lang)})
+
+    # FCF / Net Income conversion (earnings quality)
+    if fcf_ni_ratio is not None:
+        if fcf_ni_ratio > 0.95:
+            acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'FCF/NI {fcf_ni_ratio*100:.0f}% — high earnings quality', f'FCL/Beneficio neto {fcf_ni_ratio*100:.0f}% — alta calidad de beneficios', lang)})
+        elif fcf_ni_ratio < 0.50 and fcf_ni_ratio > 0:
+            acc -= 2; bd['accounting'].append({'pts':-2, 'reason':_t(f'FCF/NI {fcf_ni_ratio*100:.0f}% — earnings quality concern', f'FCL/Beneficio neto {fcf_ni_ratio*100:.0f}% — alerta calidad beneficios', lang)})
+
     acc = max(0, min(20, acc))
-    return {'total':max(5,min(98,round(f+a+acc+5))),
-            'fundamental':round(f),'accounting':round(acc),'analyst':round(a),'context':5}
+
+    # ── CONTEXT / MACRO-ADJUSTED (base 4, max 10) ──────────────────────────────
+    ctx = 4
+    bd['context'].append({'pts':4, 'reason':_t('Base score','Puntuación base', lang)})
+
+    # Beta vs market regime
+    if beta is not None and vix is not None:
+        if beta < 1.0 and vix > 22:
+            ctx += 2; bd['context'].append({'pts':+2, 'reason':_t(f'Beta {beta:.2f} (defensive) in elevated VIX {vix:.1f}', f'Beta {beta:.2f} (defensiva) con VIX elevado {vix:.1f}', lang)})
+        elif beta > 1.5 and vix > 25:
+            ctx -= 2; bd['context'].append({'pts':-2, 'reason':_t(f'Beta {beta:.2f} (high) into volatile market (VIX {vix:.1f})', f'Beta {beta:.2f} (alta) en mercado volátil (VIX {vix:.1f})', lang)})
+        elif beta is not None:
+            ctx += 1; bd['context'].append({'pts':+1, 'reason':_t(f'Beta {beta:.2f} aligned with market regime', f'Beta {beta:.2f} alineada con régimen de mercado', lang)})
+
+    # Credit spread regime
+    if hy_spread is not None:
+        if hy_spread < 350:
+            ctx += 2; bd['context'].append({'pts':+2, 'reason':_t(f'HY credit spread {hy_spread}bps — risk-on environment', f'Spread HY {hy_spread}pb — entorno risk-on', lang)})
+        elif hy_spread > 600:
+            ctx -= 2; bd['context'].append({'pts':-2, 'reason':_t(f'HY credit spread {hy_spread}bps — credit stress', f'Spread HY {hy_spread}pb — estrés crediticio', lang)})
+
+    # Quick ratio bonus
+    if qr is not None and qr > 1.5:
+        ctx += 1; bd['context'].append({'pts':+1, 'reason':_t(f'Quick ratio {qr:.2f} — solid acid-test', f'Test ácido {qr:.2f} — sólido', lang)})
+
+    ctx = max(0, min(10, ctx))
+
+    return {
+        'total': max(5, min(98, round(f+a+acc+ctx))),
+        'fundamental': round(f),
+        'accounting':  round(acc),
+        'analyst':     round(a),
+        'context':     round(ctx),
+        'breakdown':   bd,
+    }
 
 def calc_altman(m, av):
     try:
@@ -464,51 +627,67 @@ def piotroski_label(f, lang='en'):
 def prompt_a(lang='en'):
     if lang=='es':
         lt = ('Redacta TODO el contenido en español financiero institucional, fluido y preciso, '
-              'como lo haría un analista senior de renta variable de un banco de inversión en Madrid. '
-              'Evita anglicismos innecesarios: usa "BPA" en lugar de "EPS", "VE/EBITDA" en lugar de '
-              '"EV/EBITDA", "margen de caja libre" en lugar de "FCF margin", "valor razonable" en lugar '
-              'de "fair value", "flujo de caja libre" en lugar de "FCF". Mantén las claves JSON en inglés.')
+              'como un analista senior CFA de un buy-side en Madrid escribiendo para un comité de '
+              'inversiones. Terminología obligatoria: "BPA" (no EPS), "VE/EBITDA" (no EV/EBITDA), '
+              '"margen de flujo de caja libre" (no FCF margin), "valor razonable" (no fair value), '
+              '"flujo de caja libre" o "FCL" (no FCF), "tasa de descuento" o "WACC" indistintamente, '
+              '"deuda neta" (no net debt), "apalancamiento financiero" (no leverage), "rotación de '
+              'activos" (no asset turnover), "fondo de maniobra" (no working capital), "cobertura de '
+              'intereses" (no interest coverage), "ROIC" o "retorno sobre capital invertido", '
+              '"economic profit" o "beneficio económico" (ROIC-WACC). Mantén las claves JSON en inglés.')
     else:
-        lt = 'Write all content in clear, professional English suitable for institutional equity research.'
-    return f"""You are a senior equity research analyst at Goldman Sachs writing an INFORMATIONAL REPORT (not investment advice). Return ONLY valid JSON matching the schema exactly. No markdown fences, no preamble, no text outside the JSON.
+        lt = ('Write in clear, institutional-grade English for a sell-side / buy-side audience. '
+              'Use precise CFA terminology. Avoid generic adjectives ("strong", "good") unless backed '
+              'by an exact figure. Reference balance-sheet quality, working capital efficiency, '
+              'interest coverage, and FCF conversion when relevant.')
+    return f"""You are the lead equity analyst at FINscope Research — an independent institutional research desk. You write for portfolio managers, CFOs and credit analysts. Output is INFORMATIONAL ONLY — never investment advice. Return ONLY valid JSON matching the schema exactly. No markdown fences, no preamble, no text outside the JSON.
 
 {lt}
 
-CRITICAL RULES:
-- Every analytical sentence MUST contain at least one specific number from the input data
-- Neutral framing: "The data indicates", "From a fundamental standpoint", "The financials suggest". NEVER "we recommend", "investors should buy/sell"
-- Explain WHY each metric matters (context, not just value)
-- Use historical_financials for multi-year trends with exact YoY comparisons in basis points or %pts
-- Reference specific business segments and geographies from the company description
-- MINIMUM 12 substantive sentences per text field. Never be brief.
+NON-NEGOTIABLE STANDARDS:
+- Every analytical sentence MUST contain at least one specific figure from input (P/E, margin, growth %, $bn, ratio, year)
+- NEVER say "we recommend / investors should / the stock will". Neutral framing only: "The data indicates", "Balance-sheet quality reflects", "Operating leverage of X% suggests".
+- Connect ratios to underlying drivers. Don't just quote them — explain WHY: e.g. "ROE of 65% reflects high asset turnover (X.Xx) combined with strong net margin (XX%) and modest leverage (D/E X.XX); a Du Pont decomposition would attribute most of the spread above peers to operating efficiency, not financial gearing."
+- Use historical_financials to extract multi-year trends with EXACT pp deltas: "Operating margin expanded from 28.4% in 2021 to 31.2% TTM, +280bps".
+- Cross-reference real news headlines and economic_calendar events when material.
+- MINIMUM 12 substantive sentences per text field. Verbose where it adds insight; never padding.
+- Explicitly identify accounting red flags when relevant: aggressive revenue recognition, FCF/NI gap, capitalised costs, working capital ballooning, off-balance-sheet liabilities. If none, say "No material accounting concerns identified in the disclosed line items."
+- Cite the specific business segments and geographies from the company description rather than generic "consumer markets".
+- Anchor every valuation reference to a sector-appropriate benchmark (sector median P/E, sector ROIC) — do not float numbers in a vacuum.
 
-REQUIRED JSON SCHEMA (fill ALL fields with real data from input, no placeholders):
-{{"executive_summary":{{"verdict":"3-6 word neutral status","verdict_sub":"1-2 sentences with 2+ specific numbers","verdict_color":"green|amber|red","verdict_icon":"bull|neutral|bear|watch","text":"12-15 sentences covering: business overview in 1 sentence, composite score drivers, 2 key strengths with exact figures, 2 key risks with figures, valuation position, forward outlook framing. Target 250-300 words."}},"business_model":{{"text":"12-15 sentences: all revenue streams, moat type quantified, customer/segment concentration %, key geographies with business rationale, recent strategic shifts, historical inflection points, competitive positioning vs sector. Target 300-400 words.","revenue_segments":[{{"name":"Segment name","pct":50,"description":"what it covers and its growth dynamics"}}],"geographic_exposure":[{{"region":"Region name","pct":45,"note":"why this market matters for the company"}}]}},"performance":{{"text":"12-14 sentences: YTD and 1Y total return with figures, price vs 52W high/low with exact % distance, revenue growth trajectory across all 4 years from historical_financials, operating margin trend with exact pp change, EPS growth context, beta interpretation, notable catalysts, dividend or buyback contribution. Target 280-340 words."}},"financial_quality":{{"text":"14-16 sentences: gross margin with multi-year trend in exact pp, operating leverage (revenue growth vs operating income growth), FCF with absolute figure and yield, ROIC context, debt analysis. EXPLAIN Altman Z-Score: 5 factors X1=Working Capital/Total Assets (liquidity buffer), X2=Retained Earnings/TA (cumulative profitability), X3=EBIT/TA (operating efficiency), X4=Mkt Cap/Book Liabilities (solvency buffer), X5=Sales/TA (asset utilization); Z>2.99=safe, 1.81-2.99=grey, <1.81=distress; not valid for banks. EXPLAIN Piotroski F-Score: 9 binary signals across Profitability (ROA+, FCF+, ROA improving, FCF>Net Income), Leverage (D/E falling, Current Ratio improving, no dilution), Efficiency (Gross Margin improving, Asset Turnover improving); 7-9=strong, 4-6=moderate, 0-3=deteriorating. Target 380-460 words."}},"sec_filings":{{"text":"12-14 sentences: revenue recognition policy with figures, management guidance with specific numbers, quantified material risk factors, segment MD&A highlights, related party or legal proceedings, recent insider transaction patterns, any critical accounting changes or restatements. Target 240-300 words.","key_disclosures":["3-5 specific findings each with exact figure from recent 10-K/10-Q"]}}}}"""
+REQUIRED JSON SCHEMA (every field substantive, no placeholders, no copy-paste filler):
+{{"executive_summary":{{"verdict":"3-6 word neutral status describing financial quality (e.g. 'High-quality compounder, premium multiple', 'Cyclical recovery in motion', 'Capital-intensive turnaround')","verdict_sub":"1-2 sentences with at least 3 specific figures: composite score, key strength, key risk","verdict_color":"green|amber|red","verdict_icon":"bull|neutral|bear|watch","text":"12-15 sentences. Open with the business in one factual sentence. Quantify the composite score's two main drivers and one clear gap. Identify 2 strengths backed by exact figures (e.g. 'gross margin of 71.3% versus sector median ~50%'). Identify 2 risks backed by exact figures. Quote valuation position vs peers (P/E premium/discount in % terms). Close with a forward-looking framing tied to upcoming earnings, a known catalyst, or a macro factor — never a directional call. Target 260-310 words."}},"business_model":{{"text":"12-15 sentences. (1) Specific revenue streams with their %, (2) explicit moat classification (network effect / switching cost / scale / IP / brand / regulatory) with quantified evidence, (3) customer or segment concentration with exact figures, (4) key geographies and the strategic rationale for each market, (5) recent M&A, divestitures or product launches and their impact on the P&L, (6) historical inflection points using historical_financials YoY (e.g. 'revenue grew from $X to $Y over four years, a CAGR of Z%'), (7) competitive positioning vs the named peers from peer_comparison. Target 320-410 words.","revenue_segments":[{{"name":"Segment name (real, from description)","pct":50,"description":"what it covers and its YoY growth dynamics"}}],"geographic_exposure":[{{"region":"Region name","pct":45,"note":"why this geography matters strategically and what risks/opportunities it carries"}}]}},"performance":{{"text":"12-14 sentences. (1) YTD return and 1Y total return vs S&P 500 with figures, (2) distance to 52W high/low in %, (3) full revenue trajectory across all 4 years from historical_financials with CAGR, (4) operating margin evolution in exact pp (margin expansion or compression), (5) net income trajectory and quality of earnings (FCF/NI conversion), (6) EPS growth context including any one-off items, (7) beta interpretation in plain English (defensive/offensive), (8) catalysts in the past 12 months (named: product launches, beats/misses, M&A), (9) capital return — buybacks reducing share count, dividend changes — quantified. Target 290-360 words."}},"financial_quality":{{"text":"15-18 sentences forming a deep balance-sheet & income-statement audit. Open with: gross margin level + multi-year trend in pp, operating leverage computed as (Δop income %) / (Δrevenue %), FCF with absolute figure and FCF/NI conversion ratio (>100% = high earnings quality, <70% = potential aggressive accruals), ROIC level and ROIC-WACC spread context (positive spread = economic profit), Net Debt / EBITDA estimate from D/E and market cap, working capital efficiency from current ratio trend, asset turnover from latest hist_fin. Then explicitly EXPLAIN Altman Z-Score: '5 factors. X1 = Working Capital/Total Assets (short-term liquidity buffer); X2 = Retained Earnings/TA (cumulative historical profitability); X3 = EBIT/TA (asset productivity); X4 = Market Cap / Total Liabilities (market-implied solvency cushion); X5 = Sales/TA (asset turnover). Z = 1.2·X1 + 1.4·X2 + 3.3·X3 + 0.6·X4 + X5. Bands: Z>2.99 safe, 1.81-2.99 grey, <1.81 distress. Not applicable to banks (different leverage structure) or asset-light tech firms.' This company's Z is X.XX → interpret. Then EXPLAIN Piotroski F-Score: '9 binary signals across Profitability (ROA+, FCF+, ROA rising YoY, FCF > NI), Leverage (D/E falling YoY, Current Ratio rising, no new shares issued), Efficiency (Gross Margin rising YoY, Asset Turnover rising YoY). 7-9 = improving fundamentals; 4-6 = moderate; 0-3 = deteriorating signals.' This company's F is X/9 → interpret which sub-pillar drives the score. Identify any accounting red flags or note their absence. Target 420-510 words."}},"sec_filings":{{"text":"12-14 sentences mining the most recent 10-K and 10-Q. (1) Revenue recognition policy and any segment reclassifications with figures, (2) management guidance with the exact figure provided, (3) material risk factors quantified (e.g. 'customer concentration: top 3 = 38% of revenue'), (4) segment MD&A highlights — what management chose to emphasise, (5) related-party transactions or material legal proceedings, (6) recent insider transaction patterns over the last quarter (Forms 4), (7) critical accounting estimates that meaningfully change reported earnings (impairment tests, deferred tax, stock-based compensation), (8) any restatements, going-concern language, or auditor changes — flag explicitly, otherwise say 'no flags'. Target 260-320 words.","key_disclosures":["4-6 specific findings each tied to a 10-K/10-Q line item with exact figure or %"]}}}}"""
 
 def prompt_b(lang='en'):
     if lang=='es':
-        lt = ('Redacta TODO el contenido en español financiero institucional, fluido y preciso. '
-              'Usa terminología financiera española: "tasa de descuento" para WACC, "valor razonable" para '
-              'fair value, "coste de capital" para cost of equity, "flujo de caja libre" para FCF, '
-              '"margen de seguridad" para margin of safety, "múltiplo de valoración" para valuation multiple. '
-              'Mantén las claves JSON en inglés.')
+        lt = ('Redacta TODO el contenido en español financiero institucional. Terminología obligatoria: '
+              '"WACC" o "tasa de descuento", "valor razonable", "coste de capital propio" (cost of equity), '
+              '"prima de riesgo de mercado" (ERP), "flujo de caja libre" o "FCL", "margen de seguridad", '
+              '"múltiplo de valoración", "valor terminal", "tasa de crecimiento perpetuo" (g), "beta '
+              'apalancada", "deuda neta", "capital invertido", "rentabilidad sobre capital invertido" '
+              '(ROIC), "spread económico" (ROIC–WACC), "consenso de analistas", "free float", "rotación '
+              'de cartera". Mantén las claves JSON en inglés.')
     else:
-        lt = 'Write all content in clear, professional English suitable for institutional equity research.'
-    return f"""You are a senior equity research analyst writing an INFORMATIONAL REPORT (not investment advice). Return ONLY valid JSON. No markdown, no text outside the JSON.
+        lt = ('Write in institutional CFA-grade English. Use exact financial terminology. Avoid hedging '
+              'words like "potentially", "may possibly" — be specific and grounded in data.')
+    return f"""You are the lead equity analyst at FINscope Research. You write INFORMATIONAL REPORTS for portfolio managers and credit analysts (never investment advice). Return ONLY valid JSON. No markdown, no text outside the JSON.
 
 {lt}
 
-CRITICAL RULES:
-- Every sentence must include specific numbers from provided data
-- Neutral institutional tone: "The data suggests…", never "we recommend"
-- For competitors.table: USE EXACTLY the peer_comparison data provided in the input. Do NOT invent or approximate numbers. Copy the exact values from peer_comparison.
-- MINIMUM 12 substantive sentences per text field.
+NON-NEGOTIABLE STANDARDS:
+- Every sentence carries at least one specific figure from the input
+- Neutral institutional tone — never "we recommend / investors should"
+- For competitors.table: COPY EXACTLY the peer_comparison numbers provided. Do NOT invent or round-trip. Preserve nulls as null.
+- MINIMUM 12 substantive sentences per text field — verbose where it adds insight
+- Use the macro and economic_calendar fields when discussing rate, currency, or geopolitical exposure
+- Cite real top institutional holders by name (Vanguard, BlackRock, State Street, T. Rowe Price, FMR/Fidelity, Capital Group, Wellington) — DO NOT invent fictitious holders
+- For valuation, build the WACC bottom-up using the provided risk-free rate + sector benchmark, and explicitly show: Ke = Rf + β×ERP
 
-SECTOR WACC BENCHMARKS (adjust +0.5-1.0pp if risk_free_rate >4.5%):
+SECTOR WACC BENCHMARKS (use as anchor; adjust +0.5-1.0pp if risk_free_rate >4.5%):
 UTILITIES 5.0-6.5% | REITS 5.5-7.0% | STAPLES 6.0-7.5% | TELECOM 6.5-8.5% | HEALTHCARE 7.5-9.5% | INDUSTRIALS 7.5-9.5% | RETAIL 8.5-11.0% | TRAVEL 9.5-13.0% | BANKS (use ROE vs CoE ~10-13%, Z-Score invalid) | INSURANCE 8.0-10.5% | FINTECH 9.0-12.0% | ENERGY MAJORS 8.0-10.0% | ENERGY E&P 10.0-14.0% | RENEWABLES 7.5-10.0% | MATERIALS 9.0-12.0% | PHARMA 8.0-9.0% | BIOTECH 12.0-18.0% | SEMIS 10.0-12.0% | SOFTWARE 9.0-12.0% | HARDWARE 10.0-13.0% | INTERNET 9.5-12.0%
 
-REQUIRED JSON SCHEMA (fill ALL fields with real data from input, no placeholders):
-{{"macro_context":{{"text":"12-15 sentences specific to THIS company: start with geographic revenue breakdown, discuss macro dynamics per key region, then sector-specific macro tailwinds/headwinds, geopolitical risks relevant to this company specifically, interest rate implications at current 10Y yield. Target 300-370 words."}},"risk_analysis":{{"text":"12-14 sentences covering the most material risks for THIS company: fundamental, operational, competitive, regulatory, macro. Each risk quantified where data is available. Target 240-300 words.","risks":["6-8 specific risks, 1-2 sentences each with a quantified data point. Cover: Valuation risk, Operational risk, Financial risk, Regulatory risk, Competitive risk, Macro risk, Technology/disruption risk, Concentration risk"]}},"ownership":{{"text":"12-14 sentences: EXPLAIN principal-agent problem (shareholders vs management interests); institutional ownership % and stability implications (high % = price stability, herd risk); name 3-5 likely top institutional holders for this market cap; insider ownership alignment; insider MSPR signal (positive = net buying); executive compensation structure; board independence; capital return policy with payout ratio or yield; free float and implied liquidity. Target 260-320 words.","top_holders":[{{"name":"Institution name","stake_pct":8.5}}]}},"valuation":{{"text":"14-16 sentences: EXPLAIN P/E (price per dollar of earnings, multiple expansion/contraction dynamics); EV/EBITDA (capital-structure neutral, preferred for M&A); P/B (premium over net asset value, relevant for capital-intensive companies); FCF Yield (equivalent to a bond yield, measures cash return). Compare each multiple to sector median using provided peer data. EXPLAIN WACC: Ke=Rf+Beta×ERP (CAPM, where ERP typically 4.5-6%), Kd×(1-t) after-tax debt cost, WACC=Ke×(E/V)+Kd(1-t)×(D/V). Discuss ROIC vs WACC spread (positive spread = economic value creation). EXPLAIN DCF: FCF discounted at WACC, terminal value typically 60-80% of total enterprise value, 1pp change in terminal growth rate moves fair value 15-25%. State specific fair value range with current price margin of safety, WACC assumption, and sensitivity. Target 380-460 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5}},"competitors":{{"text":"12-14 sentences: use the peer_comparison data to position company vs peers. State margin leadership rank with exact figures. Compare revenue growth rank with exact numbers. State P/E premium or discount vs peer median (exact %). Contextualize each peer specifically. Target 280-340 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"market_cap_m":2000000,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"market_cap_m":500000,"is_subject":false}}]}},"scenarios":{{"text":"4-5 sentences framing the scenario range, current price as anchor, probability-weighted expected return with exact figures.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"4-5 sentences: specific catalyst with timeline, revenue/margin assumptions with exact figures, implied P/E or EV/EBITDA at target."}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"4-5 sentences with central assumptions and implied multiple at target."}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"4-5 sentences: downside catalyst with quantified impact, multiple compression scenario, trigger threshold."}}}}}}"""
+REQUIRED JSON SCHEMA (fill ALL fields, no placeholders):
+{{"macro_context":{{"text":"13-16 sentences SPECIFIC to this company. (1) Open with company's geographic revenue breakdown (% by region) using description as anchor — never use generic 60/20/20. (2) For each major region, discuss the live macro variable that matters most: US (10Y yield at X.XX%, Fed Funds at X.XX%, CPI at X.X% YoY, ISM PMI), Europe (ECB depo rate, energy price impact, EUR/USD), China (PBoC stance, property sector, US chip sanctions), EMs (USD strength, commodity terms-of-trade). (3) Sector-specific macro: tech (capex cycle, semis cycle phase, AI demand), banks (NIM trajectory, credit-loss provisioning), energy (Brent forward curve, OPEC+), consumer (real wages, savings rate, credit card delinquencies), pharma (FDA backlog, IRA pricing impact). (4) Geopolitical risks tied to THIS company: Taiwan exposure for semis, EU AI Act for Big Tech, GLP-1 obesity drug cycle for pharma, etc. (5) Translate the 10Y yield environment into impact on this company's WACC and refinancing cost. Reference at least 2 items from the economic_calendar input. Target 320-400 words."}},"risk_analysis":{{"text":"13-15 sentences. Cover ALL eight risk types in order, each anchored to a quantified data point: (i) Valuation risk vs sector multiple, (ii) Operational risk (execution, supply chain, key talent), (iii) Financial risk (D/E, interest coverage, refinancing wall), (iv) Regulatory risk specific to industry/region, (v) Competitive risk citing the named peers from peer_comparison, (vi) Macro risk linked to live indicators, (vii) Technology/disruption risk, (viii) Concentration risk (customer, geography, single product). Target 280-340 words.","risks":["7-9 risks, each 1-2 sentences with a quantified data point. Use distinct categories — no duplicates."]}},"ownership":{{"text":"13-15 sentences. (1) EXPLAIN the principal-agent problem in one sentence with concrete framing for THIS company. (2) Institutional ownership % and what it implies: high (>70%) = price stability but herd risk on outflows; low = retail-driven volatility. (3) Name 3-5 plausible top institutional holders given this market cap (use real names — Vanguard, BlackRock, State Street, FMR/Fidelity, Capital Research, Wellington, T. Rowe Price). (4) Insider ownership level + alignment quality. (5) Insider MSPR — quantify: positive = net buying (signal of confidence), negative = net selling (sometimes liquidity, sometimes alarm). (6) Executive compensation structure (RSU/PSU mix, hurdle rates if known, alignment with TSR). (7) Board independence and any recent governance friction. (8) Capital-return policy — buyback yield + dividend yield combined = total shareholder yield, with payout ratio. (9) Free float and implied liquidity for a portfolio manager: average daily volume × price = $XXm liquidity. Target 280-340 words.","top_holders":[{{"name":"Real institution name","stake_pct":8.5}}]}},"valuation":{{"text":"16-18 sentences forming a CFA-level valuation walk-through. (1) EXPLAIN each multiple in one sentence: P/E TTM (price per dollar of trailing earnings), P/E Forward (forward earnings denominator — preferred when growth is strong), EV/EBITDA (capital-structure neutral; preferred for M&A and cross-border), P/B (asset-intensive proxy), P/S (revenue multiple, useful when no profits), FCF Yield (cash return akin to bond yield), PEG (P/E adjusted for growth). (2) Quote each multiple for the company AND the sector median using peer_comparison. (3) BUILD the WACC bottom-up: Ke = Rf + β × ERP. State Rf = current 10Y yield from macro input, β = company beta, ERP = 4.5-5.5% for US large-caps; show the arithmetic. After-tax cost of debt: Kd × (1-t) using ~21% US tax rate. WACC = Ke·(E/V) + Kd(1-t)·(D/V) using D/E for weights. Show the final WACC figure. (4) ROIC vs WACC spread — positive = economic profit, negative = value destruction. Quote both numbers and the spread in pp. (5) DCF framework: project 5-year FCF with company-specific growth, terminal value at perpetual g of 2.5-3.0%, discount at WACC. Note that terminal value typically = 60-80% of EV — sensitivity is severe. A ±1pp move in g shifts fair value by ~15-25%. (6) State a specific fair-value range with the WACC assumption used. (7) Compare to current price → margin of safety in %. Target 440-540 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5}},"competitors":{{"text":"13-15 sentences positioning the company within its peer group using ONLY the peer_comparison data. (1) State margin leadership rank in clear terms with figures. (2) Revenue growth rank with figures. (3) P/E premium or discount vs peer median in exact %. (4) EV/EBITDA premium or discount vs peer median in exact %. (5) ROE rank with figures. (6) Then 1-2 sentences contextualising each peer specifically: who's gaining share, who's a value trap, who's the margin compressor. (7) Conclude on whether the company's premium (if any) is justified by quality (margin/growth/ROE) or vulnerable to multiple compression. Target 300-360 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"market_cap_m":2000000,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"market_cap_m":500000,"is_subject":false}}]}},"scenarios":{{"text":"5-6 sentences framing the scenario range. State the current price as anchor. Compute the probability-weighted expected return = Σ(prob × Δ%) and quote it. Identify the primary catalysts that move the company between scenarios.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"5-6 sentences: name the specific catalyst (product launch, market share gain, M&A, margin inflection) with a timeline; revenue and margin assumptions in exact figures; implied forward P/E or EV/EBITDA at the target; what investors must see to validate this thesis."}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"5-6 sentences with central assumptions and the implied multiple at target."}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"5-6 sentences: name the downside catalyst (margin compression, customer loss, regulatory action, recession) with quantified impact; multiple compression to a specific figure; the trigger investors should monitor."}}}}}}"""
 
 def _repair_json(text):
     text = text.strip()
@@ -591,8 +770,8 @@ def analyse(ticker, lang='en'):
     to_date   = time.strftime('%Y-%m-%d', time.gmtime(now_ts))
     peers_list = PEERS_MAP.get(ticker, ['SPY','QQQ','IWM','GLD'])[:4]
 
-    # ── Parallel fetch: 12 core + 4 peer snapshots ──
-    with ThreadPoolExecutor(max_workers=20) as ex:
+    # ── Parallel fetch: 13 core + 4 peer snapshots ──
+    with ThreadPoolExecutor(max_workers=22) as ex:
         futs = {
             'profile':  ex.submit(fh,'stock/profile2',{'symbol':ticker}),
             'quote':    ex.submit(fh,'quote',{'symbol':ticker}),
@@ -606,6 +785,7 @@ def analyse(ticker, lang='en'):
             'av':       ex.submit(get_av_data, ticker),
             'yf':       ex.submit(get_yf_data, ticker),
             'fh_fin':   ex.submit(fh,'stock/financials-reported',{'symbol':ticker,'freq':'annual'},14),
+            'filings':  ex.submit(fh,'stock/filings',{'symbol':ticker},10),
             **{f'peer_{p}': ex.submit(get_peer_snapshot, p) for p in peers_list}
         }
         res = {}
@@ -632,6 +812,25 @@ def analyse(ticker, lang='en'):
     av          = res.get('av') or {}
     yf          = res.get('yf') or {}
     fh_fin_raw  = res.get('fh_fin') or {}
+    filings_raw = res.get('filings') or []
+    filings_raw = filings_raw if isinstance(filings_raw, list) else []
+
+    # ── Real SEC filings: 10-K, 10-Q, 8-K with links ──
+    sec_filings_list = []
+    for fl in filings_raw[:12]:
+        form = (fl.get('form') or '').strip()
+        if form not in ('10-K', '10-Q', '8-K', '20-F', '6-K', 'DEF 14A', 'S-1'):
+            continue
+        sec_filings_list.append({
+            'form':         form,
+            'filed_date':   fl.get('filedDate', '')[:10],
+            'accepted':     fl.get('acceptedDate', '')[:10],
+            'period':       fl.get('reportDate', '')[:10] if fl.get('reportDate') else '',
+            'url':          fl.get('reportUrl') or fl.get('filingUrl') or '',
+            'accession':    fl.get('accessNumber', ''),
+        })
+        if len(sec_filings_list) >= 8:
+            break
 
     # ── Real peer comparison (Finnhub data, not AI-fabricated) ──
     peer_comparison = []
@@ -741,8 +940,54 @@ def analyse(ticker, lang='en'):
         v = float(fcf_raw)
         fcf_str = f"${v/1e9:.1f}B" if abs(v)>=1e9 else f"${v/1e6:.0f}M"
 
-    # ── Derived scores ──
-    sc  = compute_score(net_margin,op_margin,roe,roa,rev_growth,de,cr,fcf_raw,sb,b,h,se,ss,tp,price)
+    # ── Advanced ratio derivations (for score input + frontend display) ──
+    # FCF / Net Income conversion ratio (earnings quality indicator)
+    fcf_ni_ratio = None
+    try:
+        if fcf_raw and net_margin and pe_ttm and price and market_cap:
+            _ni_est = float(market_cap)*1e6/float(pe_ttm) if float(pe_ttm)>0 else None
+            if _ni_est and _ni_est > 0:
+                fcf_ni_ratio = round(float(fcf_raw)/_ni_est, 3)
+        elif fcf_raw and hist_fin and hist_fin[0].get('net_income_m'):
+            _ni = float(hist_fin[0]['net_income_m'])*1e6
+            if _ni and _ni > 0:
+                fcf_ni_ratio = round(float(fcf_raw)/_ni, 3)
+    except: pass
+
+    # Operating leverage from historical financials (last 2 years)
+    op_leverage = None
+    try:
+        if hist_fin and len(hist_fin) >= 2:
+            r0, r1 = hist_fin[0].get('revenue_m'), hist_fin[1].get('revenue_m')
+            o0, o1 = hist_fin[0].get('operating_income_m'), hist_fin[1].get('operating_income_m')
+            if r0 and r1 and o0 and o1 and r1 > 0 and o1 != 0:
+                rev_chg = (r0-r1)/r1
+                op_chg  = (o0-o1)/o1
+                if abs(rev_chg) > 0.01:
+                    op_leverage = round(op_chg/rev_chg, 2)
+    except: pass
+
+    # Net Debt / EBITDA proxy (uses D/E + market cap + EBITDA proxy)
+    net_debt_ebitda = None
+    try:
+        if de is not None and market_cap and op_margin and pe_ttm:
+            _equity_m = float(market_cap)
+            _debt_m = _equity_m * float(de)
+            _rev_m = _equity_m / float(pe_ttm) / (float(net_margin)/100) if (net_margin and float(net_margin)>0 and float(pe_ttm)>0) else None
+            if _rev_m:
+                _ebitda_m = _rev_m * float(op_margin)/100 * 1.25  # approx EBITDA = OpInc × 1.25
+                if _ebitda_m > 0:
+                    net_debt_ebitda = round(_debt_m / _ebitda_m, 2)
+    except: pass
+
+    # ── Derived scores (with full breakdown for transparency) ──
+    sc = compute_score(
+        net_margin, op_margin, roe, roa, roic, rev_growth, de, cr, qr,
+        fcf_raw, fcf_margin, fcf_ni_ratio,
+        sb, b, h, se, ss, tp, price,
+        beta, macro.get('vix'), macro.get('credit_spread_hy'),
+        lang
+    )
     z   = calc_altman(m_fh, av)
     fs  = calc_piotroski(m_fh, av)
     name        = profile.get('name', ticker)
@@ -804,7 +1049,10 @@ def analyse(ticker, lang='en'):
             'rev_growth':rev_growth,'eps_growth':eps_growth,'eps_ttm':eps_ttm,
             'fcf':fcf_str,'fcf_margin':fcf_margin,
             'fcf_raw_bn':round(float(fcf_raw)/1e9,1) if fcf_raw else None,
-            'de':de,'current_ratio':cr,'div_yield':div_yield,'beta':beta,
+            'fcf_ni_conversion':fcf_ni_ratio,
+            'operating_leverage':op_leverage,
+            'net_debt_ebitda':net_debt_ebitda,
+            'de':de,'current_ratio':cr,'quick_ratio':qr,'div_yield':div_yield,'beta':beta,
             'short_pct':short_pct,
             'week52_high':w52h,'week52_low':w52l,
             'pct_institutions':pct_inst,'pct_insiders':pct_insi,
@@ -819,6 +1067,7 @@ def analyse(ticker, lang='en'):
         'peer_comparison':peer_table_for_ai,
         'recent_news':[{'headline':n['headline'],'source':n['source']} for n in news[:4]],
         'economic_calendar':econ_events[:6],
+        'recent_filings':[{'form':f['form'],'filed_date':f['filed_date'],'period':f['period']} for f in sec_filings_list[:6]],
     }
 
     # ── Parallel AI calls ──
@@ -850,6 +1099,7 @@ def analyse(ticker, lang='en'):
         'piotroski':fs,'piotroski_label':piotroski_label(fs,lang),
         'macro':macro,'historical_financials':hist_fin,
         'economic_calendar':econ_events,'upcoming_earnings':upcoming_earnings,
+        'sec_filings_list':sec_filings_list,
         'peer_comparison':peer_comparison,
         'metrics':{
             'pe':pe_ttm,'pe_forward':pe_fwd,'pb':pb,'ev_ebitda':ev_ebitda,
@@ -860,6 +1110,11 @@ def analyse(ticker, lang='en'):
             'de':de,'current_ratio':cr,'quick_ratio':qr,'div_yield':div_yield,
             'fcf':fcf_str,'week52_high':w52h,'week52_low':w52l,'beta':beta,
             'short_pct':short_pct,'market_cap_m':market_cap,
+        },
+        'advanced_ratios':{
+            'fcf_ni_conversion': fcf_ni_ratio,
+            'operating_leverage': op_leverage,
+            'net_debt_ebitda':   net_debt_ebitda,
         },
         'ownership':{
             'pct_institutions':pct_inst,'pct_insiders':pct_insi,
