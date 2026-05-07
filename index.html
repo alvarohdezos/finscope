@@ -297,7 +297,7 @@ footer{background:var(--ink);padding:28px 48px;display:flex;justify-content:spac
   <div class="hero-in">
     <div class="hero-label"><div class="hero-label-dot"></div><span data-i18n="hero_label">Institutional Equity Research</span></div>
     <h1 class="h1" data-i18n="hero_title_html">Deep equity analysis.<br>Any ticker. <span>Institutional grade.</span></h1>
-    <p class="hero-sub" data-i18n="hero_sub">Fundamentals, solvency, analyst consensus and macro overlay — synthesised by a Goldman Sachs analyst prompt. Informational only, not investment advice.</p>
+    <p class="hero-sub" data-i18n="hero_sub">Fundamentals, balance-sheet quality, analyst consensus and live macro — synthesised by an institutional research engine. Informational only, not investment advice.</p>
     <div class="sw">
       <div class="sbox">
         <div class="spre" data-i18n="ticker_label">Ticker /</div>
@@ -309,10 +309,10 @@ footer{background:var(--ink);padding:28px 48px;display:flex;justify-content:spac
       </div>
     </div>
     <div class="hero-stats">
-      <div class="hs-item"><div class="hs-num">25</div><div class="hs-lbl" data-i18n="stat_wacc">Sector WACC benchmarks</div></div>
-      <div class="hs-item"><div class="hs-num">11</div><div class="hs-lbl" data-i18n="stat_sections">Report sections</div></div>
-      <div class="hs-item"><div class="hs-num">2</div><div class="hs-lbl" data-i18n="stat_ai">Parallel AI calls</div></div>
-      <div class="hs-item"><div class="hs-num">Live</div><div class="hs-lbl" data-i18n="stat_macro">FRED macro overlay</div></div>
+      <div class="hs-item"><div class="hs-num">4</div><div class="hs-lbl" data-i18n="stat_sources">Independent data sources</div></div>
+      <div class="hs-item"><div class="hs-num">11</div><div class="hs-lbl" data-i18n="stat_sections">Institutional report sections</div></div>
+      <div class="hs-item"><div class="hs-num">~30s</div><div class="hs-lbl" data-i18n="stat_speed">Per-ticker turnaround</div></div>
+      <div class="hs-item"><div class="hs-num">Live</div><div class="hs-lbl" data-i18n="stat_macro">Macro &amp; rate overlay</div></div>
     </div>
   </div>
 </div>
@@ -365,7 +365,7 @@ footer{background:var(--ink);padding:28px 48px;display:flex;justify-content:spac
         <div class="a-name">Álvaro Hernández</div>
         <div class="a-role">Finance & Accounting · UC3M Madrid · Class of 2027</div>
         <p class="a-p" data-i18n="about_p1">FINscope is a full-stack financial intelligence platform demonstrating how modern tooling can deliver institutional-grade equity analysis at near-zero marginal cost.</p>
-        <p class="a-p" data-i18n="about_p2">The backend combines Finnhub, Alpha Vantage, and FRED in parallel. Computes Altman Z-Score, Piotroski F-Score, and a composite score, then synthesises an 11-section report via two parallel Goldman Sachs-style OpenAI calls with a 25-sector WACC benchmark table.</p>
+        <p class="a-p" data-i18n="about_p2">The backend pulls Finnhub, Alpha Vantage, Yahoo Finance and FRED in parallel. Computes Altman Z-Score, Piotroski F-Score and a composite score with a transparent rule-by-rule breakdown, then drafts an 11-section report through two parallel OpenAI calls anchored on a sector-specific WACC benchmark table.</p>
         <p class="a-p" data-i18n="about_p3">Charts from TradingView. Watchlist alerts via Resend + Vercel cron. Informational only — not investment advice.</p>
         <div class="abtns">
           <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="btn-p">GitHub ↗</a>
@@ -402,9 +402,9 @@ const I18N = {
   en: {
     live:'Live data', hero_label:'Institutional Equity Research',
     hero_title_html:'Deep equity analysis.<br>Any ticker. <span>Institutional grade.</span>',
-    hero_sub:'Fundamentals, solvency, analyst consensus and macro overlay — synthesised by a Goldman Sachs analyst prompt. Informational only, not investment advice.',
+    hero_sub:'Fundamentals, balance-sheet quality, analyst consensus and live macro — synthesised by an institutional research engine. Informational only, not investment advice.',
     ticker_label:'Ticker /', ticker_ph:'e.g. NVDA, AAPL, JPM, TSLA…', analyse:'Analyse →',
-    stat_wacc:'Sector WACC benchmarks', stat_sections:'Report sections', stat_ai:'Parallel AI calls', stat_macro:'FRED macro overlay',
+    stat_sources:'Independent data sources', stat_sections:'Institutional report sections', stat_speed:'Per-ticker turnaround', stat_macro:'Macro & rate overlay',
     wl_title:'Weekly watchlist',
     wl_p1:'Add up to 5 tickers and receive a weekly brief every Monday at 9:00 UTC: filtered news impact, upcoming earnings dates, score changes, and sector events that may affect each company.',
     wl_p2:'OpenAI filters out irrelevant noise. You receive only material news items with direct link to the source.',
@@ -419,16 +419,16 @@ const I18N = {
     step1_t:'Enter a ticker', step1_d:'Any US publicly traded company. NVDA, BRK.B, GS, PLTR — whatever you want to examine.',
     step2_t:'Multi-source data pull', step2_d:'Finnhub + Alpha Vantage + FRED — fundamentals, 4-year financials, ownership, news, macro — all in parallel.',
     step3_t:'Server-side calculations', step3_d:'Altman Z-Score, Piotroski F-Score, composite score, historical trends, WACC comparison — computed in Python.',
-    step4_t:'Parallel AI synthesis', step4_d:'Two parallel GPT-4o-mini calls generate an 11-section report with deep sector-specific commentary.',
+    step4_t:'Institutional synthesis', step4_d:'Two parallel GPT-4o-mini calls generate an 11-section report with sector-specific commentary, ratio explanations, and a transparent score breakdown.',
     about_title:'About this project',
     about_p1:'FINscope is a full-stack financial intelligence platform demonstrating how modern tooling can deliver institutional-grade equity analysis at near-zero marginal cost.',
-    about_p2:'The backend combines Finnhub, Alpha Vantage, and FRED in parallel. Computes Altman Z-Score, Piotroski F-Score, and a composite score, then synthesises an 11-section report via two parallel Goldman Sachs-style OpenAI calls with a 25-sector WACC benchmark table.',
+    about_p2:'The backend pulls Finnhub, Alpha Vantage, Yahoo Finance and FRED in parallel — fundamentals, four-year financials, ownership, news, calendars and macro. It computes Altman Z-Score, Piotroski F-Score and a composite score with a transparent rule-by-rule breakdown, then drafts an 11-section report through two parallel OpenAI calls anchored on a sector-specific WACC benchmark table.',
     about_p3:'Charts from TradingView. Watchlist alerts via Resend + Vercel cron. Informational only — not investment advice.',
     stack_h:'Tech stack',
     footer_disc:'FINscope is an educational portfolio project providing informational financial analysis only. Nothing here constitutes investment advice, a recommendation, or an offer to buy or sell any security. Always conduct your own research and consult a licensed financial advisor before making investment decisions.',
     sec_01:'Executive Summary', sec_02:'Business Model', sec_03:'Performance', sec_04:'Financial Quality',
     sec_05:'Macro Context', sec_06:'Risk Analysis', sec_07:'Ownership & Governance', sec_08:'Valuation',
-    sec_09:'Competitors', sec_10:'Scenarios & Verdict', sec_11:'SEC Filings',
+    sec_09:'Peer Comparison', sec_10:'Scenarios & Outlook', sec_11:'Regulatory Filings (10-K · 10-Q)',
     score_lbl:'Composite score /100',
     macro_10y:'10Y Yield', macro_ff:'Fed Funds', macro_cpi:'CPI YoY', macro_pmi:'PMI', macro_vix:'VIX', macro_hy:'HY Spread',
     pillar_fund:'Fundamental', pillar_acc:'Accounting', pillar_an:'Analysts', pillar_ctx:'Context',
@@ -452,7 +452,11 @@ const I18N = {
     fair_value_range:'DCF implied fair value range', wacc_note:'WACC used:', fv_below:'below fair value', fv_in:'within fair value range', fv_above:'above fair value',
     key_disc:'Key disclosures',
     key_metrics:'Key metrics', disclaimer:'Informational only. Not investment advice.',
-    loading_msg:'Fetching data + 2 parallel AI analyses…',
+    loading_msg:'Pulling 4 data sources + running 2 parallel AI passes…',
+    adv_ratios:'Advanced financial quality ratios',
+    adv_fcf_ni:'FCF / Net Income conversion', adv_op_lev:'Operating leverage (ΔOpInc%/ΔRev%)', adv_nd_ebitda:'Net Debt / EBITDA (estimated)',
+    sec_filings_title:'Recent SEC filings',
+    score_breakdown_hint:'Click any pillar to expand the rule-by-rule score breakdown',
     mn_pe:'P/E Ratio', mn_pef:'P/E Forward', mn_pb:'P/B', mn_ev:'EV/EBITDA',
     mn_peg:'PEG Ratio', mn_ps:'Price / Sales',
     mn_nm:'Net Margin', mn_om:'Operating Margin', mn_gm:'Gross Margin', mn_fcfm:'FCF Margin',
@@ -467,9 +471,9 @@ const I18N = {
   es: {
     live:'Datos en tiempo real', hero_label:'Análisis Institucional de Renta Variable',
     hero_title_html:'Análisis riguroso de cotizadas.<br>Cualquier valor. <span>Nivel institucional.</span>',
-    hero_sub:'Fundamentales, solvencia, consenso de analistas y variables macroeconómicas — sintetizados mediante metodología de análisis de renta variable institucional. Solo informativo, no constituye asesoramiento de inversión.',
+    hero_sub:'Fundamentales, calidad de balance, consenso de analistas y variables macro en tiempo real — sintetizados con metodología de análisis institucional propia. Solo informativo, no constituye asesoramiento de inversión.',
     ticker_label:'Ticker /', ticker_ph:'ej. NVDA, AAPL, JPM, TSLA…', analyse:'Analizar →',
-    stat_wacc:'Benchmarks de tasa de descuento por sector', stat_sections:'Secciones del informe', stat_ai:'Análisis de IA en paralelo', stat_macro:'Variables macro FRED en tiempo real',
+    stat_sources:'Fuentes de datos independientes', stat_sections:'Secciones del informe institucional', stat_speed:'Tiempo por valor analizado', stat_macro:'Capa macro y de tipos en directo',
     wl_title:'Lista de seguimiento semanal',
     wl_p1:'Añade hasta 5 valores y recibe un informe semanal cada lunes a las 9:00 UTC: noticias relevantes filtradas por IA, fechas de resultados trimestrales, variaciones en la puntuación y eventos del sector que puedan afectar a cada empresa.',
     wl_p2:'La inteligencia artificial filtra el ruido. Solo recibes noticias materiales con enlace directo a la fuente original.',
@@ -484,16 +488,16 @@ const I18N = {
     step1_t:'Introduce un valor', step1_d:'Cualquier empresa cotizada en EE.UU. NVDA, BRK.B, GS, PLTR — lo que quieras analizar.',
     step2_t:'Consulta multi-fuente', step2_d:'Finnhub + Alpha Vantage + Yahoo Finance + FRED — fundamentales, 4 años de históricos financieros, accionariado, noticias y variables macro — todo en paralelo.',
     step3_t:'Cálculos cuantitativos', step3_d:'Altman Z-Score, Piotroski F-Score, puntuación compuesta, tendencias históricas, comparativa sectorial — calculados en Python en el servidor.',
-    step4_t:'Síntesis institucional con IA', step4_d:'Dos llamadas paralelas a GPT-4o-mini generan un informe de 11 secciones con análisis sectorial profundo y terminología financiera institucional.',
+    step4_t:'Síntesis institucional', step4_d:'Dos llamadas paralelas a GPT-4o-mini generan un informe de 11 secciones con análisis sectorial profundo, explicación detallada de cada ratio y desglose transparente de la puntuación.',
     about_title:'Sobre este proyecto',
     about_p1:'FINscope es una plataforma de inteligencia financiera full-stack que demuestra cómo las herramientas modernas permiten ofrecer análisis de renta variable de nivel institucional a coste marginal prácticamente nulo.',
-    about_p2:'El backend combina Finnhub, Alpha Vantage, Yahoo Finance y FRED en paralelo. Calcula Altman Z-Score, Piotroski F-Score y una puntuación compuesta, y genera un informe de 11 secciones mediante dos llamadas paralelas a OpenAI con tabla de tasas de descuento para 25 sectores.',
+    about_p2:'El backend consulta en paralelo Finnhub, Alpha Vantage, Yahoo Finance y FRED — fundamentales, cuatro años de cuentas, accionariado, noticias, calendarios y variables macro. Calcula el Altman Z-Score, el Piotroski F-Score y una puntuación compuesta con desglose transparente regla a regla, y genera un informe de 11 secciones mediante dos llamadas paralelas a OpenAI ancladas en una tabla de tasas de descuento sectoriales.',
     about_p3:'Gráficos técnicos de TradingView. Alertas de la lista de seguimiento mediante Resend + cron de Vercel. Solo informativo — no constituye asesoramiento de inversión.',
     stack_h:'Stack tecnológico',
     footer_disc:'FINscope es un proyecto educativo de portfolio que proporciona análisis financiero con fines exclusivamente informativos. Nada de lo aquí publicado constituye asesoramiento de inversión, recomendación ni oferta de compra o venta de ningún instrumento financiero. Realiza siempre tu propio análisis y consulta a un asesor financiero debidamente habilitado antes de tomar decisiones de inversión.',
     sec_01:'Resumen Ejecutivo', sec_02:'Modelo de Negocio', sec_03:'Comportamiento Bursátil', sec_04:'Calidad Financiera',
     sec_05:'Entorno Macroeconómico', sec_06:'Análisis de Riesgos', sec_07:'Accionariado y Gobierno Corporativo', sec_08:'Valoración',
-    sec_09:'Empresas Comparables', sec_10:'Escenarios y Perspectiva', sec_11:'Divulgaciones Regulatorias',
+    sec_09:'Análisis Comparativo Sectorial', sec_10:'Escenarios y Perspectiva', sec_11:'Documentación Regulatoria (10-K · 10-Q)',
     score_lbl:'Puntuación compuesta /100',
     macro_10y:'Bono 10 años', macro_ff:'Tipo Fed Funds', macro_cpi:'IPC interanual', macro_pmi:'PMI Compuesto', macro_vix:'VIX', macro_hy:'Spread HY',
     pillar_fund:'Fundamental', pillar_acc:'Calidad contable', pillar_an:'Analistas', pillar_ctx:'Contexto',
@@ -517,7 +521,11 @@ const I18N = {
     fair_value_range:'Rango de valor razonable implícito (DCF)', wacc_note:'Tasa de descuento utilizada:', fv_below:'por debajo del valor razonable', fv_in:'dentro del rango de valor razonable', fv_above:'por encima del valor razonable',
     key_disc:'Divulgaciones clave',
     key_metrics:'Métricas clave', disclaimer:'Solo informativo. No constituye asesoramiento de inversión.',
-    loading_msg:'Consultando fuentes de datos + 2 análisis de IA en paralelo…',
+    loading_msg:'Consultando 4 fuentes de datos + 2 pasadas de IA en paralelo…',
+    adv_ratios:'Ratios avanzados de calidad financiera',
+    adv_fcf_ni:'Conversión FCL / Beneficio Neto', adv_op_lev:'Apalancamiento operativo (ΔOp%/ΔIng%)', adv_nd_ebitda:'Deuda Neta / EBITDA (estimado)',
+    sec_filings_title:'Documentos presentados ante la SEC',
+    score_breakdown_hint:'Pulsa cualquier pilar para expandir el desglose detallado de la puntuación',
     mn_pe:'PER (últ. 12m)', mn_pef:'PER Estimado', mn_pb:'Precio/Valor Contable', mn_ev:'VE/EBITDA',
     mn_peg:'Ratio PEG', mn_ps:'Precio/Ventas',
     mn_nm:'Margen Neto', mn_om:'Margen Operativo', mn_gm:'Margen Bruto', mn_fcfm:'Margen Caja Libre',
@@ -902,8 +910,51 @@ function renderReport(d){
   const altColor = altZ==null?'var(--muted)':altZ>3?'var(--green)':altZ>1.8?'var(--amber)':'var(--red)';
   const pioColor = pio>=7?'var(--green)':pio>=5?'var(--amber)':'var(--red)';
 
+  // Advanced ratios card (FCF/NI conversion, Operating Leverage, Net Debt/EBITDA)
+  const adv = d.advanced_ratios || {};
+  const advCards = [];
+  if(adv.fcf_ni_conversion != null){
+    const v = adv.fcf_ni_conversion;
+    const pct = (v*100).toFixed(0)+'%';
+    const interp = v>0.95 ? (LANG==='es'?'Alta calidad de beneficios':'High earnings quality')
+                : v>0.70 ? (LANG==='es'?'Calidad razonable':'Reasonable quality')
+                : v>0.50 ? (LANG==='es'?'Calidad mediocre — vigilar devengos':'Mediocre quality — watch accruals')
+                :          (LANG==='es'?'Alerta: brecha FCL/Beneficio Neto':'Flag: FCF/NI gap');
+    const col = v>0.95?'var(--green)':v>0.70?'var(--blue2)':v>0.50?'var(--amber)':'var(--red)';
+    advCards.push({lbl:LANG==='es'?'Conversión FCL / Beneficio Neto':'FCF / Net Income conversion', val:pct, sub:interp, col});
+  }
+  if(adv.operating_leverage != null){
+    const v = adv.operating_leverage;
+    const interp = Math.abs(v)>3 ? (LANG==='es'?'Apalancamiento operativo extremo':'Extreme operating leverage')
+                : Math.abs(v)>1.5 ? (LANG==='es'?'Alto apalancamiento operativo':'High operating leverage')
+                : Math.abs(v)>0.7 ? (LANG==='es'?'Apalancamiento operativo moderado':'Moderate operating leverage')
+                :                   (LANG==='es'?'Bajo apalancamiento operativo':'Low operating leverage');
+    const col = v>1.5?'var(--green)':v>0?'var(--blue2)':'var(--red)';
+    advCards.push({lbl:LANG==='es'?'Apalancamiento operativo (ΔOp%/ΔIng%)':'Operating leverage (ΔOpInc%/ΔRev%)', val:v.toFixed(2)+'x', sub:interp, col});
+  }
+  if(adv.net_debt_ebitda != null){
+    const v = adv.net_debt_ebitda;
+    const interp = v<1 ? (LANG==='es'?'Balance neto en caja':'Net cash balance sheet')
+                : v<2 ? (LANG==='es'?'Apalancamiento conservador':'Conservative leverage')
+                : v<4 ? (LANG==='es'?'Apalancamiento moderado':'Moderate leverage')
+                :       (LANG==='es'?'Apalancamiento elevado':'Elevated leverage');
+    const col = v<1?'var(--green)':v<2.5?'var(--blue2)':v<4?'var(--amber)':'var(--red)';
+    advCards.push({lbl:LANG==='es'?'Deuda Neta / EBITDA (estimado)':'Net Debt / EBITDA (estimated)', val:v.toFixed(2)+'x', sub:interp, col});
+  }
+  const advRatiosHTML = advCards.length ? `
+    <div class="albl" style="margin-top:18px">${LANG==='es'?'Ratios avanzados de calidad financiera':'Advanced financial quality ratios'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px">
+      ${advCards.map(c=>`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;border-left:3px solid ${c.col}">
+          <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${esc(c.lbl)}</div>
+          <div style="font-size:24px;font-weight:800;color:${c.col};margin-top:4px;font-variant-numeric:tabular-nums">${esc(c.val)}</div>
+          <div style="font-size:11px;color:var(--ink);margin-top:4px;line-height:1.4">${esc(c.sub)}</div>
+        </div>`).join('')}
+    </div>` : '';
+
   const s04 = `
     <div class="atxt">${para(fq.text||'')}</div>
+    ${advRatiosHTML}
     <div class="albl">${tr.hist_fin}</div>
     <div class="chart-box-full">
       <div class="chart-lbl">${tr.hist_chart}</div>
@@ -1108,9 +1159,36 @@ function renderReport(d){
   // ── Section 11: SEC Filings ──
   const sec = ai.sec_filings||{};
   const discs = sec.key_disclosures||[];
+  const filings = d.sec_filings_list || [];
+  const filingsHTML = filings.length ? `
+    <div class="albl">${LANG==='es'?'Documentos presentados ante la SEC (últimos)':'Recent SEC filings'}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+      ${filings.map(f=>{
+        const formColor = f.form==='10-K'?'var(--blue)':f.form==='10-Q'?'var(--blue2)':f.form==='8-K'?'var(--amber)':'var(--muted)';
+        const formDesc = {
+          '10-K':LANG==='es'?'Informe anual':'Annual report',
+          '10-Q':LANG==='es'?'Informe trimestral':'Quarterly report',
+          '8-K': LANG==='es'?'Hecho relevante':'Material event',
+          '20-F':LANG==='es'?'Informe anual (no-EE.UU.)':'Annual report (non-US)',
+          '6-K': LANG==='es'?'Informe trimestral (no-EE.UU.)':'Interim report (non-US)',
+          'DEF 14A':LANG==='es'?'Convocatoria de Junta':'Proxy statement',
+          'S-1': LANG==='es'?'Folleto de salida a bolsa':'IPO registration'
+        }[f.form] || '';
+        const link = f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="color:var(--blue2);text-decoration:none;font-size:11px;font-weight:600">${LANG==='es'?'Abrir →':'Open →'}</a>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+        return `<div style="display:flex;align-items:center;gap:14px;padding:10px 14px;background:var(--surface);border-radius:6px;border-left:3px solid ${formColor}">
+          <div style="min-width:56px"><span style="font-size:12px;font-weight:800;color:${formColor};letter-spacing:.02em">${esc(f.form)}</span></div>
+          <div style="flex:1">
+            <div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(formDesc)}</div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${LANG==='es'?'Presentado':'Filed'}: ${esc(f.filed_date||'—')}${f.period?` · ${LANG==='es'?'período':'period'}: ${esc(f.period)}`:''}</div>
+          </div>
+          ${link}
+        </div>`;
+      }).join('')}
+    </div>` : '';
   const s11 = `
     <div class="atxt">${para(sec.text||'')}</div>
-    ${discs.length?`<div class="albl">${tr.key_disc}</div><div class="disc-list">${discs.map(x=>`<div class="disc-item">${esc(x)}</div>`).join('')}</div>`:''}`;
+    ${discs.length?`<div class="albl">${tr.key_disc}</div><div class="disc-list">${discs.map(x=>`<div class="disc-item">${esc(x)}</div>`).join('')}</div>`:''}
+    ${filingsHTML}`;
 
   // ── Metric rows sidebar ──
   const mRows = [
@@ -1162,7 +1240,20 @@ function renderReport(d){
       <div class="ms-item"><div class="ms-lbl">${tr.macro_vix}</div><div class="ms-val">${(mac.vix||0).toFixed(1)}</div></div>
       <div class="ms-item"><div class="ms-lbl">${tr.macro_hy}</div><div class="ms-val">${mac.credit_spread_hy||'—'}bps</div></div>
     </div>
-    <div class="sbar">${pillars.map(p=>`<div class="sb-i"><div class="sb-lbl">${p.label}</div><div class="sb-val" style="color:${p.color}">${p.val}<span style="font-size:10px;color:var(--muted);font-weight:500"> /${p.max}</span></div><div class="sb-trk"><div class="sb-fill" style="width:${(p.val/p.max*100).toFixed(0)}%;background:${p.color}"></div></div></div>`).join('')}</div>
+    <div class="sbar">${pillars.map((p,i)=>`<div class="sb-i" data-pillar="${['fundamental','accounting','analyst','context'][i]}" onclick="toggleBreakdown(this)" style="cursor:pointer" title="${LANG==='es'?'Pulsa para ver el desglose detallado':'Click to expand the score breakdown'}"><div class="sb-lbl">${p.label} <span style="font-size:9px;color:var(--muted);font-weight:500;opacity:.7">▾</span></div><div class="sb-val" style="color:${p.color}">${p.val}<span style="font-size:10px;color:var(--muted);font-weight:500"> /${p.max}</span></div><div class="sb-trk"><div class="sb-fill" style="width:${(p.val/p.max*100).toFixed(0)}%;background:${p.color}"></div></div></div>`).join('')}</div>
+    ${(()=>{
+      const bd = (d.score && d.score.breakdown) || {};
+      const pids = ['fundamental','accounting','analyst','context'];
+      const labelMap = {fundamental:tr.pillar_fund, accounting:tr.pillar_acc, analyst:tr.pillar_an, context:tr.pillar_ctx};
+      const blocks = pids.map(pk=>{
+        const items = bd[pk]||[]; if(!items.length) return '';
+        return `<div data-bd="${pk}" style="display:none;margin-top:6px;padding-top:10px;border-top:1px dashed rgba(108,122,153,.2)">
+          <div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${labelMap[pk]} — ${LANG==='es'?'desglose':'breakdown'}</div>
+          ${items.map(x=>{const p=x.pts||0;const c=p>0?'#16a34a':p<0?'#dc2626':'#6b7a99';const sign=p>0?'+':p<0?'':'·';return `<div style="display:flex;justify-content:space-between;gap:14px;padding:5px 0;font-size:12px;color:#3d4f70"><span style="flex:1">${esc(x.reason||'')}</span><span style="color:${c};font-weight:700;font-variant-numeric:tabular-nums;min-width:36px;text-align:right">${sign}${p}</span></div>`;}).join('')}
+        </div>`;
+      }).join('');
+      return blocks ? `<div id="scoreBreakdown" style="display:none;background:linear-gradient(135deg,rgba(15,45,107,.045),rgba(37,99,235,.02));border-radius:8px;padding:14px 18px;margin:-8px 24px 14px;border-left:3px solid var(--blue2)">${blocks}</div>` : '';
+    })()}
     <div class="verdict ${vc}"><div class="vi">${vi}</div><div><div class="vt">${esc(es_.verdict||'')}</div><div class="vs">${esc(es_.verdict_sub||'')}</div></div></div>
     <div class="rbody">
       <div class="rleft">
@@ -1193,6 +1284,18 @@ function renderReport(d){
  }
 }
 
+function toggleBreakdown(el){
+  const pk = el.getAttribute('data-pillar');
+  const wrap = document.getElementById('scoreBreakdown');
+  if(!wrap) return;
+  const target = wrap.querySelector(`[data-bd="${pk}"]`);
+  if(!target) return;
+  const isOpen = wrap.style.display === 'block' && target.style.display === 'block';
+  // hide all
+  wrap.querySelectorAll('[data-bd]').forEach(x=>x.style.display='none');
+  if(isOpen){ wrap.style.display = 'none'; }
+  else { wrap.style.display = 'block'; target.style.display = 'block'; }
+}
 function buildSection(num, title, content, openByDefault=false){
   const disp = openByDefault?'block':'none';
   const rot  = openByDefault?'rotate(180deg)':'';
@@ -1259,8 +1362,16 @@ async function subscribeWL(){
     if(resp.ok){
       const data = await resp.json();
       if(data.ok){
-        msg.className = 'port-msg ok'; msg.textContent = tr.wl_ok;
-        emailInp.value = '';
+        if(data.email_sent === false){
+          // Saved but email not delivered — show partial success
+          msg.className = 'port-msg err';
+          msg.textContent = LANG==='es'
+            ? '⚠ Suscripción guardada, pero el envío del correo falló. Revisa la configuración de Resend en Vercel (RESEND_API_KEY y FROM_EMAIL).'
+            : '⚠ Subscription saved, but email delivery failed. Check Resend config in Vercel (RESEND_API_KEY and FROM_EMAIL).';
+        } else {
+          msg.className = 'port-msg ok'; msg.textContent = tr.wl_ok;
+          emailInp.value = '';
+        }
       } else {
         throw new Error(data.error||'Subscribe failed');
       }
