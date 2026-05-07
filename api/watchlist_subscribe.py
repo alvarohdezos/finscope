@@ -105,10 +105,19 @@ def subscribe(email: str, tickers: list, lang: str) -> dict:
 
     email_ok = _send_email(email, subject, html)
 
+    # Diagnostic info — helps frontend show better error messages
+    diag = []
+    if not RESEND_KEY:    diag.append('RESEND_API_KEY missing')
+    if not UPSTASH_URL:   diag.append('UPSTASH_REDIS_REST_URL missing')
+    if not UPSTASH_TOKEN: diag.append('UPSTASH_REDIS_REST_TOKEN missing')
+    if r1 is None and UPSTASH_URL: diag.append('Upstash write failed (check token / network)')
+    if not email_ok and RESEND_KEY: diag.append('Resend send failed (check FROM_EMAIL / domain verification)')
+
     return {
         'ok':         True,
         'email_sent': email_ok,
         'redis_ok':   r1 is not None,
+        'diag':       diag,
     }
 
 
