@@ -874,7 +874,7 @@ function renderReport(d){
   const takeaways = aiTakeaways.length ? aiTakeaways : flagTakeaways;
   const takeawayHTML = takeaways.length ? `
     <div style="margin-bottom:14px">
-      <div class="albl" style="margin-top:0">${LANG==='es'?'Aspectos clave':'Key takeaways'}</div>
+      <div class="albl" style="margin-top:0">${LANG==='es'?'Aspectos clave':'Key takeaways'} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'señales binarias derivadas del semáforo de salud y de la lectura de la IA':'binary signals from the health semáforo + AI read'}</span></div>
       <div style="display:flex;flex-direction:column;gap:6px">
         ${takeaways.slice(0,6).map(t=>{
           const st = (t.status||'').toLowerCase();
@@ -894,7 +894,7 @@ function renderReport(d){
   // Catalysts: upcoming earnings + macro events
   const econEv = (d.economic_calendar || []).slice(0,3);
   const catalystHTML = (d.upcoming_earnings || econEv.length) ? `
-    <div class="albl" style="margin-top:14px">${LANG==='es'?'Próximos catalizadores':'Upcoming catalysts'}</div>
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Próximos catalizadores':'Upcoming catalysts'} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'eventos próximos que pueden mover la cotización':'upcoming events that may move the price'}</span></div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
       ${d.upcoming_earnings?`
         <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:linear-gradient(135deg,rgba(15,45,107,.06),rgba(37,99,235,.03));border-radius:6px;border-left:3px solid var(--blue2)">
@@ -920,7 +920,7 @@ function renderReport(d){
         </a>`).join('')}
     </div>` : `<div class="albl" style="margin-top:14px">${tr.rec_headlines}</div><div class="news-item" style="border-left-color:var(--muted)"><em>${tr.no_news}</em></div>`;
 
-  const s01 = `${snapshotHTML}<div class="atxt">${para(es_.text||'')}</div>${takeawayHTML}${catalystHTML}${newsHTML}`;
+  const s01 = `${snapshotHTML}<div class="atxt">${para(es_.text||'')}</div>${takeawayHTML}${catalystHTML}${newsHTML}${invalidationBox(es_.invalidation)}`;
 
   // ── Section 02: Business Model — Real SEC XBRL segments + moat scorecard ──
   const bm = ai.business_model||{};
@@ -981,7 +981,8 @@ function renderReport(d){
       </div>
     </div>
     <div class="chart-note">${secSourceNote}</div>
-    ${moatHTML}`;
+    ${moatHTML}
+    ${invalidationBox(bm.invalidation)}`;
 
   // ── Section 03: Performance — Returns table + technical indicators + historical chart + earnings ──
   const perf = ai.performance||{};
@@ -989,23 +990,31 @@ function renderReport(d){
   const tech = d.technicals || {};
   const rets = tech.returns || {};
 
-  // Returns table
+  // Returns table — ticker AND S&P 500 with alpha column
+  const spyRets = d.spy_returns || {};
   const periodLabels = LANG==='es'
     ? {'1M':'1 mes','3M':'3 meses','6M':'6 meses','YTD':'YTD','1Y':'1 año','3Y':'3 años','5Y':'5 años'}
     : {'1M':'1M','3M':'3M','6M':'6M','YTD':'YTD','1Y':'1Y','3Y':'3Y','5Y':'5Y'};
   const retCells = ['1M','3M','6M','YTD','1Y','3Y','5Y'].map(p=>{
     const v = rets[p];
+    const spy = spyRets[p];
+    const alpha = (v!=null && spy!=null) ? (v - spy) : null;
     if(v==null) return `<div style="text-align:center;padding:10px 6px;background:var(--surface);border-radius:6px;border:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);font-weight:700">${periodLabels[p]}</div><div style="font-size:14px;color:var(--muted);margin-top:4px">—</div></div>`;
     const col = v>=0?'var(--green)':'var(--red)';
     const sign = v>=0?'+':'';
+    const alphaHTML = alpha!=null ? `<div style="font-size:9.5px;font-weight:700;color:${alpha>=0?'var(--green)':'var(--red)'};margin-top:2px;font-variant-numeric:tabular-nums" title="${LANG==='es'?'Alpha vs S&P 500':'Alpha vs S&P 500'}">α ${alpha>=0?'+':''}${alpha.toFixed(1)}pp</div>` : '';
+    const spyHTML = spy!=null ? `<div style="font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums">SPY ${spy>=0?'+':''}${spy.toFixed(1)}%</div>` : '';
     return `<div style="text-align:center;padding:10px 6px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">
       <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${periodLabels[p]}</div>
       <div style="font-size:15px;font-weight:800;color:${col};margin-top:4px;font-variant-numeric:tabular-nums">${sign}${v.toFixed(1)}%</div>
+      ${spyHTML}
+      ${alphaHTML}
     </div>`;
   }).join('');
   const returnsTableHTML = Object.keys(rets).length ? `
-    <div class="albl">${LANG==='es'?'Retornos por período':'Returns table'}</div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px">${retCells}</div>` : '';
+    <div class="albl">${LANG==='es'?'Retornos por período · vs S&P 500':'Returns table · vs S&P 500'}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px">${retCells}</div>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'α = alpha en puntos porcentuales vs S&P 500 (SPY) en el mismo período.':'α = alpha in percentage points vs S&P 500 (SPY) over the same period.'}</div>` : '';
 
   // Technical indicators
   const techCards = [];
@@ -1047,11 +1056,43 @@ function renderReport(d){
 
   const retSummaryHTML = perf.returns_summary ? `<div class="atxt" style="margin-top:14px"><strong>${LANG==='es'?'Síntesis de retornos:':'Returns summary:'}</strong> ${esc(perf.returns_summary)}</div>` : '';
 
+  // Margin walk — table showing gross/op/net margin per year, with pp change YoY
+  const marginWalkHTML = hist.length >= 2 ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Evolución de márgenes (margin walk)':'Margin walk (year-over-year)'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Ejercicio':'Year'}</th>
+        <th style="text-align:right">${LANG==='es'?'Bruto':'Gross'}</th>
+        <th style="text-align:right">${LANG==='es'?'Operativo':'Operating'}</th>
+        <th style="text-align:right">${LANG==='es'?'Neto':'Net'}</th>
+        <th style="text-align:right">Δ ${LANG==='es'?'Op YoY':'Op YoY'}</th>
+        <th style="text-align:right">Δ ${LANG==='es'?'Neto YoY':'Net YoY'}</th>
+      </tr></thead>
+      <tbody>
+        ${hist.map((r,i)=>{
+          const prev = hist[i+1];
+          const opDelta = (r.operating_margin_pct!=null && prev && prev.operating_margin_pct!=null) ? (r.operating_margin_pct - prev.operating_margin_pct) : null;
+          const netDelta = (r.net_margin_pct!=null && prev && prev.net_margin_pct!=null) ? (r.net_margin_pct - prev.net_margin_pct) : null;
+          const dCol = v => v==null?'var(--muted)':v>0?'var(--green)':v<0?'var(--red)':'var(--muted)';
+          const dStr = v => v==null?'—':(v>=0?'+':'')+v.toFixed(1)+'pp';
+          return `<tr>
+            <td><strong>${esc(r.year||'—')}</strong></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${r.gross_margin_pct!=null?r.gross_margin_pct.toFixed(1)+'%':'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${r.operating_margin_pct!=null?r.operating_margin_pct.toFixed(1)+'%':'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${r.net_margin_pct!=null?r.net_margin_pct.toFixed(1)+'%':'—'}</td>
+            <td style="text-align:right;color:${dCol(opDelta)};font-weight:700;font-variant-numeric:tabular-nums">${dStr(opDelta)}</td>
+            <td style="text-align:right;color:${dCol(netDelta)};font-weight:700;font-variant-numeric:tabular-nums">${dStr(netDelta)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>` : '';
+
   const s03 = `
     <div class="atxt">${para(perf.text||'')}</div>
     ${returnsTableHTML}
     ${retSummaryHTML}
     ${techHTML}
+    ${marginWalkHTML}
     ${hist.length ? `
     <div class="chart-box-full" style="margin-top:14px">
       <div class="chart-lbl">${tr.hist_chart}</div>
@@ -1060,7 +1101,8 @@ function renderReport(d){
     <div class="chart-box-full">
       <div class="chart-lbl">${tr.earnings_hist}</div>
       <div class="ch-wrap"><canvas id="earnsChart"></canvas></div>
-    </div>`;
+    </div>
+    ${invalidationBox(perf.invalidation)}`;
 
   // ── Section 04: Financial Quality ──
   const fq = ai.financial_quality||{};
@@ -1165,7 +1207,8 @@ function renderReport(d){
       </div>
     </div>
     <div class="info-box">${tr.altman_explain}</div>
-    <div class="info-box">${tr.piotroski_explain}</div>`;
+    <div class="info-box">${tr.piotroski_explain}</div>
+    ${invalidationBox(fq.invalidation)}`;
 
   // ── Section 05: Macro Context ──
   const mc_ai = ai.macro_context||{};
@@ -1192,19 +1235,50 @@ function renderReport(d){
         {l:tr.macro_hy, v:`${mac.credit_spread_hy||'—'}bps`},
       ].map(x=>`<div class="solcard"><div class="sol-lbl">${x.l}</div><div style="font-size:20px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px">${x.v}</div></div>`).join('')}
     </div>
-    ${calHTML}`;
+    ${calHTML}
+    ${invalidationBox(mc_ai.invalidation)}`;
 
-  // ── Section 06: Risk Analysis + TradingView ──
+  // ── Section 06: Risk Analysis + TradingView + technical levels ──
   const ra_ai = ai.risk_analysis||{};
   const risks = ra_ai.risks||[];
+  const techR = d.technicals || {};
+  const price = d.price || 0;
+  const w52h = m.week52_high, w52l = m.week52_low;
+  // Compute support/resistance levels
+  const levels = [];
+  if(w52h) levels.push({type:'resistance', label:LANG==='es'?'Máximo 52 semanas':'52-week high', value:w52h, distPct: price?((w52h-price)/price*100):null});
+  if(techR.sma200 && techR.sma200 < price) levels.push({type:'support', label:'SMA 200', value:techR.sma200, distPct: price?((techR.sma200-price)/price*100):null});
+  if(techR.sma200 && techR.sma200 > price) levels.push({type:'resistance', label:'SMA 200', value:techR.sma200, distPct: price?((techR.sma200-price)/price*100):null});
+  if(techR.sma50 && techR.sma50 < price) levels.push({type:'support', label:'SMA 50', value:techR.sma50, distPct: price?((techR.sma50-price)/price*100):null});
+  if(techR.sma50 && techR.sma50 > price) levels.push({type:'resistance', label:'SMA 50', value:techR.sma50, distPct: price?((techR.sma50-price)/price*100):null});
+  if(w52l) levels.push({type:'support', label:LANG==='es'?'Mínimo 52 semanas':'52-week low', value:w52l, distPct: price?((w52l-price)/price*100):null});
+  const levelsHTML = levels.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Niveles técnicos clave':'Key technical levels'}</div>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+      ${levels.map(l=>{
+        const col = l.type==='resistance'?'var(--red)':'var(--green)';
+        const typeLabel = l.type==='resistance'?(LANG==='es'?'RESISTENCIA':'RESISTANCE'):(LANG==='es'?'SOPORTE':'SUPPORT');
+        const distStr = l.distPct!=null?`${l.distPct>=0?'+':''}${l.distPct.toFixed(1)}% ${LANG==='es'?'distancia':'away'}`:'';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${col}">
+          <span style="font-size:9px;font-weight:800;color:${col};min-width:84px">${typeLabel}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--ink);flex:1">${esc(l.label)}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">$${l.value.toFixed(2)}</span>
+          <span style="font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:90px;text-align:right">${distStr}</span>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
   const s06 = `
     <div class="tvw">
       <div class="tvw-h"><span>${tr.tv_chart}</span><span class="tvw-src">${tr.tv_source}</span></div>
       <div id="tvContainer"></div>
     </div>
+    ${levelsHTML}
     <div class="info-box" style="margin-top:14px">${tr.tech_note}</div>
     <div class="atxt" style="margin-top:16px">${para(ra_ai.text||'')}</div>
-    ${risks.length?`<div class="albl">${tr.key_risks}</div><div class="risk-list">${risks.map(r=>`<div class="risk-item">${esc(r)}</div>`).join('')}</div>`:''}`;
+    ${ra_ai.technical_takeaway?`<div style="margin-top:14px;padding:12px 14px;background:rgba(37,99,235,.04);border-left:3px solid var(--blue2);border-radius:6px"><div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${LANG==='es'?'Lectura técnica resumida':'Technical readout'}</div><div style="font-size:12.5px;color:#3d4f70;line-height:1.6">${esc(ra_ai.technical_takeaway)}</div></div>`:''}
+    ${risks.length?`<div class="albl">${tr.key_risks}</div><div class="risk-list">${risks.map(r=>`<div class="risk-item">${esc(r)}</div>`).join('')}</div>`:''}
+    ${invalidationBox(ra_ai.invalidation)}`;
 
   // ── Section 07: Ownership & Governance ──
   const ow = ai.ownership||{};
@@ -1240,32 +1314,39 @@ function renderReport(d){
       <div class="own-metric"><span>${tr.own_mspr}</span><span class="v">${ownData.insider_mspr!=null?Number(ownData.insider_mspr).toFixed(2):'N/A'}</span></div>
     </div>`;
 
-  // Real top institutional holders from Finnhub
+  // Real top institutional holders from Finnhub — display as % of company
   const realHolders = d.real_top_holders || [];
+  // Shares outstanding ≈ market_cap / price (in shares units, not M)
+  const sharesOutEst = (m.market_cap_m && d.price && d.price > 0) ? (m.market_cap_m * 1e6 / d.price) : null;
   const realHoldersHTML = realHolders.length ? `
-    <div class="albl" style="margin-top:14px">${LANG==='es'?'Mayores accionistas (Form 13F)':'Top institutional holders (Form 13F)'}</div>
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Mayores accionistas institucionales (Form 13F)':'Top institutional holders (Form 13F)'}</div>
     <table class="data-tbl" style="margin-top:8px">
       <thead><tr>
         <th>${LANG==='es'?'Institución':'Institution'}</th>
+        <th style="text-align:right">${LANG==='es'?'% de la empresa':'% of company'}</th>
         <th style="text-align:right">${LANG==='es'?'Acciones':'Shares'}</th>
-        <th style="text-align:right">Δ</th>
-        <th style="text-align:right">${LANG==='es'?'% cartera':'% portfolio'}</th>
+        <th style="text-align:right">Δ ${LANG==='es'?'trim.':'qtr'}</th>
+        <th style="text-align:right">${LANG==='es'?'% en su cartera':'% in their portfolio'}</th>
         <th style="text-align:right">${LANG==='es'?'Fecha':'Filing date'}</th>
       </tr></thead>
       <tbody>
         ${realHolders.slice(0,10).map(h=>{
           const chgCol = h.change>0?'var(--green)':h.change<0?'var(--red)':'var(--muted)';
           const chgSign = h.change>0?'+':'';
+          const pctOfCo = (h.share && sharesOutEst) ? (h.share/sharesOutEst*100) : null;
+          const pctCol = pctOfCo!=null && pctOfCo>5 ? 'var(--blue)' : 'var(--ink)';
           return `<tr>
             <td><strong>${esc(h.name)}</strong></td>
-            <td style="text-align:right;font-variant-numeric:tabular-nums">${h.share?Number(h.share).toLocaleString():'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:${pctCol};font-weight:700">${pctOfCo!=null?pctOfCo.toFixed(2)+'%':'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)">${h.share?Number(h.share).toLocaleString():'—'}</td>
             <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${h.change?chgSign+Number(h.change).toLocaleString():'—'}</td>
             <td style="text-align:right;font-variant-numeric:tabular-nums">${h.portfolio_pct!=null?Number(h.portfolio_pct).toFixed(2)+'%':'—'}</td>
             <td style="text-align:right;color:var(--muted)">${esc(h.filing_date||'—')}</td>
           </tr>`;
         }).join('')}
       </tbody>
-    </table>` : '';
+    </table>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'% de la empresa = acciones poseídas ÷ acciones en circulación estimadas (market cap ÷ precio). Fuente: Form 13F SEC.':'% of company = shares held ÷ estimated shares outstanding (market cap ÷ price). Source: SEC Form 13F.'}</div>` : '';
 
   // Insider transactions (Form 4)
   const insTxns = d.recent_insider_txns || [];
@@ -1301,7 +1382,8 @@ function renderReport(d){
     ${realHoldersHTML}
     ${insTxnsHTML}
     ${holdersHTML?`<div class="albl">${LANG==='es'?'Otros accionistas mencionados':'Other holders cited'}</div><div style="margin-top:10px">${holdersHTML}</div>`:''}
-    ${analystHTML}`;
+    ${analystHTML}
+    ${invalidationBox(ow.invalidation)}`;
 
   // ── Section 08: Valuation ──
   const val = ai.valuation||{};
@@ -1386,7 +1468,7 @@ function renderReport(d){
       ${dcfM.tv_pct_of_ev?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'VT % del EV':'TV as % of EV'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.tv_pct_of_ev}%</div></div>`:''}
     </div>` : '';
 
-  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}`;
+  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}${invalidationBox(val.invalidation)}`;
 
   // ── Section 09: Competitors ──
   const comp = ai.competitors||{};
@@ -1441,21 +1523,38 @@ function renderReport(d){
         </tr>`).join('')}
       </tbody>
     </table>`:`<div style="font-size:12px;color:var(--muted);margin-top:12px;font-style:italic">${cmpLbl('Datos de comparación no disponibles.','Peer comparison data not available.')}</div>`;
-  const s09 = `<div class="atxt">${para(comp.text||'')}</div>${compTableHTML}`;
+  const s09 = `<div class="atxt">${para(comp.text||'')}</div>${compTableHTML}${invalidationBox(comp.invalidation)}`;
 
-  // ── Section 10: Scenarios & Verdict ──
+  // ── Section 10: Scenarios & Verdict (with assumptions + triggers per scenario) ──
   const sc_ai = ai.scenarios||{};
   const mkSc = (card, cls) => {
     if(!card) return '';
     const pt = card.price_target||0;
     const upPct = card.upside_pct || card.downside_pct;
     const isUp = card.upside_pct != null && card.upside_pct != 0;
+    const a = card.assumptions || {};
+    const trigs = card.triggers_to_monitor || [];
+    const assumptionsHTML = (a.revenue_growth_yoy_pct!=null || a.operating_margin_pct!=null || a.implied_pe!=null || a.catalyst) ? `
+      <div style="margin-top:10px;padding:10px;background:rgba(255,255,255,.6);border-radius:6px;border-top:2px solid rgba(0,0,0,.04)">
+        <div style="font-size:9px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${LANG==='es'?'Supuestos':'Assumptions'}</div>
+        ${a.revenue_growth_yoy_pct!=null?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#3d4f70">${LANG==='es'?'Crec. ingresos YoY':'Rev growth YoY'}</span><strong style="font-variant-numeric:tabular-nums">${a.revenue_growth_yoy_pct>=0?'+':''}${a.revenue_growth_yoy_pct}%</strong></div>`:''}
+        ${a.operating_margin_pct!=null?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#3d4f70">${LANG==='es'?'Margen operativo':'Op margin'}</span><strong style="font-variant-numeric:tabular-nums">${a.operating_margin_pct}%</strong></div>`:''}
+        ${a.implied_pe!=null?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#3d4f70">${LANG==='es'?'P/E implícito':'Implied P/E'}</span><strong style="font-variant-numeric:tabular-nums">${a.implied_pe}x</strong></div>`:''}
+        ${a.catalyst?`<div style="font-size:10.5px;color:#3d4f70;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(108,122,153,.2);line-height:1.45"><strong style="color:var(--ink)">${LANG==='es'?'Catalizador:':'Catalyst:'}</strong> ${esc(a.catalyst)}</div>`:''}
+      </div>` : '';
+    const trigsHTML = trigs.length ? `
+      <div style="margin-top:8px;padding:8px 10px;background:rgba(15,45,107,.04);border-radius:6px">
+        <div style="font-size:9px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${LANG==='es'?'Qué monitorizar':'Triggers to monitor'}</div>
+        ${trigs.map(t=>`<div style="font-size:10.5px;color:#3d4f70;line-height:1.4;padding:2px 0">• ${esc(t)}</div>`).join('')}
+      </div>` : '';
     return `<div class="sc-card ${cls}">
       <div class="sc-tag">${esc(card.label||cls)}</div>
       <div class="sc-price">${pt>0?'$'+pt:'N/A'}</div>
       <div class="sc-updown">${upPct!=null&&upPct!=0?(isUp?'+':'-')+Math.abs(upPct)+'%':'—'}</div>
-      <div class="sc-prob">${card.probability_pct||0}% probability</div>
+      <div class="sc-prob">${card.probability_pct||0}% ${LANG==='es'?'probabilidad':'probability'}</div>
       <div class="sc-thesis">${para(card.thesis||'')}</div>
+      ${assumptionsHTML}
+      ${trigsHTML}
     </div>`;
   };
   const s10 = `
@@ -1466,6 +1565,13 @@ function renderReport(d){
   const sec = ai.sec_filings||{};
   const discs = sec.key_disclosures||[];
   const filings = d.sec_filings_list || [];
+  // Map AI summaries to filings by form+date
+  const aiSummaries = sec.filing_summaries || [];
+  const summaryFor = (form, date) => {
+    const m = aiSummaries.find(s => s.form === form && (s.date||'').slice(0,10) === (date||'').slice(0,10));
+    return m ? m.one_line_summary : null;
+  };
+
   const filingsHTML = filings.length ? `
     <div class="albl">${LANG==='es'?'Documentos presentados ante la SEC (últimos)':'Recent SEC filings'}</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
@@ -1481,13 +1587,17 @@ function renderReport(d){
           'S-1': LANG==='es'?'Folleto de salida a bolsa':'IPO registration'
         }[f.form] || '';
         const link = f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="color:var(--blue2);text-decoration:none;font-size:11px;font-weight:600">${LANG==='es'?'Abrir →':'Open →'}</a>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
-        return `<div style="display:flex;align-items:center;gap:14px;padding:10px 14px;background:var(--surface);border-radius:6px;border-left:3px solid ${formColor}">
-          <div style="min-width:56px"><span style="font-size:12px;font-weight:800;color:${formColor};letter-spacing:.02em">${esc(f.form)}</span></div>
-          <div style="flex:1">
-            <div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(formDesc)}</div>
-            <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${LANG==='es'?'Presentado':'Filed'}: ${esc(f.filed_date||'—')}${f.period?` · ${LANG==='es'?'período':'period'}: ${esc(f.period)}`:''}</div>
+        const summary = summaryFor(f.form, f.filed_date);
+        return `<div style="padding:10px 14px;background:var(--surface);border-radius:6px;border-left:3px solid ${formColor}">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="min-width:56px"><span style="font-size:12px;font-weight:800;color:${formColor};letter-spacing:.02em">${esc(f.form)}</span></div>
+            <div style="flex:1">
+              <div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(formDesc)}</div>
+              <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${LANG==='es'?'Presentado':'Filed'}: ${esc(f.filed_date||'—')}${f.period?` · ${LANG==='es'?'período':'period'}: ${esc(f.period)}`:''}</div>
+            </div>
+            ${link}
           </div>
-          ${link}
+          ${summary?`<div style="font-size:11.5px;color:#3d4f70;line-height:1.5;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(108,122,153,.18)"><strong style="color:var(--ink)">${LANG==='es'?'Contenido:':'Content:'}</strong> ${esc(summary)}</div>`:''}
         </div>`;
       }).join('')}
     </div>` : '';
@@ -1496,34 +1606,34 @@ function renderReport(d){
     ${discs.length?`<div class="albl">${tr.key_disc}</div><div class="disc-list">${discs.map(x=>`<div class="disc-item">${esc(x)}</div>`).join('')}</div>`:''}
     ${filingsHTML}`;
 
-  // ── Metric rows sidebar ──
+  // ── Metric rows sidebar (with source badges) ──
   const mRows = [
-    {n:tr.mn_pe,    v:fmt(m.pe),                                      b:bdg('pe',parseFloat(m.pe))},
-    {n:tr.mn_pef,   v:fmt(m.pe_forward),                             b:''},
-    {n:tr.mn_pb,    v:fmt(m.pb),                                     b:''},
-    {n:tr.mn_ev,    v:m.ev_ebitda!=null?fmt(m.ev_ebitda)+'x':'N/A', b:''},
-    {n:tr.mn_peg,   v:m.peg!=null?fmt(m.peg,2):'N/A',               b:''},
-    {n:tr.mn_ps,    v:m.ps!=null?fmt(m.ps,1)+'x':'N/A',             b:''},
-    {n:tr.mn_nm,    v:fmtP(m.net_margin),  b:bdg('mg',parseFloat(m.net_margin))},
-    {n:tr.mn_om,    v:fmtP(m.op_margin),   b:bdg('mg',parseFloat(m.op_margin))},
-    {n:tr.mn_gm,    v:fmtP(m.gross_margin),b:''},
-    {n:tr.mn_fcfm,  v:fmtP(m.fcf_margin),  b:''},
-    {n:tr.mn_roe,   v:fmtP(m.roe),         b:bdg('roe',parseFloat(m.roe))},
-    {n:tr.mn_roa,   v:fmtP(m.roa),         b:''},
-    {n:tr.mn_roic,  v:fmtP(m.roic),        b:''},
-    {n:tr.mn_rg,    v:fmtP(m.rev_growth),  b:bdg('gr',parseFloat(m.rev_growth))},
-    {n:tr.mn_eg,    v:fmtP(m.eps_growth),  b:''},
-    {n:tr.mn_eps,   v:fmtC(m.eps),         b:''},
-    {n:tr.mn_de,    v:fmt(m.de),           b:bdg('de',parseFloat(m.de))},
-    {n:tr.mn_cr,    v:fmt(m.current_ratio),b:''},
-    {n:tr.mn_qr,    v:fmt(m.quick_ratio),  b:''},
-    {n:tr.mn_div,   v:fmtP(m.div_yield),   b:''},
-    {n:tr.mn_fcf,   v:m.fcf||'N/A',        b:''},
-    {n:tr.mn_beta,  v:fmt(m.beta),                                    b:''},
-    {n:tr.mn_short, v:m.short_pct!=null?fmtP(m.short_pct):'N/A',   b:''},
-    {n:tr.mn_w52h,  v:fmtC(m.week52_high), b:''},
-    {n:tr.mn_w52l,  v:fmtC(m.week52_low),  b:''},
-    {n:tr.mn_score, v:`${sc}/100`, b:'', vc:sc_c},
+    {n:tr.mn_pe,    v:fmt(m.pe),                                     b:bdg('pe',parseFloat(m.pe)),  k:'pe'},
+    {n:tr.mn_pef,   v:fmt(m.pe_forward),                             b:'', k:'pe_forward'},
+    {n:tr.mn_pb,    v:fmt(m.pb),                                     b:'', k:'pb'},
+    {n:tr.mn_ev,    v:m.ev_ebitda!=null?fmt(m.ev_ebitda)+'x':'N/A',  b:'', k:'ev_ebitda'},
+    {n:tr.mn_peg,   v:m.peg!=null?fmt(m.peg,2):'N/A',                b:'', k:'peg'},
+    {n:tr.mn_ps,    v:m.ps!=null?fmt(m.ps,1)+'x':'N/A',              b:'', k:'ps'},
+    {n:tr.mn_nm,    v:fmtP(m.net_margin),  b:bdg('mg',parseFloat(m.net_margin)), k:'net_margin'},
+    {n:tr.mn_om,    v:fmtP(m.op_margin),   b:bdg('mg',parseFloat(m.op_margin)),  k:'op_margin'},
+    {n:tr.mn_gm,    v:fmtP(m.gross_margin),b:'', k:'gross_margin'},
+    {n:tr.mn_fcfm,  v:fmtP(m.fcf_margin),  b:'', k:'fcf_margin'},
+    {n:tr.mn_roe,   v:fmtP(m.roe),         b:bdg('roe',parseFloat(m.roe)), k:'roe'},
+    {n:tr.mn_roa,   v:fmtP(m.roa),         b:'', k:'roa'},
+    {n:tr.mn_roic,  v:fmtP(m.roic),        b:'', k:'roic'},
+    {n:tr.mn_rg,    v:fmtP(m.rev_growth),  b:bdg('gr',parseFloat(m.rev_growth)), k:'rev_growth'},
+    {n:tr.mn_eg,    v:fmtP(m.eps_growth),  b:'', k:'eps_growth'},
+    {n:tr.mn_eps,   v:fmtC(m.eps),         b:'', k:'eps'},
+    {n:tr.mn_de,    v:fmt(m.de),           b:bdg('de',parseFloat(m.de)), k:'de'},
+    {n:tr.mn_cr,    v:fmt(m.current_ratio),b:'', k:'current_ratio'},
+    {n:tr.mn_qr,    v:fmt(m.quick_ratio),  b:'', k:''},
+    {n:tr.mn_div,   v:fmtP(m.div_yield),   b:'', k:'div_yield'},
+    {n:tr.mn_fcf,   v:m.fcf||'N/A',        b:'', k:'fcf'},
+    {n:tr.mn_beta,  v:fmt(m.beta),         b:'', k:'beta'},
+    {n:tr.mn_short, v:m.short_pct!=null?fmtP(m.short_pct):'N/A',  b:'', k:'short_pct'},
+    {n:tr.mn_w52h,  v:fmtC(m.week52_high), b:'', k:''},
+    {n:tr.mn_w52l,  v:fmtC(m.week52_low),  b:'', k:''},
+    {n:tr.mn_score, v:`${sc}/100`, b:'', vc:sc_c, k:''},
   ];
 
   const priceHTML = d.price ? `<div><div class="rh-price-num">${fmtC(d.price)}</div><div class="rh-price-chg ${(d.change||0)>=0?'up':'dn'}">${(d.change||0)>=0?'+':''}${(d.change||0).toFixed(2)} (${(d.change_pct||0).toFixed(2)}%)</div></div>` : '';
@@ -1577,7 +1687,7 @@ function renderReport(d){
       </div>
       <div class="rright">
         <div class="mg-lbl">${tr.key_metrics}</div>
-        ${mRows.map(r=>`<div class="mrow"><span class="mn">${r.n}</span><div class="mv-wrap"><span class="mv" ${r.vc?`style="color:${r.vc}"`:''}>${r.v}</span>${r.b}</div></div>`).join('')}
+        ${mRows.map(r=>`<div class="mrow"><span class="mn">${r.n}${r.k?srcBadge(r.k):''}</span><div class="mv-wrap"><span class="mv" ${r.vc?`style="color:${r.vc}"`:''}>${r.v}</span>${r.b}</div></div>`).join('')}
       </div>
     </div>
   </div>`;
@@ -1602,6 +1712,39 @@ function toggleBreakdown(el){
   if(isOpen){ wrap.style.display = 'none'; }
   else { wrap.style.display = 'block'; target.style.display = 'block'; }
 }
+// ── Source badge for sidebar metrics ──
+function srcBadge(metricKey){
+  const src = (window._D && window._D.metrics_sources && window._D.metrics_sources[metricKey]) || null;
+  if(!src) return '';
+  const colors = {FH:'#0f2d6b', AV:'#2563eb', YF:'#7c3aed', SEC:'#16a34a', CALC:'#6b7a99'};
+  const tip = {FH:'Finnhub', AV:'Alpha Vantage', YF:'Yahoo Finance', SEC:'SEC EDGAR (10-K)', CALC:LANG==='es'?'Calculado matemáticamente':'Mathematically derived'}[src] || src;
+  return `<span class="src-tag" title="${esc(tip)}" style="display:inline-block;font-size:8.5px;font-weight:800;padding:1px 4px;margin-left:5px;border-radius:3px;background:${colors[src]||'#888'};color:#fff;letter-spacing:.04em;vertical-align:middle">${src}</span>`;
+}
+
+// ── Invalidation conditions box (renders at end of each section) ──
+function invalidationBox(invs){
+  if(!invs || !invs.length) return '';
+  const head = LANG==='es'
+    ? 'Esta lectura quedaría invalidada si:'
+    : 'This thesis would be invalidated if:';
+  const items = invs.slice(0,4).map(iv=>{
+    const op = iv.operator==='<'?'<':iv.operator==='>'?'>':iv.operator==='='?'=':iv.operator||'';
+    const horizonMap = {'P1Q':LANG==='es'?'próximo trimestre':'next quarter','P2Q':LANG==='es'?'próximos 2 trimestres':'next 2 quarters','P1Y':LANG==='es'?'próximos 12 meses':'next 12 months'};
+    const horizon = horizonMap[iv.horizon] || iv.horizon || '';
+    return `<div style="display:flex;gap:10px;padding:8px 12px;background:rgba(217,119,6,.04);border-radius:6px;border-left:3px solid var(--amber)">
+      <span style="color:var(--amber);font-size:14px;line-height:1.2;font-weight:700">⚠</span>
+      <div style="flex:1;font-size:12.5px;color:#3d4f70;line-height:1.55">
+        <strong style="color:var(--ink)">${esc(iv.trigger||'')}</strong>
+        ${iv.metric?`<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums">${esc(iv.metric)} ${op} ${esc(String(iv.value||''))}${horizon?' · '+horizon:''}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:14px;padding:12px 14px;background:linear-gradient(135deg,rgba(217,119,6,.05),rgba(217,119,6,.02));border-radius:8px;border:1px solid rgba(217,119,6,.18)">
+    <div style="font-size:10px;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${head}</div>
+    <div style="display:flex;flex-direction:column;gap:5px">${items}</div>
+  </div>`;
+}
+
 function buildSection(num, title, content, openByDefault=false){
   const disp = openByDefault?'block':'none';
   const rot  = openByDefault?'rotate(180deg)':'';
