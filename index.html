@@ -839,30 +839,133 @@ function renderReport(d){
   const pioCl = pio>=7?'safe':pio>=5?'grey':'dist';
   const totalA = an.total||0;
 
-  // ── Section 01: Executive Summary ──
+  // ── Section 01: Executive Summary — Company Snapshot + Key Takeaways + AI text + Catalysts + News ──
   const news = d.news||[];
+
+  // Company snapshot card with real data
+  const fmtMcapShort = v => {
+    if(v==null||isNaN(v)) return 'N/A';
+    if(v>=1e6) return '$'+(v/1e6).toFixed(2)+'T';
+    if(v>=1000) return '$'+(v/1000).toFixed(1)+'B';
+    return '$'+Number(v).toFixed(0)+'M';
+  };
+  const snapshotItems = [
+    {l:LANG==='es'?'País sede':'Headquarters',  v: esc(d.country||'—')},
+    {l:LANG==='es'?'Sector':'Sector',           v: esc(d.sector||d.industry||'—')},
+    {l:LANG==='es'?'Industria':'Industry',      v: esc(d.industry||'—')},
+    {l:LANG==='es'?'Empleados':'Employees',     v: d.employees ? Number(d.employees).toLocaleString() : '—'},
+    {l:LANG==='es'?'Capitalización':'Market cap', v: fmtMcapShort(m.market_cap_m)},
+    {l:LANG==='es'?'Beta':'Beta',               v: m.beta!=null ? Number(m.beta).toFixed(2) : '—'},
+    {l:LANG==='es'?'P/E (TTM)':'P/E (TTM)',     v: m.pe!=null ? Number(m.pe).toFixed(1)+'x' : '—'},
+    {l:LANG==='es'?'P/E estimado':'P/E forward',v: m.pe_forward!=null ? Number(m.pe_forward).toFixed(1)+'x' : '—'},
+  ];
+  const snapshotHTML = `
+    <div style="background:linear-gradient(135deg,rgba(15,45,107,.05),rgba(37,99,235,.025));border-radius:10px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(15,45,107,.08)">
+      <div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">${LANG==='es'?'Resumen de la compañía':'Company snapshot'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        ${snapshotItems.map(x=>`<div><div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em">${x.l}</div><div style="font-size:14px;font-weight:700;color:var(--ink);margin-top:2px">${x.v}</div></div>`).join('')}
+      </div>
+      ${d.description?`<div style="font-size:12px;color:#3d4f70;line-height:1.55;margin-top:12px;padding-top:10px;border-top:1px solid rgba(108,122,153,.18)">${esc(d.description).slice(0,500)}${d.description.length>500?'…':''}</div>`:''}
+    </div>`;
+
+  // Key takeaways with semáforo (from AI key_takeaways OR health_flags as backup)
+  const aiTakeaways = (es_.key_takeaways || []);
+  const flagTakeaways = (d.health_flags || []).map(f=>({label:f.label,status:f.status,reason:f.reason}));
+  const takeaways = aiTakeaways.length ? aiTakeaways : flagTakeaways;
+  const takeawayHTML = takeaways.length ? `
+    <div style="margin-bottom:14px">
+      <div class="albl" style="margin-top:0">${LANG==='es'?'Aspectos clave':'Key takeaways'}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${takeaways.slice(0,6).map(t=>{
+          const st = (t.status||'').toLowerCase();
+          const col = st==='green'?'var(--green)':st==='red'?'var(--red)':st==='amber'?'var(--amber)':'var(--blue2)';
+          const ic  = st==='green'?'●':st==='red'?'●':st==='amber'?'◐':'●';
+          return `<div style="display:flex;gap:10px;padding:8px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${col}">
+            <span style="color:${col};font-size:14px;line-height:1.4">${ic}</span>
+            <div style="flex:1">
+              <div style="font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.35">${esc(t.label||'')}</div>
+              ${t.reason?`<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">${esc(t.reason)}</div>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  // Catalysts: upcoming earnings + macro events
+  const econEv = (d.economic_calendar || []).slice(0,3);
+  const catalystHTML = (d.upcoming_earnings || econEv.length) ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Próximos catalizadores':'Upcoming catalysts'}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+      ${d.upcoming_earnings?`
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:linear-gradient(135deg,rgba(15,45,107,.06),rgba(37,99,235,.03));border-radius:6px;border-left:3px solid var(--blue2)">
+          <span style="font-size:10px;font-weight:800;color:var(--blue2);min-width:64px">${LANG==='es'?'RESULTADOS':'EARNINGS'}</span>
+          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink)">${LANG==='es'?'Próxima presentación de resultados':'Next earnings release'}</div></div>
+          <span style="font-size:13px;font-weight:800;color:var(--blue2);font-variant-numeric:tabular-nums">${esc(d.upcoming_earnings)}</span>
+        </div>`:''}
+      ${econEv.map(ev=>`
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${ev.impact==='high'?'var(--red)':'var(--amber)'}">
+          <span style="font-size:10px;font-weight:800;color:${ev.impact==='high'?'var(--red)':'var(--amber)'};min-width:64px">${esc((ev.impact||'').toUpperCase())}</span>
+          <div style="flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(ev.event||'')}</div><div style="font-size:10px;color:var(--muted);margin-top:2px">${esc(ev.country||'')}</div></div>
+          <span style="font-size:12px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">${esc(ev.date||'')}</span>
+        </div>`).join('')}
+    </div>` : '';
+
   const newsHTML = news.length ? `
-    <div class="albl">${tr.rec_headlines}</div>
+    <div class="albl" style="margin-top:14px">${tr.rec_headlines}</div>
     <div class="news-list">
       ${news.slice(0,6).map(n=>`
         <a class="news-item" href="${esc(n.url||'#')}" target="_blank" rel="noopener">
           <strong>${esc(n.headline)}</strong>
           <div class="news-src">${esc(n.source||'')}</div>
         </a>`).join('')}
-    </div>` : `<div class="albl">${tr.rec_headlines}</div><div class="news-item" style="border-left-color:var(--muted)"><em>${tr.no_news}</em></div>`;
-  const upcomingEarningsHTML = d.upcoming_earnings ? `
-    <div style="margin-top:12px;padding:10px 14px;background:linear-gradient(135deg,rgba(15,45,107,0.06),rgba(37,99,235,0.04));border-radius:8px;border-left:3px solid var(--blue2)">
-      <div style="font-size:11px;font-weight:700;color:var(--blue2);text-transform:uppercase;letter-spacing:.05em">${tr.next_earnings||'Next Earnings Date'}</div>
-      <div style="font-size:16px;font-weight:800;color:var(--ink);margin-top:4px">${esc(d.upcoming_earnings)}</div>
-    </div>` : '';
-  const s01 = `<div class="atxt">${para(es_.text||'')}</div>${upcomingEarningsHTML}${newsHTML}`;
+    </div>` : `<div class="albl" style="margin-top:14px">${tr.rec_headlines}</div><div class="news-item" style="border-left-color:var(--muted)"><em>${tr.no_news}</em></div>`;
 
-  // ── Section 02: Business Model ──
+  const s01 = `${snapshotHTML}<div class="atxt">${para(es_.text||'')}</div>${takeawayHTML}${catalystHTML}${newsHTML}`;
+
+  // ── Section 02: Business Model — Real SEC XBRL segments + moat scorecard ──
   const bm = ai.business_model||{};
-  const segs = bm.revenue_segments||[];
+  let segs = bm.revenue_segments||[];
   const geos = bm.geographic_exposure||[];
-  const segItems = segs.map(s=>`<div class="own-metric"><span>${esc(s.name)}${s.description?`<br><span style="font-size:10px;color:var(--muted)">${esc(s.description)}</span>`:''}</span><span class="v">${s.pct}%</span></div>`).join('');
+  const moat = bm.moat||{};
+
+  // Prefer REAL SEC XBRL segments if available
+  const secSegs = (d.sec_segments && d.sec_segments.segments) || [];
+  if(secSegs.length){
+    segs = secSegs.map(s=>({
+      name: s.name,
+      pct: s.pct,
+      value_usd: s.value_usd,
+      description: ''
+    }));
+  }
+
+  const segItems = segs.map(s=>{
+    const valStr = s.value_usd ? ` · $${(s.value_usd/1e9).toFixed(1)}B` : '';
+    return `<div class="own-metric"><span>${esc(s.name)}${valStr}${s.description?`<br><span style="font-size:10px;color:var(--muted)">${esc(s.description)}</span>`:''}</span><span class="v">${s.pct}%</span></div>`;
+  }).join('');
   const geoItems = geos.map(g=>`<div class="own-metric"><span>${esc(g.region)}${g.note?`<br><span style="font-size:10px;color:var(--muted)">${esc(g.note)}</span>`:''}</span><span class="v">${g.pct}%</span></div>`).join('');
+
+  // Moat scorecard
+  const moatHTML = moat.type ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Análisis de ventaja competitiva (moat)':'Competitive moat scorecard'}</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Tipo de moat':'Moat type'}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${esc(moat.type)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Fuerza (0-5)':'Strength (0-5)'}</div>
+          <div style="display:flex;gap:3px;margin-top:4px">${Array.from({length:5}).map((_,i)=>`<div style="width:14px;height:14px;border-radius:3px;background:${i<(moat.strength_0_5||0)?'var(--blue2)':'rgba(108,122,153,.18)'}"></div>`).join('')}</div>
+        </div>
+      </div>
+      ${moat.evidence?`<div style="font-size:12px;color:#3d4f70;line-height:1.55;margin-top:10px;padding-top:10px;border-top:1px solid rgba(108,122,153,.18)">${esc(moat.evidence)}</div>`:''}
+    </div>` : '';
+
+  const secSourceNote = secSegs.length
+    ? (LANG==='es'?'Fuente: 10-K disgregado por SEC XBRL':'Source: SEC XBRL disaggregated 10-K')
+    : tr.data_source;
+
   const s02 = `
     <div class="atxt">${para(bm.text||'')}</div>
     <div class="chart-row">
@@ -877,15 +980,80 @@ function renderReport(d){
         ${geoItems?`<div style="margin-top:10px">${geoItems}</div>`:''}
       </div>
     </div>
-    <div class="chart-note">${tr.data_source}</div>`;
+    <div class="chart-note">${secSourceNote}</div>
+    ${moatHTML}`;
 
-  // ── Section 03: Performance ──
+  // ── Section 03: Performance — Returns table + technical indicators + historical chart + earnings ──
   const perf = ai.performance||{};
   const hist = d.historical_financials||[];
+  const tech = d.technicals || {};
+  const rets = tech.returns || {};
+
+  // Returns table
+  const periodLabels = LANG==='es'
+    ? {'1M':'1 mes','3M':'3 meses','6M':'6 meses','YTD':'YTD','1Y':'1 año','3Y':'3 años','5Y':'5 años'}
+    : {'1M':'1M','3M':'3M','6M':'6M','YTD':'YTD','1Y':'1Y','3Y':'3Y','5Y':'5Y'};
+  const retCells = ['1M','3M','6M','YTD','1Y','3Y','5Y'].map(p=>{
+    const v = rets[p];
+    if(v==null) return `<div style="text-align:center;padding:10px 6px;background:var(--surface);border-radius:6px;border:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);font-weight:700">${periodLabels[p]}</div><div style="font-size:14px;color:var(--muted);margin-top:4px">—</div></div>`;
+    const col = v>=0?'var(--green)':'var(--red)';
+    const sign = v>=0?'+':'';
+    return `<div style="text-align:center;padding:10px 6px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${periodLabels[p]}</div>
+      <div style="font-size:15px;font-weight:800;color:${col};margin-top:4px;font-variant-numeric:tabular-nums">${sign}${v.toFixed(1)}%</div>
+    </div>`;
+  }).join('');
+  const returnsTableHTML = Object.keys(rets).length ? `
+    <div class="albl">${LANG==='es'?'Retornos por período':'Returns table'}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px">${retCells}</div>` : '';
+
+  // Technical indicators
+  const techCards = [];
+  if(tech.rsi14 != null){
+    const v = tech.rsi14;
+    const interp = v>70?(LANG==='es'?'Sobrecompra':'Overbought'):v<30?(LANG==='es'?'Sobreventa':'Oversold'):(LANG==='es'?'Neutral':'Neutral');
+    const col = v>70?'var(--red)':v<30?'var(--green)':'var(--blue2)';
+    techCards.push({lbl:'RSI(14)', val:v.toFixed(1), sub:interp, col});
+  }
+  if(tech.sma50 != null && tech.sma200 != null){
+    const cs = tech.cross_status;
+    const interp = cs==='golden_cross_active'?(LANG==='es'?'Cruz dorada activa':'Golden cross active')
+                 : cs==='death_cross_active'?(LANG==='es'?'Cruz de la muerte activa':'Death cross active')
+                 : (LANG==='es'?'Cruce neutral':'Neutral cross');
+    const col = cs==='golden_cross_active'?'var(--green)':cs==='death_cross_active'?'var(--red)':'var(--blue2)';
+    techCards.push({lbl:'SMA50 / SMA200', val:`$${tech.sma50} / $${tech.sma200}`, sub:interp, col});
+  }
+  if(tech.macd != null){
+    const interp = tech.macd_signal==='bullish'?(LANG==='es'?'Señal alcista':'Bullish signal'):(LANG==='es'?'Señal bajista':'Bearish signal');
+    const col = tech.macd>0?'var(--green)':'var(--red)';
+    techCards.push({lbl:'MACD (12,26)', val:tech.macd>=0?'+'+tech.macd:tech.macd, sub:interp, col});
+  }
+  if(tech.vol_30d_annualised != null){
+    const v = tech.vol_30d_annualised;
+    const interp = v>40?(LANG==='es'?'Volatilidad elevada':'Elevated volatility'):v>25?(LANG==='es'?'Volatilidad moderada':'Moderate volatility'):(LANG==='es'?'Volatilidad baja':'Low volatility');
+    const col = v>40?'var(--red)':v>25?'var(--amber)':'var(--green)';
+    techCards.push({lbl:LANG==='es'?'Volatilidad 30d (anual.)':'30d annualised vol', val:v.toFixed(1)+'%', sub:interp, col});
+  }
+  const techHTML = techCards.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Indicadores técnicos (calculados sobre 1 año de datos)':'Technical indicators (computed from 1Y daily data)'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:8px">
+      ${techCards.map(c=>`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;border-left:3px solid ${c.col}">
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${esc(c.lbl)}</div>
+          <div style="font-size:18px;font-weight:800;color:${c.col};margin-top:4px;font-variant-numeric:tabular-nums">${esc(c.val)}</div>
+          <div style="font-size:11px;color:var(--ink);margin-top:3px">${esc(c.sub)}</div>
+        </div>`).join('')}
+    </div>` : '';
+
+  const retSummaryHTML = perf.returns_summary ? `<div class="atxt" style="margin-top:14px"><strong>${LANG==='es'?'Síntesis de retornos:':'Returns summary:'}</strong> ${esc(perf.returns_summary)}</div>` : '';
+
   const s03 = `
     <div class="atxt">${para(perf.text||'')}</div>
+    ${returnsTableHTML}
+    ${retSummaryHTML}
+    ${techHTML}
     ${hist.length ? `
-    <div class="chart-box-full">
+    <div class="chart-box-full" style="margin-top:14px">
       <div class="chart-lbl">${tr.hist_chart}</div>
       <div class="ch-wrap ch-tall"><canvas id="perfHistChart"></canvas></div>
     </div>` : ''}
@@ -952,7 +1120,23 @@ function renderReport(d){
         </div>`).join('')}
     </div>` : '';
 
+  // Financial health semáforo at top of section
+  const flags = d.health_flags || [];
+  const flagsHTML = flags.length ? `
+    <div class="albl" style="margin-top:0">${LANG==='es'?'Semáforo de salud financiera':'Financial health snapshot'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:8px 0 18px">
+      ${flags.map(f=>{
+        const col = f.status==='green'?'var(--green)':f.status==='red'?'var(--red)':'var(--amber)';
+        const ic  = f.status==='green'?'✓':f.status==='red'?'✕':'·';
+        return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${col};border-radius:6px;padding:10px 12px">
+          <div style="display:flex;align-items:center;gap:8px"><span style="color:${col};font-weight:800;font-size:14px">${ic}</span><span style="font-size:12px;font-weight:700;color:var(--ink)">${esc(f.label)}</span></div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.4">${esc(f.reason||'')}</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
   const s04 = `
+    ${flagsHTML}
     <div class="atxt">${para(fq.text||'')}</div>
     ${advRatiosHTML}
     <div class="albl">${tr.hist_fin}</div>
@@ -1056,10 +1240,67 @@ function renderReport(d){
       <div class="own-metric"><span>${tr.own_mspr}</span><span class="v">${ownData.insider_mspr!=null?Number(ownData.insider_mspr).toFixed(2):'N/A'}</span></div>
     </div>`;
 
+  // Real top institutional holders from Finnhub
+  const realHolders = d.real_top_holders || [];
+  const realHoldersHTML = realHolders.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Mayores accionistas (Form 13F)':'Top institutional holders (Form 13F)'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Institución':'Institution'}</th>
+        <th style="text-align:right">${LANG==='es'?'Acciones':'Shares'}</th>
+        <th style="text-align:right">Δ</th>
+        <th style="text-align:right">${LANG==='es'?'% cartera':'% portfolio'}</th>
+        <th style="text-align:right">${LANG==='es'?'Fecha':'Filing date'}</th>
+      </tr></thead>
+      <tbody>
+        ${realHolders.slice(0,10).map(h=>{
+          const chgCol = h.change>0?'var(--green)':h.change<0?'var(--red)':'var(--muted)';
+          const chgSign = h.change>0?'+':'';
+          return `<tr>
+            <td><strong>${esc(h.name)}</strong></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${h.share?Number(h.share).toLocaleString():'—'}</td>
+            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${h.change?chgSign+Number(h.change).toLocaleString():'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${h.portfolio_pct!=null?Number(h.portfolio_pct).toFixed(2)+'%':'—'}</td>
+            <td style="text-align:right;color:var(--muted)">${esc(h.filing_date||'—')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>` : '';
+
+  // Insider transactions (Form 4)
+  const insTxns = d.recent_insider_txns || [];
+  const insTxnsHTML = insTxns.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Operaciones de directivos (Form 4, últimos 6 meses)':'Insider transactions (Form 4, last 6 months)'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Directivo':'Insider'}</th>
+        <th style="text-align:right">${LANG==='es'?'Acciones':'Shares'}</th>
+        <th style="text-align:right">${LANG==='es'?'Precio':'Price'}</th>
+        <th style="text-align:center">${LANG==='es'?'Tipo':'Code'}</th>
+        <th style="text-align:right">${LANG==='es'?'Fecha':'Date'}</th>
+      </tr></thead>
+      <tbody>
+        ${insTxns.slice(0,8).map(t=>{
+          const chgCol = t.change>0?'var(--green)':t.change<0?'var(--red)':'var(--muted)';
+          const chgSign = t.change>0?'+':'';
+          return `<tr>
+            <td><strong>${esc(t.name)}</strong></td>
+            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${t.change?chgSign+Number(t.change).toLocaleString():'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${t.transaction_price?'$'+Number(t.transaction_price).toFixed(2):'—'}</td>
+            <td style="text-align:center;font-size:11px;font-weight:700">${esc(t.transaction_code||'')}</td>
+            <td style="text-align:right;color:var(--muted)">${esc(t.transaction_date||'—')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'Códigos comunes: P = compra, S = venta, A = adjudicación, M = ejercicio opción, F = retención fiscal':'Common codes: P = Purchase, S = Sale, A = Award/grant, M = Option exercise, F = Tax withholding'}</div>` : '';
+
   const s07 = `
     <div class="atxt">${para(ow.text||'')}</div>
     ${(ownBreakdownCard || ownMetricsCard)?`<div class="own-grid">${ownBreakdownCard}${ownMetricsCard}</div>`:''}
-    ${holdersHTML?`<div class="albl">Top holders</div><div style="margin-top:10px">${holdersHTML}</div>`:''}
+    ${realHoldersHTML}
+    ${insTxnsHTML}
+    ${holdersHTML?`<div class="albl">${LANG==='es'?'Otros accionistas mencionados':'Other holders cited'}</div><div style="margin-top:10px">${holdersHTML}</div>`:''}
     ${analystHTML}`;
 
   // ── Section 08: Valuation ──
@@ -1080,7 +1321,72 @@ function renderReport(d){
         ${val.wacc_used?`<div class="fv-wacc">${tr.wacc_note} ${val.wacc_used}%</div>`:''}
       </div>`;
   }
-  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}`;
+  // Multi-method valuation table — uses backend-computed values
+  const vMethods = d.valuation_methods || {};
+  const methodRows = [];
+  const cur = d.price || 0;
+  const _vrow = (key, methodName) => {
+    const v = vMethods[key];
+    if(!v || !v.fair_value) return;
+    const upside = cur>0 ? ((v.fair_value - cur)/cur*100) : 0;
+    const upCol = upside>0?'var(--green)':'var(--red)';
+    const upSign = upside>=0?'+':'';
+    methodRows.push(`<tr>
+      <td><strong>${esc(v.method||methodName)}</strong>${v.note?`<div style="font-size:10px;color:var(--muted);font-weight:400;margin-top:2px">${esc(v.note)}</div>`:''}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">$${v.fair_value.toFixed(2)}</td>
+      <td style="text-align:right;color:${upCol};font-weight:700;font-variant-numeric:tabular-nums">${upSign}${upside.toFixed(1)}%</td>
+    </tr>`);
+  };
+  _vrow('pe_relative',          'P/E relative');
+  _vrow('ev_ebitda_relative',   'EV/EBITDA relative');
+  _vrow('dcf',                   'DCF (2-stage)');
+  // Add AI fair value range as 4th method
+  if(val.fair_value_low && val.fair_value_high){
+    const mid = (val.fair_value_low + val.fair_value_high)/2;
+    const upside = cur>0 ? ((mid - cur)/cur*100) : 0;
+    const upCol = upside>0?'var(--green)':'var(--red)';
+    const upSign = upside>=0?'+':'';
+    methodRows.push(`<tr>
+      <td><strong>${LANG==='es'?'IA — rango integrado':'AI — integrated range'}</strong><div style="font-size:10px;color:var(--muted);font-weight:400;margin-top:2px">${LANG==='es'?'Rango sintetizado del análisis institucional':'Synthesized range from institutional analysis'}</div></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">$${val.fair_value_low}–$${val.fair_value_high}</td>
+      <td style="text-align:right;color:${upCol};font-weight:700;font-variant-numeric:tabular-nums">${upSign}${upside.toFixed(1)}%</td>
+    </tr>`);
+  }
+  // Consensus
+  if(an.target_price){
+    const upside = cur>0 ? ((an.target_price - cur)/cur*100) : 0;
+    const upCol = upside>0?'var(--green)':'var(--red)';
+    const upSign = upside>=0?'+':'';
+    methodRows.push(`<tr>
+      <td><strong>${LANG==='es'?'Consenso de analistas':'Analyst consensus'}</strong><div style="font-size:10px;color:var(--muted);font-weight:400;margin-top:2px">${an.total||0} ${LANG==='es'?'analistas cubriendo el valor':'analysts covering the stock'}</div></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">$${Number(an.target_price).toFixed(2)}</td>
+      <td style="text-align:right;color:${upCol};font-weight:700;font-variant-numeric:tabular-nums">${upSign}${upside.toFixed(1)}%</td>
+    </tr>`);
+  }
+  const multiValHTML = methodRows.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Valoración multi-método':'Multi-method valuation'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Método':'Method'}</th>
+        <th style="text-align:right">${LANG==='es'?'Valor justo implícito':'Implied fair value'}</th>
+        <th style="text-align:right">${LANG==='es'?'Frente a cotización':'vs current price'}</th>
+      </tr></thead>
+      <tbody>${methodRows.join('')}</tbody>
+    </table>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'Cada método aplica supuestos distintos; el valor real probable está dentro del rango que dibujan estos métodos.':'Each method uses different assumptions; the likely fair value lies somewhere within the range these methods describe.'}</div>` : '';
+
+  // DCF details when available
+  const dcfM = vMethods.dcf || {};
+  const dcfDetailsHTML = dcfM.fair_value ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Supuestos del DCF (2 etapas)':'DCF assumptions (2-stage)'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">WACC</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.wacc_used}%</div></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'Crec. alto':'High growth'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.high_growth}%</div></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'Crec. terminal':'Terminal g'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.terminal_growth}%</div></div>
+      ${dcfM.tv_pct_of_ev?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'VT % del EV':'TV as % of EV'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.tv_pct_of_ev}%</div></div>`:''}
+    </div>` : '';
+
+  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}`;
 
   // ── Section 09: Competitors ──
   const comp = ai.competitors||{};
