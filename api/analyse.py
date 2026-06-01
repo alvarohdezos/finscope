@@ -175,18 +175,38 @@ def _parse_fh_financials(data):
                 'net_margin_pct':round(ni/r*100,1) if ni else None})
     return hist
 
+_YF_USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+]
+
+def _yf_fetch(url, ua_index=0):
+    req = urllib.request.Request(url, headers={
+        'User-Agent': _YF_USER_AGENTS[ua_index % len(_YF_USER_AGENTS)],
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+    })
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
 def get_yf_data(ticker):
-    """Yahoo Finance quoteSummary — no API key needed. Third data source."""
+    """Yahoo Finance quoteSummary — no API key needed. Third data source. Retries with alt UA on failure."""
     modules = 'defaultKeyStatistics,financialData,summaryDetail,calendarEvents,cashflowStatementHistory,majorHoldersBreakdown'
     url = f'https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={urllib.parse.quote(modules)}'
+    data = None
+    for attempt in range(3):
+        try:
+            data = _yf_fetch(url, attempt)
+            if data and (data.get('quoteSummary') or {}).get('result'):
+                break
+        except Exception:
+            data = None
+            time.sleep(0.4)
+            continue
+    if not data:
+        return {}
     try:
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
-            'Accept-Language': 'en-US,en;q=0.9',
-        })
-        with urllib.request.urlopen(req, timeout=12) as r:
-            data = json.loads(r.read())
         result = (data.get('quoteSummary') or {}).get('result') or []
         if not result: return {}
         obj = result[0]
@@ -711,7 +731,7 @@ def _repair_json(text):
     try: return json.loads(text)
     except: return None
 
-def call_openai(system_prompt, user_data, max_tokens=4000):
+def call_openai(system_prompt, user_data, max_tokens=5000):
     try:
         payload = json.dumps({
             'model':'gpt-4o-mini', 'max_tokens':max_tokens,
@@ -888,6 +908,22 @@ def analyse(ticker, lang='en'):
     price_sales=yf.get('price_to_sales')
     short_pct = yf.get('short_pct')
 
+    # ── Short Interest: Finnhub metric fallback if Yahoo blocked ──
+    if short_pct is None:
+        si_fh = gm(m_fh, 'shortInterestQuarterly', 'shortInterestAnnual')
+        if si_fh is not None and si_fh > 0:
+            # Finnhub returns absolute short interest; estimate % of float using shares outstanding
+            _shrs = gm(m_fh, 'sharesOutstanding') or (av.get('shares_out') if av else None)
+            if _shrs and _shrs > 0:
+                try:
+                    short_pct = round(float(si_fh)/float(_shrs)*100, 2)
+                except: pass
+        # Last resort: Finnhub also exposes a direct short ratio
+        if short_pct is None:
+            _sr = gm(m_fh, 'shortRatio', 'shortFloatPercent')
+            if _sr is not None:
+                short_pct = round(float(_sr), 2)
+
     # ── Historical financials (AV primary → Finnhub SEC fallback) ──
     hist_fin = av.get('historical_financials', [])
     if not hist_fin and fh_fin_raw:
@@ -939,6 +975,38 @@ def analyse(ticker, lang='en'):
     if fcf_raw and not fcf_str:
         v = float(fcf_raw)
         fcf_str = f"${v/1e9:.1f}B" if abs(v)>=1e9 else f"${v/1e6:.0f}M"
+
+    # ── P/S (Price / Sales) — derive from Market Cap and Revenue if Yahoo blocked ──
+    if price_sales is None:
+        try:
+            _rev = av.get('rev_ttm') or yf.get('rev_ttm')
+            if not _rev and pe_ttm and net_margin and market_cap and float(pe_ttm)>0 and float(net_margin)>0:
+                _rev = float(market_cap)*1e6/float(pe_ttm)/(float(net_margin)/100)
+            if not _rev and hist_fin:
+                latest_rev = hist_fin[0].get('revenue_m')
+                if latest_rev: _rev = float(latest_rev)*1e6
+            if _rev and market_cap and float(_rev)>0:
+                price_sales = round(float(market_cap)*1e6/float(_rev), 2)
+        except: pass
+
+    # ── PEG (P/E / EPS growth) — derive from existing data ──
+    if peg_ratio is None and pe_ttm and eps_growth:
+        try:
+            _g = float(eps_growth)
+            _pe = float(pe_ttm)
+            if _g > 0 and _pe > 0:
+                # Cap absurd values: PEG > 10 usually indicates noise
+                _peg = round(_pe/_g, 2)
+                if 0 < _peg < 20:
+                    peg_ratio = _peg
+        except: pass
+    # Final PEG fallback using rev_growth as proxy when EPS growth missing
+    if peg_ratio is None and pe_ttm and rev_growth and float(rev_growth) > 0:
+        try:
+            _peg = round(float(pe_ttm)/float(rev_growth), 2)
+            if 0 < _peg < 20:
+                peg_ratio = _peg
+        except: pass
 
     # ── Advanced ratio derivations (for score input + frontend display) ──
     # FCF / Net Income conversion ratio (earnings quality indicator)
@@ -1070,10 +1138,10 @@ def analyse(ticker, lang='en'):
         'recent_filings':[{'form':f['form'],'filed_date':f['filed_date'],'period':f['period']} for f in sec_filings_list[:6]],
     }
 
-    # ── Parallel AI calls ──
+    # ── Parallel AI calls (5000 tokens each — avoids JSON truncation on deep prompts) ──
     with ThreadPoolExecutor(max_workers=2) as ex:
-        fa = ex.submit(call_openai, prompt_a(lang), user_data_for_ai, 4000)
-        fb = ex.submit(call_openai, prompt_b(lang), user_data_for_ai, 4000)
+        fa = ex.submit(call_openai, prompt_a(lang), user_data_for_ai, 5000)
+        fb = ex.submit(call_openai, prompt_b(lang), user_data_for_ai, 5000)
         try: ai_a = fa.result(timeout=55)
         except: ai_a = {'_error':'timeout'}
         try: ai_b = fb.result(timeout=55)
