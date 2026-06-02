@@ -1182,7 +1182,7 @@ def _repair_json(text):
     try: return json.loads(text)
     except: return None
 
-def call_openai(system_prompt, user_data, max_tokens=5000):
+def call_openai(system_prompt, user_data, max_tokens=4500):
     try:
         payload = json.dumps({
             'model':'gpt-4o-mini', 'max_tokens':max_tokens,
@@ -1193,7 +1193,7 @@ def call_openai(system_prompt, user_data, max_tokens=5000):
         }).encode()
         req = urllib.request.Request('https://api.openai.com/v1/chat/completions', data=payload,
             headers={'Content-Type':'application/json','Authorization':f'Bearer {OPENAI}'})
-        with urllib.request.urlopen(req, timeout=55) as r:
+        with urllib.request.urlopen(req, timeout=48) as r:
             data = json.loads(r.read())
             text = data['choices'][0]['message']['content']
             result = _repair_json(text)
@@ -1275,19 +1275,32 @@ def analyse(ticker, lang='en'):
     if not profile.get('name'):
         raise Exception(f'Ticker "{ticker}" not found. Try AAPL, NVDA, MSFT, JPM.')
 
-    # ── SEC EDGAR pulls (uses CIK from Finnhub profile). Strict 12s ceiling so it can never timeout the whole analyse. ──
+    # ── SEC EDGAR — only if needed (saves ~8s when other sources already gave us FCF) ──
     sec_data = {}
     sec_segments = {}
     try:
         cik = profile.get('cik') or profile.get('CIK')
         if cik:
-            with ThreadPoolExecutor(max_workers=2) as _ex2:
-                _f1 = _ex2.submit(get_sec_edgar, cik)
-                _f2 = _ex2.submit(get_sec_segments, cik)
-                try: sec_data     = _f1.result(timeout=10) or {}
-                except: sec_data  = {}
-                try: sec_segments = _f2.result(timeout=10) or {}
-                except: sec_segments = {}
+            # Quick check: does AV or YF already have FCF?
+            already_has_fcf = bool((av or {}).get('fcf_raw') or (yf or {}).get('fcf_raw'))
+            already_has_segments = bool((av or {}).get('historical_financials'))
+            tasks = []
+            if not already_has_fcf:
+                tasks.append(('edgar', cik))
+            if not already_has_segments:
+                tasks.append(('segments', cik))
+            if tasks:
+                with ThreadPoolExecutor(max_workers=2) as _ex2:
+                    futs = {}
+                    for (kind, c) in tasks:
+                        if kind == 'edgar':    futs['e'] = _ex2.submit(get_sec_edgar, c)
+                        elif kind == 'segments': futs['s'] = _ex2.submit(get_sec_segments, c)
+                    if 'e' in futs:
+                        try: sec_data = futs['e'].result(timeout=8) or {}
+                        except: sec_data = {}
+                    if 's' in futs:
+                        try: sec_segments = futs['s'].result(timeout=8) or {}
+                        except: sec_segments = {}
     except: pass
 
     quote       = res.get('quote') or {}
@@ -1701,16 +1714,16 @@ def analyse(ticker, lang='en'):
         'valuation_methods':valuation_methods,
     }
 
-    # ── 3 parallel AI calls (5500 tokens each — more depth per section, same wall clock) ──
+    # ── 3 parallel AI calls (4500 tokens each — balance depth vs Vercel 60s hard cap) ──
     with ThreadPoolExecutor(max_workers=3) as ex:
-        fa = ex.submit(call_openai, prompt_a(lang), user_data_for_ai, 5500)
-        fb = ex.submit(call_openai, prompt_b(lang), user_data_for_ai, 5500)
-        fc = ex.submit(call_openai, prompt_c(lang), user_data_for_ai, 5500)
-        try: ai_a = fa.result(timeout=55)
+        fa = ex.submit(call_openai, prompt_a(lang), user_data_for_ai, 4500)
+        fb = ex.submit(call_openai, prompt_b(lang), user_data_for_ai, 4500)
+        fc = ex.submit(call_openai, prompt_c(lang), user_data_for_ai, 4500)
+        try: ai_a = fa.result(timeout=48)
         except: ai_a = {'_error':'timeout'}
-        try: ai_b = fb.result(timeout=55)
+        try: ai_b = fb.result(timeout=48)
         except: ai_b = {'_error':'timeout'}
-        try: ai_c = fc.result(timeout=55)
+        try: ai_c = fc.result(timeout=48)
         except: ai_c = {'_error':'timeout'}
 
     if ai_a.get('_error'): ai_a = _fallback_a(name, sc, fs, lang)
@@ -1795,19 +1808,20 @@ class handler(BaseHTTPRequestHandler):
         ticker = (qs.get('ticker',[''])[0]).upper().strip()
         lang   = (qs.get('lang',['en'])[0]).lower().strip()
         if lang not in ('en','es'): lang = 'en'
-        # Build response BEFORE sending headers so we don't half-send on failure
-        try:
-            result = analyse(ticker, lang) if ticker else {'error':'Provide ?ticker=AAPL'}
-            result = _clean_for_json(result)
-            body = json.dumps(result, allow_nan=False, default=str).encode()
-            status = 200
-        except Exception as e:
-            body = json.dumps({'error': str(e)[:300]}).encode()
-            status = 200
-        self.send_response(status)
+        # Send headers IMMEDIATELY so if Vercel kills us by timeout, client still gets a JSON-typed response (truncated, not HTML 500)
+        self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Content-Length', str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            if not ticker:
+                self.wfile.write(json.dumps({'error':'Provide ?ticker=AAPL'}).encode())
+                return
+            result = analyse(ticker, lang)
+            result = _clean_for_json(result)
+            self.wfile.write(json.dumps(result, allow_nan=False, default=str).encode())
+        except Exception as e:
+            try:
+                self.wfile.write(json.dumps({'error': str(e)[:300]}).encode())
+            except: pass
     def log_message(self, *a): pass
