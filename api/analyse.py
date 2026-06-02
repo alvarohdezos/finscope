@@ -225,27 +225,12 @@ def get_sec_edgar(cik):
         annuals.sort(key=lambda x: x.get('end', ''), reverse=True)
         return _sf(annuals[0].get('val'))
 
-    # Try multiple concept names — different companies use different XBRL tags
-    ocf_concepts = [
-        'NetCashProvidedByUsedInOperatingActivities',
-        'NetCashProvidedByOperatingActivities',
-        'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations',
-    ]
-    cpx_concepts = [
-        'PaymentsToAcquirePropertyPlantAndEquipment',
-        'PaymentsForCapitalImprovements',
-        'PaymentsToAcquireProductiveAssets',
-        'PurchaseOfPropertyPlantAndEquipment',
-    ]
-    rev_concepts = [
-        'Revenues',
-        'RevenueFromContractWithCustomerExcludingAssessedTax',
-        'RevenueFromContractWithCustomerIncludingAssessedTax',
-        'SalesRevenueNet',
-        'SalesRevenueGoodsNet',
-    ]
+    # Try the 2 most common concepts only (saves ~6-8 HTTP calls vs prior 4×3=12)
+    ocf_concepts = ['NetCashProvidedByUsedInOperatingActivities','NetCashProvidedByOperatingActivities']
+    cpx_concepts = ['PaymentsToAcquirePropertyPlantAndEquipment','PurchaseOfPropertyPlantAndEquipment']
+    rev_concepts = ['Revenues','RevenueFromContractWithCustomerExcludingAssessedTax']
 
-    with ThreadPoolExecutor(max_workers=4) as ex:
+    with ThreadPoolExecutor(max_workers=6) as ex:
         ocf_futs = {c: ex.submit(_fetch_concept, c) for c in ocf_concepts}
         cpx_futs = {c: ex.submit(_fetch_concept, c) for c in cpx_concepts}
         rev_futs = {c: ex.submit(_fetch_concept, c) for c in rev_concepts}
@@ -253,21 +238,21 @@ def get_sec_edgar(cik):
         ocf = None
         for c in ocf_concepts:
             try:
-                d = ocf_futs[c].result(timeout=9)
+                d = ocf_futs[c].result(timeout=6)
                 v = _latest_annual_usd(d)
                 if v is not None: ocf = v; break
             except: continue
         capex = None
         for c in cpx_concepts:
             try:
-                d = cpx_futs[c].result(timeout=9)
+                d = cpx_futs[c].result(timeout=6)
                 v = _latest_annual_usd(d)
                 if v is not None: capex = v; break
             except: continue
         revenue = None
         for c in rev_concepts:
             try:
-                d = rev_futs[c].result(timeout=9)
+                d = rev_futs[c].result(timeout=6)
                 v = _latest_annual_usd(d)
                 if v is not None: revenue = v; break
             except: continue
@@ -1290,7 +1275,7 @@ def analyse(ticker, lang='en'):
     if not profile.get('name'):
         raise Exception(f'Ticker "{ticker}" not found. Try AAPL, NVDA, MSFT, JPM.')
 
-    # ── SEC EDGAR pulls (uses CIK from Finnhub profile) ──
+    # ── SEC EDGAR pulls (uses CIK from Finnhub profile). Strict 12s ceiling so it can never timeout the whole analyse. ──
     sec_data = {}
     sec_segments = {}
     try:
@@ -1299,9 +1284,9 @@ def analyse(ticker, lang='en'):
             with ThreadPoolExecutor(max_workers=2) as _ex2:
                 _f1 = _ex2.submit(get_sec_edgar, cik)
                 _f2 = _ex2.submit(get_sec_segments, cik)
-                try: sec_data     = _f1.result(timeout=15) or {}
+                try: sec_data     = _f1.result(timeout=10) or {}
                 except: sec_data  = {}
-                try: sec_segments = _f2.result(timeout=15) or {}
+                try: sec_segments = _f2.result(timeout=10) or {}
                 except: sec_segments = {}
     except: pass
 
@@ -1787,6 +1772,21 @@ def analyse(ticker, lang='en'):
         'ai':ai,'lang':lang,
     }
 
+import math as _math
+
+def _clean_for_json(obj):
+    """Recursively replace NaN, Infinity, -Infinity (invalid in JSON) with None."""
+    if isinstance(obj, dict):
+        return {k: _clean_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_clean_for_json(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(_clean_for_json(x) for x in obj)
+    if isinstance(obj, float):
+        if _math.isnan(obj) or _math.isinf(obj):
+            return None
+    return obj
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200); self.send_header('Access-Control-Allow-Origin','*'); self.end_headers()
@@ -1795,12 +1795,19 @@ class handler(BaseHTTPRequestHandler):
         ticker = (qs.get('ticker',[''])[0]).upper().strip()
         lang   = (qs.get('lang',['en'])[0]).lower().strip()
         if lang not in ('en','es'): lang = 'en'
-        self.send_response(200); self.send_header('Content-type','application/json')
-        self.send_header('Access-Control-Allow-Origin','*'); self.end_headers()
-        if not ticker:
-            self.wfile.write(json.dumps({'error':'Provide ?ticker=AAPL'}).encode()); return
+        # Build response BEFORE sending headers so we don't half-send on failure
         try:
-            self.wfile.write(json.dumps(analyse(ticker, lang)).encode())
+            result = analyse(ticker, lang) if ticker else {'error':'Provide ?ticker=AAPL'}
+            result = _clean_for_json(result)
+            body = json.dumps(result, allow_nan=False, default=str).encode()
+            status = 200
         except Exception as e:
-            self.wfile.write(json.dumps({'error':str(e)}).encode())
+            body = json.dumps({'error': str(e)[:300]}).encode()
+            status = 200
+        self.send_response(status)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
     def log_message(self, *a): pass
