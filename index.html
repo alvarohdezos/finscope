@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-"en">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -581,7 +581,12 @@ const fmtC = (v,d=2) => v==null?'N/A':`$${Number(v).toFixed(d)}`;
 const scCol = sc => sc>=70?'var(--green)':sc>=50?'var(--amber)':'var(--red)';
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const para = s => {
-  const escaped = esc(s||'');
+  const raw = (s||'').toString().trim();
+  // Hide AI-fallback boilerplate so quantitative content carries the section
+  if(/^AI synthesis unavailable\.?$/i.test(raw)) return '';
+  if(/^Síntesis de IA no disponible\.?$/i.test(raw)) return '';
+  if(raw.length < 30 && /unavailable|no disponible/i.test(raw)) return '';
+  const escaped = esc(raw);
   return escaped.split(/\n\n+/).filter(Boolean).map(p=>`<p>${p}</p>`).join('') || `<p>${escaped}</p>`;
 };
 
@@ -1836,6 +1841,18 @@ function srcBadge(metricKey){
 
 // ── Invalidation conditions box (renders at end of each section) ──
 function invalidationBox(invs){
+  // Strip schema-placeholder leakage from AI output (institutional report should never show template text)
+  invs = (invs||[]).filter(iv=>{
+    if(!iv) return false;
+    const t = (iv.trigger || '').toString().trim();
+    if(!t || t.length < 12) return false;
+    if(/^REPLACE\b/i.test(t)) return false;
+    if(/≤\s*25 words/i.test(t)) return false;
+    if(/concrete falsifiable/i.test(t)) return false;
+    if(/^(specific|name of metric|specific numeric|specific figure)/i.test(t)) return false;
+    if(/falsifiable statement$/i.test(t)) return false;
+    return true;
+  });
   if(!invs || !invs.length) return '';
   const head = LANG==='es'
     ? 'Esta lectura quedaría invalidada si:'
