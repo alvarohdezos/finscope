@@ -619,6 +619,197 @@ def get_sec_segments(cik):
     }
 
 
+def get_sec_sbc(cik):
+    """SEC EDGAR — Stock-Based Compensation (latest annual). Critical for tech FCF quality."""
+    if not cik: return None
+    try: cik_padded = str(int(cik)).zfill(10)
+    except: return None
+    headers = {'User-Agent':'FINscope Research alvaro2005ho@gmail.com','Accept':'application/json'}
+    concepts = ['ShareBasedCompensation','StockBasedCompensation',
+                'AllocatedShareBasedCompensationExpense']
+    for concept in concepts:
+        url = f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_padded}/us-gaap/{concept}.json'
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as r:
+                data = json.loads(r.read())
+                units = (data.get('units') or {}).get('USD') or []
+                annuals = [x for x in units if x.get('form')=='10-K' and x.get('fp')=='FY']
+                if not annuals: continue
+                annuals.sort(key=lambda x: x.get('end',''), reverse=True)
+                v = _sf(annuals[0].get('val'))
+                if v: return float(v)
+        except: continue
+    return None
+
+
+def compute_quality_of_earnings(hist_fin, ni_latest, ocf_latest, total_assets_latest):
+    """Sloan accruals ratio: (NI - CFO) / Avg Total Assets.
+    Healthy band: |Sloan| < 0.10. Above = aggressive; below = conservative."""
+    out = {'sloan': None, 'flag': None, 'partial_beneish': None}
+    try:
+        if ni_latest is not None and ocf_latest is not None and total_assets_latest and total_assets_latest > 0:
+            accruals = float(ni_latest) - float(ocf_latest)
+            sloan = accruals / float(total_assets_latest)
+            out['sloan'] = round(sloan, 4)
+            out['flag'] = 'aggressive_accruals' if sloan > 0.10 else 'conservative_accruals' if sloan < -0.10 else 'healthy'
+    except: pass
+    try:
+        if hist_fin and len(hist_fin) >= 2:
+            r0 = hist_fin[0].get('revenue_m'); r1 = hist_fin[1].get('revenue_m')
+            sgi = (r0/r1) if (r0 and r1 and r1>0) else None
+            if sgi is not None:
+                out['partial_beneish'] = {'sgi': round(sgi, 3),
+                                          'note': 'Partial — full M-Score requires DSRI, GMI, AQI, SGI, DEPI, SGAI, LVGI, TATA'}
+    except: pass
+    return out
+
+
+def compute_reverse_dcf(price, market_cap, fcf_raw, beta, de, risk_free_rate, sector_wacc=None):
+    """Bisect on g_high s.t. DCF EV == current market cap."""
+    if not (price and market_cap and fcf_raw and risk_free_rate and float(fcf_raw) > 0):
+        return None
+    try:
+        if sector_wacc:
+            wacc = float(sector_wacc)
+        else:
+            erp = 5.0
+            ke = float(risk_free_rate) + (float(beta) if beta else 1.0) * erp
+            kd = 5.0
+            de_ratio = float(de) if de else 0.5
+            e_w = 1/(1+de_ratio); d_w = de_ratio/(1+de_ratio)
+            wacc = ke*e_w + kd*d_w
+        target_ev = float(market_cap)*1e6
+        fcf0 = float(fcf_raw)
+        g_term = 3.0
+        lo, hi = -10.0, 60.0
+        for _ in range(60):
+            g = (lo+hi)/2
+            fcf = fcf0
+            pv = 0
+            for year in range(1,6):
+                g_t = g - (g - g_term) * year/5
+                fcf = fcf * (1 + g_t/100)
+                pv += fcf / ((1 + wacc/100) ** year)
+            tv = fcf*(1+g_term/100)/((wacc-g_term)/100) if wacc > g_term else None
+            tv_pv = tv/((1+wacc/100)**5) if tv else 0
+            ev = pv + tv_pv
+            if ev < target_ev: lo = g
+            else: hi = g
+            if abs(hi-lo) < 0.05: break
+        return {
+            'wacc': round(wacc,1),
+            'terminal_g': g_term,
+            'implied_growth_pct': round((lo+hi)/2, 1),
+            'method': 'Reverse-DCF 2-stage; bisection on g_high s.t. EV = market cap',
+        }
+    except: return None
+
+
+def compute_dcf_sensitivity(fcf_raw, beta, de, risk_free_rate, rev_growth, market_cap, price):
+    """DCF sensitivity matrix: fair value across (WACC, terminal g) grid."""
+    if not (price and market_cap and fcf_raw and risk_free_rate and float(fcf_raw) > 0):
+        return None
+    try:
+        erp = 5.0
+        ke = float(risk_free_rate) + (float(beta) if beta else 1.0) * erp
+        kd = 5.0
+        de_ratio = float(de) if de else 0.5
+        e_w = 1/(1+de_ratio); d_w = de_ratio/(1+de_ratio)
+        base_wacc = ke*e_w + kd*d_w
+        base_g = 3.0
+        g_high = min(max(float(rev_growth or 8), 2), 25) if rev_growth else 8
+        shares_est = float(market_cap)*1e6 / float(price)
+        net_debt = float(market_cap)*1e6 * (float(de) if de else 0) * 0.25
+        wacc_axis = [round(base_wacc-2,1), round(base_wacc-1,1), round(base_wacc,1),
+                     round(base_wacc+1,1), round(base_wacc+2,1)]
+        g_axis = [2.0, 2.5, 3.0, 3.5, 4.0]
+        matrix = []
+        for w in wacc_axis:
+            row = []
+            for g_t in g_axis:
+                fcf = float(fcf_raw); pv = 0
+                for year in range(1,6):
+                    g_t_yr = g_high - (g_high - g_t)*year/5
+                    fcf = fcf*(1+g_t_yr/100)
+                    pv += fcf/((1+w/100)**year)
+                tv = fcf*(1+g_t/100)/((w-g_t)/100) if w > g_t else None
+                tv_pv = tv/((1+w/100)**5) if tv else 0
+                ev = pv + tv_pv
+                fair = (ev - net_debt) / shares_est if shares_est else None
+                row.append(round(fair,2) if fair and 0 < fair < price*10 else None)
+            matrix.append(row)
+        return {
+            'wacc_axis': wacc_axis, 'g_axis': g_axis,
+            'matrix_fair_value': matrix,
+            'base_wacc': round(base_wacc,1), 'base_g': base_g,
+            'current_price': price,
+        }
+    except: return None
+
+
+def compute_beat_miss_history(earnings_list):
+    """8 quarters of EPS surprises with magnitude and consistency."""
+    if not earnings_list: return None
+    rows = []; beat_count = 0; total = 0; surprises = []
+    for e in earnings_list[:8]:
+        period = e.get('period'); actual = e.get('actual'); est = e.get('estimate')
+        surprise = e.get('surprisePercent') or e.get('surprise')
+        if actual is None or est is None: continue
+        try: actual_f = float(actual); est_f = float(est)
+        except: continue
+        if surprise is None and est_f != 0:
+            surprise = (actual_f - est_f)/abs(est_f)*100
+        if surprise is None: continue
+        try: surprise = float(surprise)
+        except: continue
+        rows.append({'period':period,'actual':actual_f,'estimate':est_f,'surprise_pct':round(surprise,1)})
+        surprises.append(surprise); total += 1
+        if surprise > 0: beat_count += 1
+    if total == 0: return None
+    avg = sum(surprises)/total
+    return {
+        'history': rows,
+        'beat_rate_pct': round(beat_count/total*100, 0),
+        'avg_surprise_pct': round(avg, 1),
+        'consistency_score': round(beat_count/total*5, 1),
+    }
+
+
+def compute_expected_return_and_kelly(scenarios, price):
+    """Probability-weighted expected return + Kelly fraction."""
+    if not scenarios or not price or price <= 0: return None
+    try:
+        bull = scenarios.get('bull') or {}; base = scenarios.get('base') or {}; bear = scenarios.get('bear') or {}
+        b_pt = float(bull.get('price_target') or 0); ba_pt = float(base.get('price_target') or 0); be_pt = float(bear.get('price_target') or 0)
+        b_p = float(bull.get('probability_pct') or 0)/100
+        ba_p = float(base.get('probability_pct') or 0)/100
+        be_p = float(bear.get('probability_pct') or 0)/100
+        if not (b_pt and ba_pt and be_pt): return None
+        s = b_p+ba_p+be_p
+        if s > 0 and abs(s - 1.0) > 0.05:
+            b_p, ba_p, be_p = b_p/s, ba_p/s, be_p/s
+        b_ret = (b_pt-price)/price; ba_ret = (ba_pt-price)/price; be_ret = (be_pt-price)/price
+        expected = b_p*b_ret + ba_p*ba_ret + be_p*be_ret
+        upside = max(b_ret, ba_ret)
+        downside = abs(min(be_ret, ba_ret))
+        asymmetry = upside/downside if downside > 0 else None
+        p_pos = b_p + (ba_p if ba_ret > 0 else 0)
+        q_neg = 1 - p_pos
+        b_ratio = upside/downside if downside > 0 else None
+        kelly = None
+        if b_ratio and b_ratio > 0:
+            kelly = max(0, (b_ratio*p_pos - q_neg)/b_ratio)
+        return {
+            'expected_return_pct': round(expected*100, 1),
+            'upside_to_downside': round(asymmetry, 2) if asymmetry else None,
+            'kelly_full_pct': round(kelly*100, 1) if kelly is not None else None,
+            'kelly_quarter_pct': round(kelly*25, 1) if kelly is not None else None,
+            'note': 'Quarter-Kelly is the institutional convention; full-Kelly maximises log-growth but accepts ruinous variance.'
+        }
+    except: return None
+
+
 def get_finnhub_ownership(ticker):
     """Real top institutional holders + recent insider transactions from Finnhub."""
     out = {'top_holders': [], 'insider_transactions': [], 'esg_score': None}
@@ -916,10 +1107,15 @@ def compute_score(pm, om, roe, roa, roic, rg, de, cr, qr, fcf_raw, fcf_margin, f
 
     f = max(0, min(40, f))
 
-    # ── ANALYST (base 12, max 30) ──────────────────────────────────────────────
-    a = 12
-    bd['analyst'].append({'pts':12, 'reason':_t('Base score','Puntuación base', lang)})
+    # ── ANALYST (base 12 with coverage, base 4 without — fixes prior inflation bug) ──
     total_recs = (sb or 0)+(bu or 0)+(hd or 0)+(se or 0)+(ss or 0)
+    has_target = tp is not None and price is not None and price > 0
+    if total_recs == 0 and not has_target:
+        a = 4
+        bd['analyst'].append({'pts':4, 'reason':_t('No analyst coverage (base reduced)','Sin cobertura de analistas (base reducida)', lang)})
+    else:
+        a = 12
+        bd['analyst'].append({'pts':12, 'reason':_t('Base score','Puntuación base', lang)})
     if total_recs > 0:
         buy_ratio = (sb+bu)/total_recs
         sell_ratio = (se+ss)/total_recs
@@ -1104,6 +1300,7 @@ def prompt_a(lang='en'):
 {lt}
 
 NON-NEGOTIABLE STANDARDS:
+- ABSOLUTE RULE: Never output the literal placeholder strings "≤25 words", "REPLACE WITH", "specific figure", "specific" or any schema instruction. ALWAYS replace them with concrete content. If a field cannot be filled with real content, omit the entire enclosing object — never leave the placeholder.
 - Every analytical sentence MUST contain at least one specific figure from input (P/E, margin, growth %, $bn, ratio, year)
 - NEVER say "we recommend / investors should / the stock will". Neutral framing only: "The data indicates", "Balance-sheet quality reflects", "Operating leverage of X% suggests".
 - Connect ratios to underlying drivers. Don't just quote them — explain WHY: e.g. "ROE of 65% reflects high asset turnover (X.Xx) combined with strong net margin (XX%) and modest leverage (D/E X.XX); a Du Pont decomposition would attribute most of the spread above peers to operating efficiency, not financial gearing."
@@ -1116,7 +1313,7 @@ NON-NEGOTIABLE STANDARDS:
 
 REQUIRED JSON SCHEMA — only two sections, but DEEP coverage. EACH section ends with an `invalidation` array — falsifiable conditions with a metric, operator, value, and deadline. Without these, the memo is essay, not analysis.
 
-{{"executive_summary":{{"verdict":"3-6 word neutral status (e.g. 'High-quality compounder, premium multiple', 'Cyclical recovery in motion', 'Capital-intensive turnaround', 'Asset-light cash machine')","verdict_sub":"1-2 sentences with at least 3 specific figures: composite score, key strength, key risk","verdict_color":"green|amber|red","verdict_icon":"bull|neutral|bear|watch","text":"14-18 sentences. (1) Open with the business in one factual sentence — what they sell, to whom, where. (2) Composite score positioning with the two top drivers AND the clearest gap (use the score breakdown context). (3) Three strengths backed by exact figures including at least one balance-sheet metric (e.g. 'gross margin 71.3% vs peer median 52%, ROIC 64.5% with D/E 0.05'). (4) Three risks backed by figures with at least one valuation or accounting flag (FCF/NI conversion, working capital, multiple compression risk). (5) Quote valuation position vs peers in exact % premium/discount terms — use peer_comparison data. (6) Close with a forward-looking framing tied to upcoming_earnings, a named catalyst, or a macro factor — never a directional call. Target 320-380 words.","key_takeaways":[{{"label":"≤8 words","status":"green|amber|red","reason":"≤22 words with specific figure"}}],"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name of metric","operator":"<|>|=|crosses","value":"specific numeric value or event","horizon":"P1Q|P2Q|P1Y"}}]}},"business_model":{{"text":"16-20 sentences. (1) What products / services and the underlying technology or service mechanism — 2-3 sentences. (2) Real revenue streams with their EXACT % from sec_segments input when available (otherwise from description) — name each segment as the company names it in 10-K. (3) For each top segment, one-sentence growth dynamic with YoY direction. (4) Explicit moat classification: pick from {{Network Effect, Switching Cost, Scale, IP / Patents, Brand, Regulatory, Cost Advantage, Distribution}} and quantify the evidence (e.g. 'TSMC capacity exclusivity'). (5) Customer or segment concentration with the exact figure from the description or 10-K (e.g. 'top 3 customers = 38% of revenue'). (6) Geographic exposure from sec_segments input when available — name actual countries / regions, not generic 'international'. (7) Strategic rationale for each major geography — why does that market matter (regulation, supply, demand). (8) Recent M&A, divestitures, product launches in the past 24 months with the dollar impact. (9) Historical inflection points using the full 4-year historical_financials series: revenue CAGR, margin trajectory, an explicit before-and-after framing. (10) Competitive positioning vs the named peers in peer_comparison — who's gaining share, who's losing. Target 420-520 words.","revenue_segments":[{{"name":"Segment name AS THE COMPANY NAMES IT","pct":50,"description":"what it covers and its YoY growth dynamic"}}],"geographic_exposure":[{{"region":"Region name","pct":45,"note":"strategic rationale + main risk/opportunity"}}],"moat":{{"type":"Network Effect|Switching Cost|Scale|IP/Patents|Brand|Regulatory|Cost Advantage|Distribution","strength_0_5":4,"evidence":"1-2 sentence quantified evidence"}},"invalidation":[{{"trigger":"≤25 words concrete and falsifiable on moat or segment dynamics","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}}}}"""
+{{"executive_summary":{{"verdict":"3-6 word neutral status (e.g. 'High-quality compounder, premium multiple', 'Cyclical recovery in motion', 'Capital-intensive turnaround', 'Asset-light cash machine')","verdict_sub":"1-2 sentences with at least 3 specific figures: composite score, key strength, key risk","verdict_color":"green|amber|red","verdict_icon":"bull|neutral|bear|watch","text":"14-18 sentences. (1) Open with the business in one factual sentence — what they sell, to whom, where. (2) Composite score positioning with the two top drivers AND the clearest gap (use the score breakdown context). (3) Three strengths backed by exact figures including at least one balance-sheet metric (e.g. 'gross margin 71.3% vs peer median 52%, ROIC 64.5% with D/E 0.05'). (4) Three risks backed by figures with at least one valuation or accounting flag (FCF/NI conversion, working capital, multiple compression risk). (5) Quote valuation position vs peers in exact % premium/discount terms — use peer_comparison data. (6) Close with a forward-looking framing tied to upcoming_earnings, a named catalyst, or a macro factor — never a directional call. Target 320-380 words.","key_takeaways":[{{"label":"≤8 words","status":"green|amber|red","reason":"≤22 words with specific figure"}}],"invalidation":[{{"trigger":"REPLACE WITH actual falsifiable trigger (≤25 words). Example: 'Forward P/E rerates above 35x within 2 quarters'. NEVER literally output the string '≤25 words'.","metric":"name of metric","operator":"<|>|=|crosses","value":"specific numeric value or event","horizon":"P1Q|P2Q|P1Y"}}]}},"business_model":{{"text":"16-20 sentences. (1) What products / services and the underlying technology or service mechanism — 2-3 sentences. (2) Real revenue streams with their EXACT % from sec_segments input when available (otherwise from description) — name each segment as the company names it in 10-K. (3) For each top segment, one-sentence growth dynamic with YoY direction. (4) Explicit moat classification: pick from {{Network Effect, Switching Cost, Scale, IP / Patents, Brand, Regulatory, Cost Advantage, Distribution}} and quantify the evidence (e.g. 'TSMC capacity exclusivity'). (5) Customer or segment concentration with the exact figure from the description or 10-K (e.g. 'top 3 customers = 38% of revenue'). (6) Geographic exposure from sec_segments input when available — name actual countries / regions, not generic 'international'. (7) Strategic rationale for each major geography — why does that market matter (regulation, supply, demand). (8) Recent M&A, divestitures, product launches in the past 24 months with the dollar impact. (9) Historical inflection points using the full 4-year historical_financials series: revenue CAGR, margin trajectory, an explicit before-and-after framing. (10) Competitive positioning vs the named peers in peer_comparison — who's gaining share, who's losing. Target 420-520 words.","revenue_segments":[{{"name":"Segment name AS THE COMPANY NAMES IT","pct":50,"description":"what it covers and its YoY growth dynamic"}}],"geographic_exposure":[{{"region":"Region name","pct":45,"note":"strategic rationale + main risk/opportunity"}}],"moat":{{"type":"Network Effect|Switching Cost|Scale|IP/Patents|Brand|Regulatory|Cost Advantage|Distribution","strength_0_5":4,"evidence":"1-2 sentence quantified evidence"}},"invalidation":[{{"trigger":"≤25 words concrete and falsifiable on moat or segment dynamics","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}}}}"""
 
 def prompt_b(lang='en'):
     lt = _lang_tag(lang)
@@ -1134,7 +1331,7 @@ NON-NEGOTIABLE STANDARDS:
 
 REQUIRED JSON SCHEMA. Each section ends with `invalidation` — falsifiable conditions with metric + operator + value + horizon.
 
-{{"performance":{{"text":"14-18 sentences. (1) Open with the returns table: 1Y, 3Y, 5Y, YTD with EXACT numbers from technicals.returns. (2) Outperformance/underperformance vs S&P 500 if context allows. (3) Distance from 52W high/low with %. (4) Technical position: RSI {{rsi14}} (overbought >70, oversold <30), price vs SMA50 and SMA200, golden/death cross status from technicals.cross_status. (5) 30-day annualised volatility figure with interpretation. (6) Full revenue trajectory across all years in historical_financials with CAGR. (7) Operating margin evolution in exact pp expansion or compression — frame as 'margin walk'. (8) Net income trajectory with FCF/NI quality lens. (9) EPS growth context — call out any one-off items if visible. (10) Beta interpretation in plain language (defensive < 1.0, market = 1.0, offensive > 1.0). (11) Named catalysts in the past 12 months (earnings beats/misses, product launches, M&A). (12) Capital return: buybacks reducing share count, dividend changes, total shareholder yield. Target 360-460 words.","returns_summary":"4-6 sentence summary of the returns table emphasising the strongest period and the weakest.","invalidation":[{{"trigger":"≤25 words","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"financial_quality":{{"text":"18-22 sentences forming a deep balance-sheet AND income-statement audit. (1) Open by referencing the health_flags input: list the 5 flags and their status (green/red) with the underlying figure. (2) Then deep dive — gross margin level with multi-year pp trend. (3) Operating leverage computed in the input (use operating_leverage value), framed as: 'each 1pp of revenue growth translates to X pp of op income growth'. (4) FCF with absolute figure and FCF/Net Income conversion ratio (>100% = high earnings quality, <70% = potential aggressive accruals). (5) ROIC level and the ROIC-WACC spread context (positive spread = economic profit creation). (6) Net Debt / EBITDA from net_debt_ebitda input. (7) Working capital efficiency from current ratio and quick ratio. (8) Asset turnover from latest historical_financials. Then EXPLICITLY EXPLAIN Altman Z-Score: '5 factors. X1 = Working Capital / Total Assets (short-term liquidity buffer); X2 = Retained Earnings / TA (cumulative historical profitability); X3 = EBIT / TA (asset productivity); X4 = Market Cap / Total Liabilities (market-implied solvency cushion); X5 = Sales / TA (asset turnover). Z = 1.2·X1 + 1.4·X2 + 3.3·X3 + 0.6·X4 + X5. Bands: Z > 2.99 safe, 1.81-2.99 grey, < 1.81 distress. Not applicable to banks or asset-light tech firms.' This company's Z is X.XX → interpret. Then EXPLAIN Piotroski F-Score: '9 binary signals across Profitability (ROA+, FCF+, ROA rising YoY, FCF > NI), Leverage (D/E falling YoY, Current Ratio rising, no dilution), Efficiency (Gross Margin rising, Asset Turnover rising). 7-9 = improving; 4-6 = moderate; 0-3 = deteriorating.' This company is X/9 → interpret which sub-pillar drives it. Identify any accounting red flags (FCF/NI gap, capitalised costs, working capital ballooning, stock-based compensation inflation) or explicitly state none found. Target 500-600 words.","invalidation":[{{"trigger":"≤25 words","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"sec_filings":{{"text":"14-16 sentences mining the recent_filings list and the company description. (1) List the most recent 10-K and 10-Q filings with their dates from recent_filings input. (2) Revenue recognition policy and any recent segment reclassifications with figures. (3) Management guidance from the most recent quarterly call with exact dollar figure. (4) Material risk factors disclosed in the 10-K — quantify each (e.g. 'customer concentration: top 5 customers = 42% of revenue'). (5) Segment MD&A highlights — what management emphasised in their commentary. (6) Related-party transactions or material legal proceedings if disclosed. (7) Recent insider transaction patterns over the last quarter (Forms 4) — net buying or selling. (8) Critical accounting estimates (impairment tests, deferred tax, stock-based compensation) that meaningfully shape reported earnings. (9) Any restatements, going-concern language, auditor changes — flag explicitly; otherwise say 'no material flags identified in the reviewed filings'. Target 300-360 words.","key_disclosures":["5-7 specific findings each anchored to a 10-K / 10-Q line item with exact figure or %"],"filing_summaries":[{{"form":"10-K|10-Q|8-K|DEF 14A","date":"YYYY-MM-DD","one_line_summary":"≤30 words describing what THIS specific filing contains and its material content"}}]}}}}"""
+{{"performance":{{"text":"14-18 sentences. (1) Open with the returns table: 1Y, 3Y, 5Y, YTD with EXACT numbers from technicals.returns. (2) Outperformance/underperformance vs S&P 500 if context allows. (3) Distance from 52W high/low with %. (4) Technical position: RSI {{rsi14}} (overbought >70, oversold <30), price vs SMA50 and SMA200, golden/death cross status from technicals.cross_status. (5) 30-day annualised volatility figure with interpretation. (6) Full revenue trajectory across all years in historical_financials with CAGR. (7) Operating margin evolution in exact pp expansion or compression — frame as 'margin walk'. (8) Net income trajectory with FCF/NI quality lens. (9) EPS growth context — call out any one-off items if visible. (10) Beta interpretation in plain language (defensive < 1.0, market = 1.0, offensive > 1.0). (11) Named catalysts in the past 12 months (earnings beats/misses, product launches, M&A). (12) Capital return: buybacks reducing share count, dividend changes, total shareholder yield. Target 360-460 words.","returns_summary":"4-6 sentence summary of the returns table emphasising the strongest period and the weakest.","invalidation":[{{"trigger":"REPLACE — concrete falsifiable statement ≤25 words; NEVER output the literal '≤25 words'","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"financial_quality":{{"text":"18-22 sentences forming a deep balance-sheet AND income-statement audit. (1) Open by referencing the health_flags input: list the 5 flags and their status (green/red) with the underlying figure. (2) Then deep dive — gross margin level with multi-year pp trend. (3) Operating leverage computed in the input (use operating_leverage value), framed as: 'each 1pp of revenue growth translates to X pp of op income growth'. (4) FCF with absolute figure and FCF/Net Income conversion ratio (>100% = high earnings quality, <70% = potential aggressive accruals). (5) ROIC level and the ROIC-WACC spread context (positive spread = economic profit creation). (6) Net Debt / EBITDA from net_debt_ebitda input. (7) Working capital efficiency from current ratio and quick ratio. (8) Asset turnover from latest historical_financials. Then EXPLICITLY EXPLAIN Altman Z-Score: '5 factors. X1 = Working Capital / Total Assets (short-term liquidity buffer); X2 = Retained Earnings / TA (cumulative historical profitability); X3 = EBIT / TA (asset productivity); X4 = Market Cap / Total Liabilities (market-implied solvency cushion); X5 = Sales / TA (asset turnover). Z = 1.2·X1 + 1.4·X2 + 3.3·X3 + 0.6·X4 + X5. Bands: Z > 2.99 safe, 1.81-2.99 grey, < 1.81 distress. Not applicable to banks or asset-light tech firms.' This company's Z is X.XX → interpret. Then EXPLAIN Piotroski F-Score: '9 binary signals across Profitability (ROA+, FCF+, ROA rising YoY, FCF > NI), Leverage (D/E falling YoY, Current Ratio rising, no dilution), Efficiency (Gross Margin rising, Asset Turnover rising). 7-9 = improving; 4-6 = moderate; 0-3 = deteriorating.' This company is X/9 → interpret which sub-pillar drives it. Identify any accounting red flags (FCF/NI gap, capitalised costs, working capital ballooning, stock-based compensation inflation) or explicitly state none found. Target 500-600 words.","invalidation":[{{"trigger":"REPLACE — concrete falsifiable statement ≤25 words; NEVER output the literal '≤25 words'","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"sec_filings":{{"text":"14-16 sentences mining the recent_filings list and the company description. (1) List the most recent 10-K and 10-Q filings with their dates from recent_filings input. (2) Revenue recognition policy and any recent segment reclassifications with figures. (3) Management guidance from the most recent quarterly call with exact dollar figure. (4) Material risk factors disclosed in the 10-K — quantify each (e.g. 'customer concentration: top 5 customers = 42% of revenue'). (5) Segment MD&A highlights — what management emphasised in their commentary. (6) Related-party transactions or material legal proceedings if disclosed. (7) Recent insider transaction patterns over the last quarter (Forms 4) — net buying or selling. (8) Critical accounting estimates (impairment tests, deferred tax, stock-based compensation) that meaningfully shape reported earnings. (9) Any restatements, going-concern language, auditor changes — flag explicitly; otherwise say 'no material flags identified in the reviewed filings'. Target 300-360 words.","key_disclosures":["5-7 specific findings each anchored to a 10-K / 10-Q line item with exact figure or %"],"filing_summaries":[{{"form":"10-K|10-Q|8-K|DEF 14A","date":"YYYY-MM-DD","one_line_summary":"≤30 words describing what THIS specific filing contains and its material content"}}]}}}}"""
 
 
 def prompt_c(lang='en'):
@@ -1158,7 +1355,7 @@ UTILITIES 5.0-6.5% | REITS 5.5-7.0% | STAPLES 6.0-7.5% | TELECOM 6.5-8.5% | HEAL
 
 REQUIRED JSON SCHEMA (fill ALL fields, no placeholders). Each section ends with `invalidation` — falsifiable conditions.
 
-{{"macro_context":{{"text":"13-16 sentences SPECIFIC to this company. (1) Open with company's geographic revenue breakdown (% by region) using description as anchor — never use generic 60/20/20. (2) For each major region, discuss the live macro variable that matters most: US (10Y yield at X.XX%, Fed Funds at X.XX%, CPI at X.X% YoY, ISM PMI), Europe (ECB depo rate, energy price impact, EUR/USD), China (PBoC stance, property sector, US chip sanctions), EMs (USD strength, commodity terms-of-trade). (3) Sector-specific macro: tech (capex cycle, semis cycle phase, AI demand), banks (NIM trajectory, credit-loss provisioning), energy (Brent forward curve, OPEC+), consumer (real wages, savings rate, credit card delinquencies), pharma (FDA backlog, IRA pricing impact). (4) Geopolitical risks tied to THIS company: Taiwan exposure for semis, EU AI Act for Big Tech, GLP-1 obesity drug cycle for pharma, etc. (5) Translate the 10Y yield environment into impact on this company's WACC and refinancing cost. Reference at least 2 items from the economic_calendar input. Target 320-400 words.","invalidation":[{{"trigger":"≤25 words","metric":"macro variable","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"risk_analysis":{{"text":"13-15 sentences. Cover ALL eight risk types in order, each anchored to a quantified data point: (i) Valuation risk vs sector multiple, (ii) Operational risk (execution, supply chain, key talent), (iii) Financial risk (D/E, interest coverage, refinancing wall), (iv) Regulatory risk specific to industry/region, (v) Competitive risk citing the named peers from peer_comparison, (vi) Macro risk linked to live indicators, (vii) Technology/disruption risk, (viii) Concentration risk (customer, geography, single product). Target 280-340 words.","risks":["7-9 risks, each 1-2 sentences with a quantified data point. Use distinct categories — no duplicates."],"technical_takeaway":"3-4 sentences interpreting the technicals input (RSI, SMA cross, MACD, volatility) in plain language and flagging any divergence with the fundamental story.","invalidation":[{{"trigger":"≤25 words","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"ownership":{{"text":"13-15 sentences. (1) EXPLAIN the principal-agent problem in one sentence with concrete framing for THIS company. (2) Institutional ownership % and what it implies: high (>70%) = price stability but herd risk on outflows; low = retail-driven volatility. (3) Reference the real top institutional holders from real_top_holders input by name with their exact stake. (4) Insider ownership level + alignment quality. (5) Insider MSPR — quantify: positive = net buying, negative = net selling. (6) Executive compensation structure (RSU/PSU mix, alignment with TSR). (7) Board independence and any recent governance friction. (8) Capital-return policy — buyback yield + dividend yield combined = total shareholder yield. (9) Free float and implied liquidity. Target 280-340 words.","top_holders":[{{"name":"Real institution name from real_top_holders input","stake_pct":8.5}}],"invalidation":[{{"trigger":"≤25 words","metric":"insider MSPR or institutional change","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}},"valuation":{{"text":"16-18 sentences forming a CFA-level valuation walk-through. (1) EXPLAIN each multiple in one sentence: P/E TTM, P/E Forward, EV/EBITDA (capital-structure neutral), P/B, P/S, FCF Yield, PEG. (2) Quote each multiple for the company AND the sector median using peer_comparison. (3) BUILD the WACC bottom-up: Ke = Rf + β × ERP. State Rf = current 10Y yield from macro input, β = company beta, ERP = 4.5-5.5% for US large-caps; show the arithmetic. After-tax cost of debt Kd × (1-t) using ~21% US tax rate. WACC = Ke·(E/V) + Kd(1-t)·(D/V). (4) ROIC vs WACC spread. (5) DCF framework: 5-year FCF projection, terminal value at g=2.5-3.0%, discount at WACC. Terminal value typically 60-80% of EV — sensitivity severe (±1pp on g moves fair value ~15-25%). (6) State fair-value range with WACC assumption used. Reference the valuation_methods input — quote each method's fair value (P/E relative, EV/EBITDA relative, DCF) and reconcile. (7) Compare to current price → margin of safety %. Target 440-540 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5,"invalidation":[{{"trigger":"≤25 words","metric":"P/E or fair value driver","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"competitors":{{"text":"13-15 sentences positioning the company within its peer group using ONLY the peer_comparison data. State margin leadership rank, revenue growth rank, P/E premium/discount vs peer median, EV/EBITDA premium/discount, ROE rank — all with exact %. Then 1-2 sentences per top peer contextualising it. Conclude on whether premium is justified by quality or vulnerable to multiple compression. Target 300-360 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"market_cap_m":2000000,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"market_cap_m":500000,"is_subject":false}}],"invalidation":[{{"trigger":"≤25 words","metric":"peer relative multiple","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}},"scenarios":{{"text":"5-6 sentences framing the scenario range. State the current price as anchor. Compute the probability-weighted expected return = Σ(prob × Δ%) and quote it.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"6-8 sentences with REQUIRED structure: (1) Named catalyst with exact timeline (e.g. 'Q3 2026 earnings beat on Data Center segment'). (2) Revenue assumption with exact YoY %. (3) Operating margin assumption with exact pp. (4) Implied forward P/E or EV/EBITDA at the target. (5) What investors must observe to validate (specific metric thresholds). (6) Key risk that would invalidate THIS bull case.","assumptions":{{"revenue_growth_yoy_pct":15,"operating_margin_pct":35,"implied_pe":28,"catalyst":"named catalyst with date"}},"triggers_to_monitor":["specific data point that confirms","another data point that confirms"]}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"6-8 sentences with same structure: catalyst (or absence of catalyst), revenue/margin assumptions, implied multiple, validation criteria.","assumptions":{{"revenue_growth_yoy_pct":8,"operating_margin_pct":30,"implied_pe":24,"catalyst":"steady-state with no surprises"}},"triggers_to_monitor":["specific","specific"]}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"6-8 sentences: downside catalyst with quantified impact, multiple compression to specific figure, trigger threshold.","assumptions":{{"revenue_growth_yoy_pct":-5,"operating_margin_pct":22,"implied_pe":18,"catalyst":"named downside catalyst"}},"triggers_to_monitor":["specific","specific"]}}}}}}"""
+{{"macro_context":{{"text":"13-16 sentences SPECIFIC to this company. (1) Open with company's geographic revenue breakdown (% by region) using description as anchor — never use generic 60/20/20. (2) For each major region, discuss the live macro variable that matters most: US (10Y yield at X.XX%, Fed Funds at X.XX%, CPI at X.X% YoY, ISM PMI), Europe (ECB depo rate, energy price impact, EUR/USD), China (PBoC stance, property sector, US chip sanctions), EMs (USD strength, commodity terms-of-trade). (3) Sector-specific macro: tech (capex cycle, semis cycle phase, AI demand), banks (NIM trajectory, credit-loss provisioning), energy (Brent forward curve, OPEC+), consumer (real wages, savings rate, credit card delinquencies), pharma (FDA backlog, IRA pricing impact). (4) Geopolitical risks tied to THIS company: Taiwan exposure for semis, EU AI Act for Big Tech, GLP-1 obesity drug cycle for pharma, etc. (5) Translate the 10Y yield environment into impact on this company's WACC and refinancing cost. Reference at least 2 items from the economic_calendar input. Target 320-400 words.","invalidation":[{{"trigger":"REPLACE — concrete falsifiable statement ≤25 words; NEVER output the literal '≤25 words'","metric":"macro variable","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"risk_analysis":{{"text":"13-15 sentences. Cover ALL eight risk types in order, each anchored to a quantified data point: (i) Valuation risk vs sector multiple, (ii) Operational risk (execution, supply chain, key talent), (iii) Financial risk (D/E, interest coverage, refinancing wall), (iv) Regulatory risk specific to industry/region, (v) Competitive risk citing the named peers from peer_comparison, (vi) Macro risk linked to live indicators, (vii) Technology/disruption risk, (viii) Concentration risk (customer, geography, single product). Target 280-340 words.","risks":["7-9 risks, each 1-2 sentences with a quantified data point. Use distinct categories — no duplicates."],"technical_takeaway":"3-4 sentences interpreting the technicals input (RSI, SMA cross, MACD, volatility) in plain language and flagging any divergence with the fundamental story.","invalidation":[{{"trigger":"REPLACE — concrete falsifiable statement ≤25 words; NEVER output the literal '≤25 words'","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"ownership":{{"text":"13-15 sentences. (1) EXPLAIN the principal-agent problem in one sentence with concrete framing for THIS company. (2) Institutional ownership % and what it implies: high (>70%) = price stability but herd risk on outflows; low = retail-driven volatility. (3) Reference the real top institutional holders from real_top_holders input by name with their exact stake. (4) Insider ownership level + alignment quality. (5) Insider MSPR — quantify: positive = net buying, negative = net selling. (6) Executive compensation structure (RSU/PSU mix, alignment with TSR). (7) Board independence and any recent governance friction. (8) Capital-return policy — buyback yield + dividend yield combined = total shareholder yield. (9) Free float and implied liquidity. Target 280-340 words.","top_holders":[{{"name":"Real institution name from real_top_holders input","stake_pct":8.5}}],"invalidation":[{{"trigger":"REPLACE — concrete falsifiable statement ≤25 words; NEVER output the literal '≤25 words'","metric":"insider MSPR or institutional change","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}},"valuation":{{"text":"16-18 sentences forming a CFA-level valuation walk-through. (1) EXPLAIN each multiple in one sentence: P/E TTM, P/E Forward, EV/EBITDA (capital-structure neutral), P/B, P/S, FCF Yield, PEG. (2) Quote each multiple for the company AND the sector median using peer_comparison. (3) BUILD the WACC bottom-up: Ke = Rf + β × ERP. State Rf = current 10Y yield from macro input, β = company beta, ERP = 4.5-5.5% for US large-caps; show the arithmetic. After-tax cost of debt Kd × (1-t) using ~21% US tax rate. WACC = Ke·(E/V) + Kd(1-t)·(D/V). (4) ROIC vs WACC spread. (5) DCF framework: 5-year FCF projection, terminal value at g=2.5-3.0%, discount at WACC. Terminal value typically 60-80% of EV — sensitivity severe (±1pp on g moves fair value ~15-25%). (6) State fair-value range with WACC assumption used. Reference the valuation_methods input — quote each method's fair value (P/E relative, EV/EBITDA relative, DCF) and reconcile. (7) Compare to current price → margin of safety %. Target 440-540 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5,"invalidation":[{{"trigger":"REPLACE — concrete falsifiable statement ≤25 words; NEVER output the literal '≤25 words'","metric":"P/E or fair value driver","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"competitors":{{"text":"13-15 sentences positioning the company within its peer group using ONLY the peer_comparison data. State margin leadership rank, revenue growth rank, P/E premium/discount vs peer median, EV/EBITDA premium/discount, ROE rank — all with exact %. Then 1-2 sentences per top peer contextualising it. Conclude on whether premium is justified by quality or vulnerable to multiple compression. Target 300-360 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"market_cap_m":2000000,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"market_cap_m":500000,"is_subject":false}}],"invalidation":[{{"trigger":"REPLACE — concrete falsifiable statement ≤25 words; NEVER output the literal '≤25 words'","metric":"peer relative multiple","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}},"scenarios":{{"text":"5-6 sentences framing the scenario range. State the current price as anchor. Compute the probability-weighted expected return = Σ(prob × Δ%) and quote it.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"6-8 sentences with REQUIRED structure: (1) Named catalyst with exact timeline (e.g. 'Q3 2026 earnings beat on Data Center segment'). (2) Revenue assumption with exact YoY %. (3) Operating margin assumption with exact pp. (4) Implied forward P/E or EV/EBITDA at the target. (5) What investors must observe to validate (specific metric thresholds). (6) Key risk that would invalidate THIS bull case.","assumptions":{{"revenue_growth_yoy_pct":15,"operating_margin_pct":35,"implied_pe":28,"catalyst":"named catalyst with date"}},"triggers_to_monitor":["specific data point that confirms","another data point that confirms"]}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"6-8 sentences with same structure: catalyst (or absence of catalyst), revenue/margin assumptions, implied multiple, validation criteria.","assumptions":{{"revenue_growth_yoy_pct":8,"operating_margin_pct":30,"implied_pe":24,"catalyst":"steady-state with no surprises"}},"triggers_to_monitor":["specific","specific"]}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"6-8 sentences: downside catalyst with quantified impact, multiple compression to specific figure, trigger threshold.","assumptions":{{"revenue_growth_yoy_pct":-5,"operating_margin_pct":22,"implied_pe":18,"catalyst":"named downside catalyst"}},"triggers_to_monitor":["specific","specific"]}}}}}}"""
 
 def _repair_json(text):
     text = text.strip()
@@ -1275,34 +1472,7 @@ def analyse(ticker, lang='en'):
     if not profile.get('name'):
         raise Exception(f'Ticker "{ticker}" not found. Try AAPL, NVDA, MSFT, JPM.')
 
-    # ── SEC EDGAR — only if needed (saves ~8s when other sources already gave us FCF) ──
-    sec_data = {}
-    sec_segments = {}
-    try:
-        cik = profile.get('cik') or profile.get('CIK')
-        if cik:
-            # Quick check: does AV or YF already have FCF?
-            already_has_fcf = bool((av or {}).get('fcf_raw') or (yf or {}).get('fcf_raw'))
-            already_has_segments = bool((av or {}).get('historical_financials'))
-            tasks = []
-            if not already_has_fcf:
-                tasks.append(('edgar', cik))
-            if not already_has_segments:
-                tasks.append(('segments', cik))
-            if tasks:
-                with ThreadPoolExecutor(max_workers=2) as _ex2:
-                    futs = {}
-                    for (kind, c) in tasks:
-                        if kind == 'edgar':    futs['e'] = _ex2.submit(get_sec_edgar, c)
-                        elif kind == 'segments': futs['s'] = _ex2.submit(get_sec_segments, c)
-                    if 'e' in futs:
-                        try: sec_data = futs['e'].result(timeout=8) or {}
-                        except: sec_data = {}
-                    if 's' in futs:
-                        try: sec_segments = futs['s'].result(timeout=8) or {}
-                        except: sec_segments = {}
-    except: pass
-
+    # ── Unpack parallel results FIRST (fixes prior NameError on av/yf) ──
     quote       = res.get('quote') or {}
     m_fh        = (res.get('metrics') or {}).get('metric') or {}
     recs_raw    = res.get('recs') or {}
@@ -1323,6 +1493,37 @@ def analyse(ticker, lang='en'):
     fh_own      = res.get('ownership') or {}
     filings_raw = res.get('filings') or []
     filings_raw = filings_raw if isinstance(filings_raw, list) else []
+
+    # ── SEC EDGAR — fetch FCF, segments, and SBC for tech firms ──
+    sec_data = {}
+    sec_segments = {}
+    sec_sbc = None
+    try:
+        cik = profile.get('cik') or profile.get('CIK')
+        if cik:
+            already_has_fcf = bool(av.get('fcf_raw') or yf.get('fcf_raw'))
+            already_has_segments = bool(av.get('historical_financials'))
+            tasks = []
+            if not already_has_fcf: tasks.append(('edgar', cik))
+            if not already_has_segments: tasks.append(('segments', cik))
+            tasks.append(('sbc', cik))
+            if tasks:
+                with ThreadPoolExecutor(max_workers=3) as _ex2:
+                    futs = {}
+                    for (kind, c) in tasks:
+                        if kind == 'edgar':    futs['e'] = _ex2.submit(get_sec_edgar, c)
+                        elif kind == 'segments': futs['s'] = _ex2.submit(get_sec_segments, c)
+                        elif kind == 'sbc':    futs['b'] = _ex2.submit(get_sec_sbc, c)
+                    if 'e' in futs:
+                        try: sec_data = futs['e'].result(timeout=8) or {}
+                        except: sec_data = {}
+                    if 's' in futs:
+                        try: sec_segments = futs['s'].result(timeout=8) or {}
+                        except: sec_segments = {}
+                    if 'b' in futs:
+                        try: sec_sbc = futs['b'].result(timeout=8)
+                        except: sec_sbc = None
+    except: pass
 
     # ── Real SEC filings: 10-K, 10-Q, 8-K with links ──
     sec_filings_list = []
@@ -1348,10 +1549,20 @@ def analyse(ticker, lang='en'):
         if pd and any(pd.get(k) for k in ('pe','ev_ebitda','net_margin','roe')):
             peer_comparison.append(pd)
 
+    # ── Curated news: only headlines mentioning the ticker, the company name or its brand ──
     seen_urls=set(); news=[]
-    for a in news_list[:30]:
+    company_name = profile.get('name','') or ''
+    rel_keys = {ticker.upper()}
+    if company_name:
+        first = company_name.split()[0].upper()
+        if len(first) >= 3: rel_keys.add(first)
+    BLACKLIST = ('TOP 3 STOCKS','MAGNIFICENT 7','BEST DIVIDEND','PENNY STOCKS','ZACKS RANK')
+    for a in news_list[:50]:
         hl=(a.get('headline') or '').strip(); url=a.get('url','')
         if not hl or url in seen_urls or len(hl)<15: continue
+        hl_up = hl.upper()
+        if not any(k in hl_up or k in url.upper() for k in rel_keys): continue
+        if any(b in hl_up for b in BLACKLIST): continue
         seen_urls.add(url)
         news.append({'headline':hl[:220],'source':a.get('source','') or '','url':url,'datetime':a.get('datetime',0)})
         if len(news)>=8: break
@@ -1497,6 +1708,13 @@ def analyse(ticker, lang='en'):
         v = float(fcf_raw)
         fcf_str = f"${v/1e9:.1f}B" if abs(v)>=1e9 else f"${v/1e6:.0f}M"
 
+    # ── Reconcile FCF into hist_fin so the historical table never shows N/A when we have data ──
+    if fcf_raw is not None and hist_fin:
+        try:
+            if hist_fin[0].get('fcf_m') is None:
+                hist_fin[0]['fcf_m'] = round(float(fcf_raw)/1e6)
+        except: pass
+
     # ── P/S (Price / Sales) — derive from Market Cap and Revenue if Yahoo blocked ──
     if price_sales is None:
         try:
@@ -1592,6 +1810,39 @@ def analyse(ticker, lang='en'):
         fcf_raw, de, beta, macro.get('risk_free_rate'),
         peer_comparison, market_cap, price, hist_fin
     )
+
+    # ── Reverse DCF (implied growth at current price) ──
+    reverse_dcf = compute_reverse_dcf(price, market_cap, fcf_raw, beta, de, macro.get('risk_free_rate'))
+
+    # ── DCF sensitivity matrix (WACC × terminal g grid) ──
+    dcf_sensitivity = compute_dcf_sensitivity(fcf_raw, beta, de, macro.get('risk_free_rate'), rev_growth, market_cap, price)
+
+    # ── Beat / miss history ──
+    beat_miss = compute_beat_miss_history(earnings)
+
+    # ── Quality of earnings (Sloan accruals, partial Beneish) ──
+    ocf_latest = float(fcf_raw) if fcf_raw else None
+    total_assets_latest = float(market_cap)*1e6 * (1 + (float(de) if de else 0.5)) * 1.5 if market_cap else None
+    ni_latest = (hist_fin[0].get('net_income_m')*1e6) if (hist_fin and hist_fin[0].get('net_income_m')) else None
+    qoe = compute_quality_of_earnings(hist_fin, ni_latest, ocf_latest, total_assets_latest)
+
+    # ── SBC analysis (critical for tech FCF quality) ──
+    sbc_analysis = None
+    if sec_sbc is not None and sec_sbc > 0:
+        rev_latest_usd = (hist_fin[0].get('revenue_m')*1e6) if (hist_fin and hist_fin[0].get('revenue_m')) else None
+        sbc_rev_pct = round(sec_sbc/rev_latest_usd*100, 1) if (rev_latest_usd and rev_latest_usd>0) else None
+        sbc_fcf_pct = round(sec_sbc/float(fcf_raw)*100, 1) if (fcf_raw and float(fcf_raw)>0) else None
+        fcf_ex_sbc = float(fcf_raw) - sec_sbc if fcf_raw else None
+        fcf_ex_sbc_margin = round(fcf_ex_sbc/rev_latest_usd*100, 1) if (fcf_ex_sbc and rev_latest_usd and rev_latest_usd>0) else None
+        sbc_analysis = {
+            'sbc_usd':        sec_sbc,
+            'sbc_str':        f"${sec_sbc/1e9:.1f}B" if abs(sec_sbc)>=1e9 else f"${sec_sbc/1e6:.0f}M",
+            'sbc_rev_pct':    sbc_rev_pct,
+            'sbc_fcf_pct':    sbc_fcf_pct,
+            'fcf_ex_sbc_usd': fcf_ex_sbc,
+            'fcf_ex_sbc_margin_pct': fcf_ex_sbc_margin,
+            'note': 'SBC is a real economic cost. FCF ex-SBC is the cleaner cash measure for tech compounders.',
+        }
     name        = profile.get('name', ticker)
     fh_industry = profile.get('finnhubIndustry','')
     industry    = av.get('industry','') or fh_industry or 'N/A'
@@ -1712,6 +1963,11 @@ def analyse(ticker, lang='en'):
         'recent_insider_txns':[t for t in fh_own.get('insider_transactions', [])[:6]],
         'health_flags':health_flags,
         'valuation_methods':valuation_methods,
+        'reverse_dcf':reverse_dcf,
+        'dcf_sensitivity':dcf_sensitivity,
+        'beat_miss_history':beat_miss,
+        'quality_of_earnings':qoe,
+        'sbc_analysis':sbc_analysis,
     }
 
     # ── 3 parallel AI calls (4500 tokens each — balance depth vs Vercel 60s hard cap) ──
@@ -1726,10 +1982,21 @@ def analyse(ticker, lang='en'):
         try: ai_c = fc.result(timeout=48)
         except: ai_c = {'_error':'timeout'}
 
-    if ai_a.get('_error'): ai_a = _fallback_a(name, sc, fs, lang)
-    if ai_b.get('_error'): ai_b = _fallback_b(name, fs, lang)
-    if ai_c.get('_error'): ai_c = _fallback_c(lang)
+    ai_a_failed = bool(ai_a.get('_error'))
+    ai_b_failed = bool(ai_b.get('_error'))
+    ai_c_failed = bool(ai_c.get('_error'))
+    if ai_a_failed: ai_a = _fallback_a(name, sc, fs, lang)
+    if ai_b_failed: ai_b = _fallback_b(name, fs, lang)
+    if ai_c_failed: ai_c = _fallback_c(lang)
     ai = {**ai_a, **ai_b, **ai_c}
+    ai['_section_status'] = {
+        'a_executive_business': 'fallback' if ai_a_failed else 'ok',
+        'b_performance_quality_filings': 'fallback' if ai_b_failed else 'ok',
+        'c_macro_risk_owner_val_comp_scen': 'fallback' if ai_c_failed else 'ok',
+    }
+
+    # Expected return + Kelly fraction (based on AI scenarios)
+    expected_ret = compute_expected_return_and_kelly(ai.get('scenarios'), price) if not ai_c_failed else None
 
     # ── Competitor table: AI output backed by real data, fallback to raw peer data ──
     ai_comp_table = (ai.get('competitors') or {}).get('table') or []
@@ -1767,6 +2034,24 @@ def analyse(ticker, lang='en'):
         'metrics_sources':    metrics_sources,
         'health_flags':       health_flags,
         'valuation_methods':  valuation_methods,
+        'reverse_dcf':        reverse_dcf,
+        'dcf_sensitivity':    dcf_sensitivity,
+        'beat_miss_history':  beat_miss,
+        'quality_of_earnings':qoe,
+        'sbc_analysis':       sbc_analysis,
+        'expected_return':    expected_ret,
+        'data_freshness': {
+            'computed_at_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'macro_source': 'FRED (10Y, FedFunds, VIX); CPI/PMI/HY-Spread static',
+            'fundamentals_sources': 'Finnhub primary; Alpha Vantage + Yahoo Finance + SEC EDGAR fallbacks',
+        },
+        'methodology_disclaimer': {
+            'composite_score': 'Heuristic 4-pillar score (40+30+20+10). NOT a back-tested alpha signal. Full methodology in README.',
+            'fair_value': 'Multi-method (P/E peer-median, EV/EBITDA peer-median, 2-stage DCF). Reverse-DCF shows implied growth.',
+            'sloan_accruals': 'Sloan (1996): NI-CFO over avg assets. |Sloan|>0.10 = potential accruals manipulation. Estimated from proxies; production should use audited 10-K assets.',
+            'kelly': 'Quarter-Kelly is the institutional convention; full-Kelly maximises log-growth but accepts ruinous variance.',
+            'informational_only': 'This output is informational research, NOT investment advice.',
+        },
         'technicals':         technicals,
         'spy_returns':        (spy_tech.get('returns') if spy_tech else {}),
         'sec_segments':       sec_segments,
@@ -1802,26 +2087,4 @@ def _clean_for_json(obj):
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
-        self.send_response(200); self.send_header('Access-Control-Allow-Origin','*'); self.end_headers()
-    def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path); qs = urllib.parse.parse_qs(parsed.query)
-        ticker = (qs.get('ticker',[''])[0]).upper().strip()
-        lang   = (qs.get('lang',['en'])[0]).lower().strip()
-        if lang not in ('en','es'): lang = 'en'
-        # Send headers IMMEDIATELY so if Vercel kills us by timeout, client still gets a JSON-typed response (truncated, not HTML 500)
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        try:
-            if not ticker:
-                self.wfile.write(json.dumps({'error':'Provide ?ticker=AAPL'}).encode())
-                return
-            result = analyse(ticker, lang)
-            result = _clean_for_json(result)
-            self.wfile.write(json.dumps(result, allow_nan=False, default=str).encode())
-        except Exception as e:
-            try:
-                self.wfile.write(json.dumps({'error': str(e)[:300]}).encode())
-            except: pass
-    def log_message(self, *a): pass
+        self.se
