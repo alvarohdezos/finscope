@@ -540,6 +540,19 @@ const I18N = {
 };
 
 let LANG = localStorage.getItem('finscope_lang') || 'en';
+// ── Number formatting: institutional convention = US-style separators for shares and integer counts ──
+function fmtShares(n){
+  if(n===null||n===undefined||n==='') return '—';
+  const v = Number(n);
+  if(!isFinite(v)) return '—';
+  return v.toLocaleString('en-US');
+}
+function fmtSignedShares(n){
+  if(n===null||n===undefined||n==='') return '—';
+  const v = Number(n);
+  if(!isFinite(v)) return '—';
+  return (v>0?'+':'') + v.toLocaleString('en-US');
+}
 let _charts = {};
 let _openedSecs = new Set();
 window._D = null;
