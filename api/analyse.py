@@ -1,2107 +1,1973 @@
-from http.server import BaseHTTPRequestHandler
-import json, os, urllib.parse, urllib.request, time
-from concurrent.futures import ThreadPoolExecutor
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FINscope — Institutional Equity Research</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{--white:#fff;--bg:#f8f9fb;--bg2:#f2f4f8;--surface:#fff;--line:#e2e6ef;--line2:#ccd3e0;--ink:#0d0f14;--ink2:#1a2744;--ink3:#3d4f70;--muted:#6b7a99;--faint:#a0aec0;--blue:#0f2d6b;--blue2:#2563eb;--blue-bg:rgba(37,99,235,.06);--green:#16a34a;--green-bg:rgba(22,163,74,.07);--red:#dc2626;--red-bg:rgba(220,38,38,.07);--amber:#d97706;--amber-bg:rgba(217,119,6,.07);--sans:'Inter',-apple-system,sans-serif}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.6}
+header{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:2px;cursor:pointer}
+.logo-fin{font-size:17px;font-weight:800;letter-spacing:-.02em;color:var(--blue)}
+.logo-scope{font-size:17px;font-weight:300;letter-spacing:-.01em;color:var(--ink2)}
+.logo-dot{width:5px;height:5px;border-radius:50%;background:var(--blue2);margin:0 1px 6px}
+.hdr-r{display:flex;align-items:center;gap:20px}
+.live{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.02em}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.hdr-link{font-size:12px;font-weight:500;color:var(--muted);text-decoration:none;transition:color .2s}
+.hdr-link:hover{color:var(--blue)}
+.lang-tog{display:flex;border:1.5px solid var(--line2);border-radius:5px;overflow:hidden}
+.lang-btn{padding:5px 10px;font-size:11px;font-weight:700;background:transparent;border:none;cursor:pointer;color:var(--muted);letter-spacing:.04em;transition:all .15s}
+.lang-btn.active{background:var(--blue);color:#fff}
+.lang-btn:not(.active):hover{background:var(--bg)}
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:80px 48px 60px;background:var(--white);position:relative;overflow:hidden}
+.hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(37,99,235,.05) 0%,transparent 70%);pointer-events:none}
+.hero-in{position:relative;z-index:1;max-width:720px;width:100%}
+.hero-label{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--blue2);margin-bottom:28px;opacity:0;animation:up .6s ease .1s forwards}
+.hero-label-dot{width:6px;height:6px;border-radius:50%;background:var(--blue2)}
+.h1{font-size:clamp(36px,5vw,64px);font-weight:800;line-height:1.06;letter-spacing:-.03em;color:var(--ink);margin-bottom:20px;opacity:0;animation:up .6s ease .2s forwards}
+.h1 span{color:var(--blue2)}
+.hero-sub{font-size:16px;font-weight:400;color:var(--ink3);line-height:1.7;margin-bottom:48px;max-width:560px;opacity:0;animation:up .6s ease .3s forwards}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.sw{opacity:0;animation:up .6s ease .4s forwards;max-width:600px}
+.sbox{display:flex;align-items:center;background:var(--white);border:1.5px solid var(--line2);border-radius:6px;overflow:hidden;transition:border-color .2s,box-shadow .2s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.sbox:focus-within{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.spre{font-size:11px;font-weight:700;color:var(--blue);padding:0 16px;white-space:nowrap;border-right:1.5px solid var(--line);height:54px;display:flex;align-items:center;letter-spacing:.06em;background:var(--bg)}
+#ti{flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--sans);font-size:22px;font-weight:700;padding:0 16px;height:54px;letter-spacing:.04em;text-transform:uppercase}
+#ti::placeholder{color:var(--faint);font-size:14px;font-weight:400;text-transform:none;letter-spacing:0}
+#sb{height:54px;padding:0 28px;background:var(--blue);color:#fff;border:none;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:background .2s;white-space:nowrap;text-transform:uppercase}
+#sb:hover{background:var(--blue2)}
+#sb:disabled{background:var(--faint);cursor:not-allowed}
+.chips{margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;opacity:0;animation:up .6s ease .5s forwards}
+.chip{font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:.04em;padding:4px 12px;border:1.5px solid var(--line2);border-radius:20px;cursor:pointer;transition:all .15s;background:var(--white)}
+.chip:hover{border-color:var(--blue2);color:var(--blue2);background:var(--blue-bg)}
+.hero-stats{margin-top:48px;display:flex;gap:0;opacity:0;animation:up .6s ease .6s forwards;border-top:1px solid var(--line);padding-top:32px}
+.hs-item{flex:1;padding-right:32px;border-right:1px solid var(--line);margin-right:32px}
+.hs-item:last-child{border-right:none;margin-right:0;padding-right:0}
+.hs-num{font-size:28px;font-weight:800;color:var(--blue);letter-spacing:-.02em;line-height:1}
+.hs-lbl{font-size:11px;font-weight:500;color:var(--muted);margin-top:4px;letter-spacing:.02em}
+#ra{width:100%;max-width:1200px;margin:0 auto;padding:0 48px 100px}
+.loading{text-align:center;padding:100px 0}
+.spin{width:32px;height:32px;border:2px solid var(--line2);border-top-color:var(--blue2);border-radius:50%;margin:0 auto 20px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ll{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.ls{font-size:13px;color:var(--blue2);margin-top:8px;min-height:20px}
+.err-box{text-align:center;padding:48px;border:1px solid rgba(220,38,38,.2);border-radius:6px;background:var(--red-bg)}
+.err-lbl{font-size:11px;font-weight:700;color:var(--red);letter-spacing:.1em;margin-bottom:10px;text-transform:uppercase}
+.err-msg{font-size:14px;color:var(--ink3)}
+.report{background:var(--white);border:1px solid var(--line);border-radius:8px;overflow:hidden;animation:up .4s ease forwards;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.rh{padding:28px 36px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.rh-left{display:flex;align-items:center;gap:16px}
+.rh-logo img{width:40px;height:40px;border-radius:6px;object-fit:contain;background:var(--bg);padding:4px;border:1px solid var(--line)}
+.rh-logo-fb{width:40px;height:40px;border-radius:6px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff}
+.rh-ticker{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1;color:var(--ink)}
+.rh-name{font-size:13px;font-weight:500;color:var(--ink3);margin-top:3px}
+.rh-exch{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+.rh-right{display:flex;align-items:flex-end;gap:36px}
+.rh-price-num{font-size:26px;font-weight:700;color:var(--ink);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.rh-price-chg{font-size:12px;font-weight:600;margin-top:4px}
+.rh-price-chg.up{color:var(--green)}.rh-price-chg.dn{color:var(--red)}
+.rh-score-num{font-size:58px;font-weight:800;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.rh-score-lbl{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em;text-align:right;margin-top:4px;text-transform:uppercase}
+.macro-strip{display:flex;background:var(--blue);border-bottom:1px solid var(--line)}
+.ms-item{flex:1;padding:8px 18px;border-right:1px solid rgba(255,255,255,.15);display:flex;flex-direction:column;gap:2px}
+.ms-item:last-child{border-right:none}
+.ms-lbl{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.ms-val{font-size:13px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums}
+.sbar{display:flex;border-bottom:1px solid var(--line);background:var(--bg)}
+.sb-i{flex:1;padding:12px 18px;border-right:1px solid var(--line)}
+.sb-i:last-child{border-right:none}
+.sb-lbl{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.sb-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.sb-trk{height:3px;background:var(--line2);border-radius:2px;margin-top:6px;overflow:hidden}
+.sb-fill{height:100%;border-radius:2px;transition:width 1.4s ease}
+.verdict{padding:16px 36px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line)}
+.vi{width:32px;height:32px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;color:#fff;font-weight:800}
+.vt{font-size:16px;font-weight:700;color:var(--ink);line-height:1.3}
+.vs{font-size:12px;font-weight:400;color:var(--ink3);margin-top:2px}
+.vg{background:var(--green-bg);border-left:3px solid var(--green)}.vg .vi{background:var(--green)}
+.va{background:var(--amber-bg);border-left:3px solid var(--amber)}.va .vi{background:var(--amber)}
+.vr{background:var(--red-bg);border-left:3px solid var(--red)}.vr .vi{background:var(--red)}
+.vy{background:var(--blue-bg);border-left:3px solid var(--blue2)}.vy .vi{background:var(--blue2)}
+.disc-banner{padding:10px 36px;background:var(--amber-bg);border-bottom:1px solid var(--line);font-size:11px;color:var(--ink3);line-height:1.6;display:flex;align-items:center;gap:10px}
+.disc-banner::before{content:'i';width:16px;height:16px;border-radius:50%;background:var(--amber);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.rbody{display:grid;grid-template-columns:1fr 290px}
+.rleft{border-right:1px solid var(--line)}
+.report-sec{border-bottom:1px solid var(--line)}
+.report-sec:last-child{border-bottom:none}
+.sec-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 36px;cursor:pointer;user-select:none;transition:background .15s}
+.sec-hdr:hover{background:var(--bg)}
+.sec-hdr-l{display:flex;align-items:center;gap:12px}
+.sec-n{font-size:10px;font-weight:700;color:var(--blue2);letter-spacing:.1em;font-variant-numeric:tabular-nums;min-width:20px}
+.sec-t{font-size:11px;font-weight:700;color:var(--ink);letter-spacing:.07em;text-transform:uppercase}
+.sec-arr{font-size:9px;color:var(--muted);transition:transform .25s}
+.sec-body{display:none;padding:20px 36px 28px}
+.atxt{font-size:13.5px;color:var(--ink3);line-height:1.95}
+.atxt strong{color:var(--ink);font-weight:600}
+.atxt p{margin-bottom:11px}
+.atxt p:last-child{margin-bottom:0}
+.albl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:10px;margin-top:22px;display:flex;align-items:center;gap:8px}
+.albl:first-child{margin-top:0}
+.albl::after{content:'';flex:1;height:1px;background:var(--line)}
+.info-box{background:var(--blue-bg);border-left:3px solid var(--blue2);border-radius:0 4px 4px 0;padding:12px 16px;margin:14px 0;font-size:12px;color:var(--ink3);line-height:1.75}
+.info-box strong{color:var(--blue);font-weight:700}
+.data-tbl{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px}
+.data-tbl th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:6px 10px;text-align:right;border-bottom:2px solid var(--line2)}
+.data-tbl th:first-child{text-align:left}
+.data-tbl td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;color:var(--ink3);font-weight:500}
+.data-tbl td:first-child{text-align:left;font-weight:700;color:var(--ink)}
+.data-tbl tr.hi td{background:var(--blue-bg);color:var(--ink)}
+.data-tbl tr.hi td:first-child{color:var(--blue)}
+.data-tbl tr:last-child td{border-bottom:none}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.chart-box{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:14px}
+.chart-box-full{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:14px;margin-top:14px}
+.chart-lbl{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.ch-wrap{position:relative;width:100%;height:220px}
+.ch-wrap.ch-pie{height:220px}
+.ch-wrap.ch-tall{height:260px}
+.chart-note{font-size:10px;color:var(--faint);font-style:italic;margin-top:8px;text-align:right}
+.sc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px}
+.sc-card{border-radius:4px;padding:16px;border:1px solid var(--line)}
+.sc-card.bull{border-left:3px solid var(--green);background:var(--green-bg)}
+.sc-card.base{border-left:3px solid var(--blue2);background:var(--blue-bg)}
+.sc-card.bear{border-left:3px solid var(--red);background:var(--red-bg)}
+.sc-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.sc-card.bull .sc-tag{color:var(--green)}.sc-card.base .sc-tag{color:var(--blue2)}.sc-card.bear .sc-tag{color:var(--red)}
+.sc-price{font-size:26px;font-weight:800;color:var(--ink);letter-spacing:-.02em;line-height:1;margin-bottom:2px}
+.sc-updown{font-size:12px;font-weight:700;margin-bottom:4px}
+.sc-card.bull .sc-updown{color:var(--green)}.sc-card.base .sc-updown{color:var(--blue2)}.sc-card.bear .sc-updown{color:var(--red)}
+.sc-prob{font-size:10px;color:var(--muted);margin-bottom:10px}
+.sc-thesis{font-size:12px;color:var(--ink3);line-height:1.75}
+.risk-list{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.risk-item{font-size:12.5px;color:var(--ink3);padding:11px 14px;border-left:3px solid var(--red);background:var(--red-bg);border-radius:0 4px 4px 0;line-height:1.7}
+.disc-list{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.disc-item{font-size:12.5px;color:var(--ink3);padding:11px 14px;border-left:3px solid var(--blue2);background:var(--blue-bg);border-radius:0 4px 4px 0;line-height:1.7}
+.fv-wrap{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:16px 20px}
+.fv-head{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+.fv-nums{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.fv-low{font-size:18px;font-weight:800;color:var(--red)}.fv-high{font-size:18px;font-weight:800;color:var(--green)}
+.fv-trk{height:6px;background:var(--line2);border-radius:3px;position:relative;margin-top:4px}
+.fv-range{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--red),var(--green))}
+.fv-pin{position:absolute;top:-7px;width:3px;height:20px;background:var(--blue);border-radius:2px;transform:translateX(-50%)}
+.fv-cur{font-size:10px;font-weight:600;color:var(--blue);margin-top:6px;text-align:center}
+.fv-wacc{font-size:10px;color:var(--muted);margin-top:4px;text-align:center}
+.abars{margin-top:14px}
+.ab-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.ab-lbl{font-size:11px;font-weight:500;color:var(--ink3);width:100px}
+.ab-trk{flex:1;height:5px;background:var(--line2);border-radius:3px;overflow:hidden}
+.ab-fill{height:100%;border-radius:3px;transition:width 1.1s ease}
+.ab-cnt{font-size:11px;font-weight:700;width:22px;text-align:right;font-variant-numeric:tabular-nums}
+.tgt-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line);margin-top:8px}
+.tgt-lbl{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.tgt-val{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.uptag{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+.uptag.up{color:var(--green);background:var(--green-bg)}.uptag.dn{color:var(--red);background:var(--red-bg)}
+.solgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.solcard{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:14px}
+.sol-lbl{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.sol-sub{font-size:10px;color:var(--faint);margin-bottom:10px}
+.sol-val{font-size:32px;font-weight:800;line-height:1;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.sol-int{font-size:11px;font-weight:600}
+.sol-int.safe{color:var(--green)}.sol-int.grey{color:var(--amber)}.sol-int.dist{color:var(--red)}
+.pio-dots{display:flex;gap:4px;margin-top:10px}
+.pio-dot{width:10px;height:10px;border-radius:50%;background:var(--line2)}
+.pio-dot.on{background:var(--blue2)}
+.tvw{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.tvw-h{padding:10px 16px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.tvw-iframe{width:100%;height:560px;border:none;display:block}
+.own-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.own-card{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:14px}
+.own-metric{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px}
+.own-metric:last-child{border-bottom:none}
+.own-metric .v{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.mg-lbl{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:10px 18px 8px;background:var(--bg);border-bottom:1px solid var(--line)}
+.mrow{display:flex;justify-content:space-between;align-items:center;padding:8px 18px;border-bottom:1px solid var(--line);transition:background .12s}
+.mrow:hover{background:var(--bg)}.mrow:last-child{border-bottom:none}
+.mn{font-size:12px;color:var(--ink3);font-weight:400}
+.mv-wrap{display:flex;align-items:center;gap:6px}
+.mv{font-size:12px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.bdg{font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px}
+.b-g{color:var(--green);background:var(--green-bg)}.b-a{color:var(--amber);background:var(--amber-bg)}.b-r{color:var(--red);background:var(--red-bg)}
+.news-list{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.news-item{font-size:12.5px;color:var(--ink3);padding:11px 14px;border-left:3px solid var(--line2);background:var(--bg);border-radius:0 4px 4px 0;line-height:1.55;transition:all .15s;display:block;text-decoration:none}
+.news-item strong{color:var(--ink);font-weight:600;display:block;margin-bottom:3px}
+.news-item:hover{border-left-color:var(--blue2);background:var(--blue-bg)}
+.news-item:hover strong{color:var(--blue)}
+.news-src{font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:.02em}
+.news-src::before{content:'↗ ';color:var(--blue2)}
+.portsec{padding:80px 48px;background:var(--white);border-top:1px solid var(--line)}
+.port-in{max-width:1200px;margin:0 auto}
+.sech{display:flex;align-items:center;gap:16px;margin-bottom:44px}
+.sec-num{font-size:11px;font-weight:700;color:var(--blue2);letter-spacing:.1em}
+.sec-tit{font-size:26px;font-weight:800;color:var(--ink);letter-spacing:-.02em}
+.sec-line{flex:1;height:1px;background:var(--line);margin-left:8px}
+.port-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px}
+.port-p{font-size:14px;color:var(--ink3);line-height:1.8;margin-bottom:14px}
+.port-inp{width:100%;background:var(--bg);border:1.5px solid var(--line2);border-radius:4px;color:var(--ink);font-family:var(--sans);font-size:14px;padding:12px 16px;outline:none;transition:border-color .2s}
+.port-inp:focus{border-color:var(--blue2)}
+.port-btn{margin-top:8px;width:100%;background:var(--blue);color:#fff;border:none;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.06em;padding:13px;border-radius:4px;cursor:pointer;transition:background .2s;text-transform:uppercase}
+.port-btn:hover{background:var(--blue2)}
+.port-btn:disabled{background:var(--faint);cursor:not-allowed}
+.port-msg{font-size:12px;font-weight:600;margin-top:10px;min-height:18px;line-height:1.6}
+.port-msg.ok{color:var(--green)}.port-msg.err{color:var(--red)}
+.tickers-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.tlist{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;min-height:50px}
+.titem{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg);border:1px solid var(--line);border-radius:4px}
+.ti-sym{font-size:13px;font-weight:700;color:var(--ink)}
+.ti-rm{font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;background:none;border:none;padding:2px 6px;transition:color .2s}
+.ti-rm:hover{color:var(--red)}
+.tadd-row{display:flex;gap:8px}
+.tadd-inp{flex:1;background:var(--bg);border:1.5px solid var(--line2);border-radius:4px;color:var(--ink);font-family:var(--sans);font-size:13px;font-weight:700;padding:9px 12px;outline:none;text-transform:uppercase;letter-spacing:.04em;transition:border-color .2s}
+.tadd-inp:focus{border-color:var(--blue2)}
+.tadd-btn{background:var(--bg);color:var(--blue);border:1.5px solid var(--line2);font-family:var(--sans);font-size:11px;font-weight:700;padding:9px 16px;border-radius:4px;cursor:pointer;letter-spacing:.06em;transition:all .2s;text-transform:uppercase}
+.tadd-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+.port-hint{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.7}
+.tl-empty{font-size:12px;color:var(--muted);font-style:italic;padding:8px 0}
+#how{padding:80px 48px;border-top:1px solid var(--line);background:var(--bg)}
+.how-in{max-width:1200px;margin:0 auto}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.step{background:var(--white);padding:28px 24px}
+.step-n{font-size:13px;font-weight:800;color:var(--blue2);letter-spacing:.04em;margin-bottom:12px}
+.step-t{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px;letter-spacing:-.01em}
+.step-d{font-size:12px;color:var(--ink3);line-height:1.8;margin-bottom:12px}
+.step-tag{font-size:10px;font-weight:700;padding:3px 10px;border:1.5px solid var(--line2);border-radius:20px;color:var(--blue);letter-spacing:.04em;display:inline-block}
+#about{padding:80px 48px;background:var(--white);border-top:1px solid var(--line)}
+.about-in{max-width:1200px;margin:0 auto}
+.ag{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.a-name{font-size:32px;font-weight:800;color:var(--ink);margin-bottom:4px;letter-spacing:-.02em}
+.a-role{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--blue2);margin-bottom:24px}
+.a-p{font-size:14px;color:var(--ink3);line-height:1.85;margin-bottom:14px}
+.abtns{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+.btn-p{background:var(--blue);color:#fff;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.06em;padding:11px 24px;border:none;border-radius:4px;cursor:pointer;text-decoration:none;transition:background .2s;display:inline-block;text-transform:uppercase}
+.btn-p:hover{background:var(--blue2)}
+.btn-s{background:transparent;color:var(--ink3);font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.04em;padding:10px 24px;border:1.5px solid var(--line2);border-radius:4px;text-decoration:none;transition:all .2s;display:inline-block;text-transform:uppercase}
+.btn-s:hover{border-color:var(--blue);color:var(--blue)}
+.stkbox{border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.stk-h{background:var(--bg);padding:10px 18px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+.stk-r{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--white)}
+.stk-r:last-child{border-bottom:none}
+.sr-n{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:1px}
+.sr-d{font-size:11px;color:var(--muted)}
+.sr-tag{font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;color:var(--blue2);background:var(--blue-bg);letter-spacing:.04em}
+footer{background:var(--ink);padding:28px 48px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.fl{display:flex;align-items:center;gap:2px}
+.fl-fin{font-size:16px;font-weight:800;color:#fff;letter-spacing:-.01em}
+.fl-scope{font-size:16px;font-weight:300;color:rgba(255,255,255,.6);letter-spacing:-.01em}
+.fm{font-size:11px;color:rgba(255,255,255,.4);text-align:right;line-height:2;letter-spacing:.02em}
+.fm a{color:rgba(255,255,255,.6);text-decoration:none}.fm a:hover{color:#fff}
+.fm-disc{font-size:10px;color:rgba(255,255,255,.3);margin-top:4px;max-width:540px}
+@media(max-width:960px){
+  header,footer,#ra,#how,#about,.portsec{padding-left:20px;padding-right:20px}
+  .rbody{grid-template-columns:1fr}.rleft{border-right:none;border-bottom:1px solid var(--line)}
+  .steps{grid-template-columns:1fr 1fr}
+  .ag,.port-grid,.chart-row,.solgrid,.own-grid{grid-template-columns:1fr;gap:28px}
+  .sbar{flex-wrap:wrap}.sb-i{min-width:50%}
+  .macro-strip{flex-wrap:wrap}.ms-item{min-width:33%}
+  .sc-grid{grid-template-columns:1fr}
+  .hero-stats{flex-wrap:wrap}
+  .tvw-iframe{height:400px}
+}
+@media(max-width:540px){
+  .steps{grid-template-columns:1fr}.h1{font-size:32px}
+  .rh{flex-direction:column;align-items:flex-start}
+  .rh-right{width:100%;justify-content:space-between}
+}
+</style>
+</head>
+<body>
 
-FINNHUB = os.environ.get('FINNHUB_KEY', '')
-OPENAI  = os.environ.get('OPENAI_KEY', '')
-AV_KEY  = os.environ.get('AV_KEY', '')
+<header>
+  <div class="logo" onclick="location.href='#top'"><span class="logo-fin">FIN</span><span class="logo-scope">scope</span><div class="logo-dot"></div></div>
+  <div class="hdr-r">
+    <div class="live"><div class="live-dot"></div><span data-i18n="live">Live data</span></div>
+    <div class="lang-tog"><button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button><button class="lang-btn" data-lang="es" onclick="setLang('es')">ES</button></div>
+    <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="hdr-link">GitHub ↗</a>
+  </div>
+</header>
 
-PEERS_MAP = {
-    'AAPL':['MSFT','GOOGL','META','AMZN'],   'MSFT':['AAPL','GOOGL','CRM','ORCL'],
-    'GOOGL':['META','MSFT','AMZN','SNAP'],   'GOOG':['META','MSFT','AMZN','SNAP'],
-    'META':['GOOGL','SNAP','PINS','AMZN'],   'AMZN':['MSFT','GOOGL','WMT','SHOP'],
-    'NVDA':['AMD','INTC','AVGO','QCOM'],     'AMD':['NVDA','INTC','AVGO','QCOM'],
-    'TSLA':['GM','F','RIVN','NIO'],          'JPM':['BAC','WFC','GS','C'],
-    'BAC':['JPM','WFC','GS','C'],            'GS':['MS','JPM','BAC','C'],
-    'MS':['GS','JPM','BAC','C'],             'V':['MA','PYPL','SQ','AXP'],
-    'MA':['V','PYPL','SQ','AXP'],            'XOM':['CVX','COP','BP','SHEL'],
-    'CVX':['XOM','COP','BP','SHEL'],         'JNJ':['PFE','MRK','ABBV','LLY'],
-    'LLY':['JNJ','PFE','MRK','ABBV'],        'PLTR':['CRM','NOW','SNOW','DDOG'],
-    'INTC':['NVDA','AMD','AVGO','QCOM'],     'AVGO':['NVDA','AMD','INTC','QCOM'],
-    'ORCL':['MSFT','CRM','SAP','NOW'],       'CRM':['ORCL','NOW','MSFT','SAP'],
-    'NFLX':['DIS','PARA','WBD','AMZN'],      'DIS':['NFLX','PARA','WBD','CMCSA'],
-    'WMT':['TGT','COST','AMZN','KR'],        'COST':['WMT','TGT','BJ','KR'],
-    'HD':['LOW','FND','WSM','TSCO'],         'KO':['PEP','KDP','MNST','CELH'],
-    'PEP':['KO','KDP','MNST','CELH'],        'MCD':['YUM','SBUX','CMG','DPZ'],
-    'SBUX':['MCD','YUM','CMG','DPZ'],        'UNH':['CI','ANTM','HUM','CVS'],
-    'ABT':['MDT','SYK','BSX','EW'],          'TMO':['DHR','A','WAT','PKI'],
-    'BRK.A':['BRK.B','JPM','BAC','V'],       'BRK.B':['BRK.A','JPM','BAC','V'],
-    'SNOW':['DDOG','PLTR','CRM','MDB'],      'DDOG':['SNOW','PLTR','SPLK','MDB'],
-    'MDB':['SNOW','DDOG','ESTC','CFLT'],     'UBER':['LYFT','DASH','ABNB','BKNG'],
-    'ABNB':['BKNG','EXPE','UBER','LYFT'],    'PYPL':['V','MA','SQ','AFRM'],
-    'SQ':['PYPL','V','MA','AFRM'],           'SHOP':['AMZN','WMT','ETSY','BIGC'],
-    'ADBE':['CRM','ORCL','NOW','MSFT'],      'NOW':['CRM','ORCL','ADBE','WDAY'],
-    'WDAY':['NOW','CRM','SAP','ORCL'],       'SPOT':['NFLX','DIS','PARA','WBD'],
-    'COIN':['SQ','PYPL','V','MA'],           'SCHW':['MS','GS','BLK','STT'],
-    'BLK':['SCHW','MS','GS','STT'],          'PFE':['JNJ','MRK','ABBV','BMY'],
-    'MRK':['JNJ','PFE','ABBV','BMY'],        'ABBV':['JNJ','PFE','MRK','BMY'],
-    'AMGN':['GILD','BIIB','VRTX','REGN'],    'GILD':['AMGN','BIIB','VRTX','MRNA'],
-    'MRNA':['BNTX','PFE','GILD','AMGN'],     'VRTX':['AMGN','GILD','BIIB','REGN'],
-    'CAT':['DE','HON','GE','MMM'],           'DE':['CAT','CNH','HON','GE'],
-    'HON':['MMM','GE','CAT','EMR'],          'GE':['HON','RTX','CAT','MMM'],
-    'RTX':['LMT','NOC','GD','BA'],           'LMT':['RTX','NOC','GD','BA'],
-    'BA':['LMT','RTX','NOC','GD'],           'F':['GM','TSLA','STLA','HMC'],
-    'GM':['F','TSLA','STLA','HMC'],          'INTC':['NVDA','AMD','AVGO','QCOM'],
+<div class="hero" id="top">
+  <div class="hero-bg"></div>
+  <div class="hero-in">
+    <div class="hero-label"><div class="hero-label-dot"></div><span data-i18n="hero_label">Institutional Equity Research</span></div>
+    <h1 class="h1" data-i18n="hero_title_html">Deep equity analysis.<br>Any ticker. <span>Institutional grade.</span></h1>
+    <p class="hero-sub" data-i18n="hero_sub">Fundamentals, balance-sheet quality, analyst consensus and live macro — synthesised by an institutional research engine. Informational only, not investment advice.</p>
+    <div class="sw">
+      <div class="sbox">
+        <div class="spre" data-i18n="ticker_label">Ticker /</div>
+        <input id="ti" type="text" data-i18n-placeholder="ticker_ph" placeholder="e.g. NVDA, AAPL, JPM, TSLA…" maxlength="10" autocomplete="off" autocapitalize="characters"/>
+        <button id="sb" onclick="run()" data-i18n="analyse">Analyse →</button>
+      </div>
+      <div class="chips">
+        <span class="chip" onclick="qs('AAPL')">AAPL</span><span class="chip" onclick="qs('NVDA')">NVDA</span><span class="chip" onclick="qs('MSFT')">MSFT</span><span class="chip" onclick="qs('JPM')">JPM</span><span class="chip" onclick="qs('TSLA')">TSLA</span><span class="chip" onclick="qs('GOOGL')">GOOGL</span><span class="chip" onclick="qs('META')">META</span><span class="chip" onclick="qs('GS')">GS</span>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="hs-item"><div class="hs-num">4</div><div class="hs-lbl" data-i18n="stat_sources">Independent data sources</div></div>
+      <div class="hs-item"><div class="hs-num">11</div><div class="hs-lbl" data-i18n="stat_sections">Institutional report sections</div></div>
+      <div class="hs-item"><div class="hs-num">~30s</div><div class="hs-lbl" data-i18n="stat_speed">Per-ticker turnaround</div></div>
+      <div class="hs-item"><div class="hs-num">Live</div><div class="hs-lbl" data-i18n="stat_macro">Macro &amp; rate overlay</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="ra"></div>
+
+<section class="portsec" id="portfolio">
+  <div class="port-in">
+    <div class="sech"><span class="sec-num">01</span><h2 class="sec-tit" data-i18n="wl_title">Weekly watchlist</h2><div class="sec-line"></div></div>
+    <div class="port-grid">
+      <div>
+        <p class="port-p" data-i18n="wl_p1">Add up to 5 tickers and receive a weekly brief every Monday at 9:00 UTC: filtered news impact, upcoming earnings dates, score changes, and sector events that may affect each company.</p>
+        <p class="port-p" data-i18n="wl_p2">OpenAI filters out irrelevant noise. You receive only material news items with direct link to the source.</p>
+        <div style="margin-top:20px">
+          <input type="email" class="port-inp" id="emailInp" data-i18n-placeholder="wl_email_ph" placeholder="your@email.com" required/>
+          <button class="port-btn" id="subBtn" onclick="subscribeWL()" data-i18n="wl_subscribe">Subscribe →</button>
+          <div class="port-msg" id="portMsg"></div>
+        </div>
+      </div>
+      <div>
+        <div class="tickers-lbl" data-i18n="wl_your">Your watchlist (max 5)</div>
+        <div class="tlist" id="tlist"></div>
+        <div class="tadd-row">
+          <input type="text" class="tadd-inp" id="addInp" data-i18n-placeholder="wl_add_ph" placeholder="Add ticker…" maxlength="10" autocapitalize="characters"/>
+          <button class="tadd-btn" onclick="addTicker()" data-i18n="wl_add">+ Add</button>
+        </div>
+        <div class="port-hint" data-i18n="wl_hint">Stored locally. When you subscribe, your watchlist is linked to your email. Manage or unsubscribe anytime via the link in the confirmation email.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="how-in">
+    <div class="sech"><span class="sec-num">02</span><h2 class="sec-tit" data-i18n="how_title">How it works</h2><div class="sec-line"></div></div>
+    <div class="steps">
+      <div class="step"><div class="step-n">01</div><div class="step-t" data-i18n="step1_t">Enter a ticker</div><div class="step-d" data-i18n="step1_d">Any US publicly traded company. NVDA, BRK.B, GS, PLTR — whatever you want to examine.</div><span class="step-tag">Input</span></div>
+      <div class="step"><div class="step-n">02</div><div class="step-t" data-i18n="step2_t">Multi-source data pull</div><div class="step-d" data-i18n="step2_d">Finnhub + Alpha Vantage + FRED — fundamentals, 4-year financials, ownership, news, macro — all in parallel.</div><span class="step-tag">Finnhub + AV + FRED</span></div>
+      <div class="step"><div class="step-n">03</div><div class="step-t" data-i18n="step3_t">Server-side calculations</div><div class="step-d" data-i18n="step3_d">Altman Z-Score, Piotroski F-Score, composite score, historical trends, WACC comparison — computed in Python.</div><span class="step-tag">Python backend</span></div>
+      <div class="step"><div class="step-n">04</div><div class="step-t" data-i18n="step4_t">Parallel AI synthesis</div><div class="step-d" data-i18n="step4_d">Two parallel GPT-4o-mini calls generate an 11-section report with deep sector-specific commentary.</div><span class="step-tag">OpenAI GPT-4o-mini</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="about-in">
+    <div class="sech"><span class="sec-num">03</span><h2 class="sec-tit" data-i18n="about_title">About this project</h2><div class="sec-line"></div></div>
+    <div class="ag">
+      <div>
+        <div class="a-name">Álvaro Hernández</div>
+        <div class="a-role">Finance & Accounting · UC3M Madrid · Class of 2027</div>
+        <p class="a-p" data-i18n="about_p1">FINscope is a full-stack financial intelligence platform demonstrating how modern tooling can deliver institutional-grade equity analysis at near-zero marginal cost.</p>
+        <p class="a-p" data-i18n="about_p2">The backend pulls Finnhub, Alpha Vantage, Yahoo Finance and FRED in parallel. Computes Altman Z-Score, Piotroski F-Score and a composite score with a transparent rule-by-rule breakdown, then drafts an 11-section report through two parallel OpenAI calls anchored on a sector-specific WACC benchmark table.</p>
+        <p class="a-p" data-i18n="about_p3">Charts from TradingView. Watchlist alerts via Resend + Vercel cron. Informational only — not investment advice.</p>
+        <div class="abtns">
+          <a href="https://github.com/alvarohdezos/finscope" target="_blank" class="btn-p">GitHub ↗</a>
+          <a href="https://www.linkedin.com/in/alvaro-hernandez-79872a216" target="_blank" class="btn-s">LinkedIn ↗</a>
+        </div>
+      </div>
+      <div>
+        <div class="stkbox">
+          <div class="stk-h" data-i18n="stack_h">Tech stack</div>
+          <div class="stk-r"><div><div class="sr-n">Finnhub</div><div class="sr-d">Fundamentals, earnings, analyst, news, insider sentiment</div></div><span class="sr-tag">Data</span></div>
+          <div class="stk-r"><div><div class="sr-n">Alpha Vantage</div><div class="sr-d">EV/EBITDA, FCF, historical financials, ownership breakdown</div></div><span class="sr-tag">Fin</span></div>
+          <div class="stk-r"><div><div class="sr-n">FRED API</div><div class="sr-d">Live 10Y yield, Fed Funds rate, VIX for macro overlay</div></div><span class="sr-tag">Macro</span></div>
+          <div class="stk-r"><div><div class="sr-n">TradingView</div><div class="sr-d">Embedded interactive chart for technical analysis</div></div><span class="sr-tag">Charts</span></div>
+          <div class="stk-r"><div><div class="sr-n">OpenAI GPT-4o-mini</div><div class="sr-d">2 parallel calls, 11 sections, 25-sector WACC table</div></div><span class="sr-tag">AI</span></div>
+          <div class="stk-r"><div><div class="sr-n">Resend + Upstash</div><div class="sr-d">Weekly email digest via Vercel cron</div></div><span class="sr-tag">Email</span></div>
+          <div class="stk-r"><div><div class="sr-n">Vercel Serverless</div><div class="sr-d">Python API, 60s timeout, zero-config deployment</div></div><span class="sr-tag">Infra</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="fl"><span class="fl-fin">FIN</span><span class="fl-scope">scope</span></div>
+  <div class="fm">
+    Built by <a href="https://www.linkedin.com/in/alvaro-hernandez-79872a216" target="_blank">Álvaro Hernández</a> · FICO UC3M · Madrid<br>
+    Data: Finnhub · Alpha Vantage · FRED · AI: OpenAI · <a href="https://github.com/alvarohdezos/finscope" target="_blank">GitHub ↗</a>
+    <div class="fm-disc" data-i18n="footer_disc">FINscope is an educational portfolio project providing informational financial analysis only. Nothing here constitutes investment advice, a recommendation, or an offer to buy or sell any security. Always conduct your own research and consult a licensed financial advisor before making investment decisions.</div>
+  </div>
+</footer>
+
+<script>
+const I18N = {
+  en: {
+    live:'Live data', hero_label:'Institutional Equity Research',
+    hero_title_html:'Deep equity analysis.<br>Any ticker. <span>Institutional grade.</span>',
+    hero_sub:'Fundamentals, balance-sheet quality, analyst consensus and live macro — synthesised by an institutional research engine. Informational only, not investment advice.',
+    ticker_label:'Ticker /', ticker_ph:'e.g. NVDA, AAPL, JPM, TSLA…', analyse:'Analyse →',
+    stat_sources:'Independent data sources', stat_sections:'Institutional report sections', stat_speed:'Per-ticker turnaround', stat_macro:'Macro & rate overlay',
+    wl_title:'Weekly watchlist',
+    wl_p1:'Add up to 5 tickers and receive a weekly brief every Monday at 9:00 UTC: filtered news impact, upcoming earnings dates, score changes, and sector events that may affect each company.',
+    wl_p2:'OpenAI filters out irrelevant noise. You receive only material news items with direct link to the source.',
+    wl_email_ph:'your@email.com', wl_subscribe:'Subscribe →', wl_your:'Your watchlist (max 5)', wl_add_ph:'Add ticker…', wl_add:'+ Add',
+    wl_hint:'Stored locally. When you subscribe, your watchlist is linked to your email. Manage or unsubscribe anytime via the link in the confirmation email.',
+    wl_min:'Add at least 1 ticker before subscribing.',
+    wl_email_invalid:'Please enter a valid email address.',
+    wl_sending:'Sending…',
+    wl_ok:'✓ Subscription saved. Check your inbox for the confirmation email with your management link.',
+    wl_err:'Subscription temporarily unavailable. The backend setup is in progress — your watchlist stays saved locally.',
+    how_title:'How it works',
+    step1_t:'Enter a ticker', step1_d:'Any US publicly traded company. NVDA, BRK.B, GS, PLTR — whatever you want to examine.',
+    step2_t:'Multi-source data pull', step2_d:'Finnhub + Alpha Vantage + FRED — fundamentals, 4-year financials, ownership, news, macro — all in parallel.',
+    step3_t:'Server-side calculations', step3_d:'Altman Z-Score, Piotroski F-Score, composite score, historical trends, WACC comparison — computed in Python.',
+    step4_t:'Institutional synthesis', step4_d:'Two parallel GPT-4o-mini calls generate an 11-section report with sector-specific commentary, ratio explanations, and a transparent score breakdown.',
+    about_title:'About this project',
+    about_p1:'FINscope is a full-stack financial intelligence platform demonstrating how modern tooling can deliver institutional-grade equity analysis at near-zero marginal cost.',
+    about_p2:'The backend pulls Finnhub, Alpha Vantage, Yahoo Finance and FRED in parallel — fundamentals, four-year financials, ownership, news, calendars and macro. It computes Altman Z-Score, Piotroski F-Score and a composite score with a transparent rule-by-rule breakdown, then drafts an 11-section report through two parallel OpenAI calls anchored on a sector-specific WACC benchmark table.',
+    about_p3:'Charts from TradingView. Watchlist alerts via Resend + Vercel cron. Informational only — not investment advice.',
+    stack_h:'Tech stack',
+    footer_disc:'FINscope is an educational portfolio project providing informational financial analysis only. Nothing here constitutes investment advice, a recommendation, or an offer to buy or sell any security. Always conduct your own research and consult a licensed financial advisor before making investment decisions.',
+    sec_01:'Executive Summary', sec_02:'Business Model', sec_03:'Performance', sec_04:'Financial Quality',
+    sec_05:'Macro Context', sec_06:'Risk Analysis', sec_07:'Ownership & Governance', sec_08:'Valuation',
+    sec_09:'Peer Comparison', sec_10:'Scenarios & Outlook', sec_11:'Regulatory Filings (10-K · 10-Q)',
+    score_lbl:'Composite score /100',
+    macro_10y:'10Y Yield', macro_ff:'Fed Funds', macro_cpi:'CPI YoY', macro_pmi:'PMI', macro_vix:'VIX', macro_hy:'HY Spread',
+    pillar_fund:'Fundamental', pillar_acc:'Accounting', pillar_an:'Analysts', pillar_ctx:'Context',
+    rec_headlines:'Recent headlines (clickable)', no_news:'No recent headlines available.',
+    rev_segs:'Revenue segments', geo_exp:'Geographic exposure', data_source:'Source: Company filings / AI estimate',
+    hist_fin:'Historical financials (last 4 years)',
+    hist_chart:'Revenue, Operating Income, Net Income & FCF ($M)',
+    earnings_hist:'Earnings history — last quarters',
+    solvency_scores:'Solvency & quality scores',
+    altman_card:'Altman Z-Score', altman_sub:'Bankruptcy prediction model',
+    altman_explain:'<strong>What is it:</strong> The Altman Z-Score combines 5 ratios (liquidity, profitability, leverage, solvency, activity) into a bankruptcy probability score. <strong>Thresholds:</strong> Z > 2.99 = safe zone · 1.81–2.99 = grey zone · Z < 1.81 = distress. <strong>Caveat:</strong> Not valid for banks (different leverage structure) or asset-light tech firms.',
+    piotroski_card:'Piotroski F-Score', piotroski_sub:'9-point fundamental quality signal',
+    piotroski_explain:'<strong>What is it:</strong> A 9-point score combining profitability (ROA positive, FCF positive, ROA rising, FCF > NI), leverage (D/E falling, current ratio improving, no new share issuance), and efficiency (margins improving, asset turnover improving). <strong>Thresholds:</strong> 7–9 = improving fundamentals · 4–6 = moderate · 0–3 = deteriorating.',
+    macro_live:'Live macro indicators',
+    tv_chart:'Technical chart (TradingView — fully interactive)', tv_source:'Drag to zoom · Change interval · Add indicators',
+    key_risks:'Key risks', tech_note:'Technical analysis is shown via the interactive TradingView chart above. Click and drag to zoom, switch timeframes or add indicators.',
+    own_breakdown:'Ownership breakdown (% of shares outstanding)', own_metrics:'Insider activity',
+    own_institutional:'Institutional', own_insiders:'Insiders', own_retail:'Retail & other',
+    own_insider_net:'Net insider change (3m)', own_mspr:'Monthly Share Purchase Ratio',
+    analyst_consensus:'Analyst consensus', analyst_target:'Consensus target', analyst_na:'Analyst consensus data not available.',
+    fair_value_range:'DCF implied fair value range', wacc_note:'WACC used:', fv_below:'below fair value', fv_in:'within fair value range', fv_above:'above fair value',
+    key_disc:'Key disclosures',
+    key_metrics:'Key metrics', disclaimer:'Informational only. Not investment advice.',
+    loading_msg:'Pulling 4 data sources + running 2 parallel AI passes…',
+    adv_ratios:'Advanced financial quality ratios',
+    adv_fcf_ni:'FCF / Net Income conversion', adv_op_lev:'Operating leverage (ΔOpInc%/ΔRev%)', adv_nd_ebitda:'Net Debt / EBITDA (estimated)',
+    sec_filings_title:'Recent SEC filings',
+    score_breakdown_hint:'Click any pillar to expand the rule-by-rule score breakdown',
+    mn_pe:'P/E Ratio', mn_pef:'P/E Forward', mn_pb:'P/B', mn_ev:'EV/EBITDA',
+    mn_peg:'PEG Ratio', mn_ps:'Price / Sales',
+    mn_nm:'Net Margin', mn_om:'Operating Margin', mn_gm:'Gross Margin', mn_fcfm:'FCF Margin',
+    mn_roe:'ROE', mn_roa:'ROA', mn_roic:'ROIC',
+    mn_rg:'Revenue Growth', mn_eg:'EPS Growth', mn_eps:'EPS TTM',
+    mn_de:'Debt / Equity', mn_cr:'Current Ratio', mn_qr:'Quick Ratio',
+    mn_div:'Dividend Yield', mn_fcf:'Free Cash Flow', mn_beta:'Beta',
+    mn_short:'Short Interest (%)',
+    mn_w52h:'52W High', mn_w52l:'52W Low', mn_score:'Composite Score',
+    econ_calendar:'Upcoming Economic Events', next_earnings:'Next Earnings Date'
+  },
+  es: {
+    live:'Datos en tiempo real', hero_label:'Análisis Institucional de Renta Variable',
+    hero_title_html:'Análisis riguroso de cotizadas.<br>Cualquier valor. <span>Nivel institucional.</span>',
+    hero_sub:'Fundamentales, calidad de balance, consenso de analistas y variables macro en tiempo real — sintetizados con metodología de análisis institucional propia. Solo informativo, no constituye asesoramiento de inversión.',
+    ticker_label:'Ticker /', ticker_ph:'ej. NVDA, AAPL, JPM, TSLA…', analyse:'Analizar →',
+    stat_sources:'Fuentes de datos independientes', stat_sections:'Secciones del informe institucional', stat_speed:'Tiempo por valor analizado', stat_macro:'Capa macro y de tipos en directo',
+    wl_title:'Lista de seguimiento semanal',
+    wl_p1:'Añade hasta 5 valores y recibe un informe semanal cada lunes a las 9:00 UTC: noticias relevantes filtradas por IA, fechas de resultados trimestrales, variaciones en la puntuación y eventos del sector que puedan afectar a cada empresa.',
+    wl_p2:'La inteligencia artificial filtra el ruido. Solo recibes noticias materiales con enlace directo a la fuente original.',
+    wl_email_ph:'correo@ejemplo.com', wl_subscribe:'Suscribirme →', wl_your:'Tu lista de seguimiento (máx. 5)', wl_add_ph:'Añadir valor…', wl_add:'+ Añadir',
+    wl_hint:'Guardado en tu dispositivo. Al suscribirte, la lista queda vinculada a tu dirección de correo. Puedes gestionarla o cancelar la suscripción en cualquier momento desde el enlace del correo de confirmación.',
+    wl_min:'Añade al menos un valor antes de suscribirte.',
+    wl_email_invalid:'Introduce una dirección de correo válida.',
+    wl_sending:'Enviando…',
+    wl_ok:'✓ Suscripción registrada. Revisa tu bandeja de entrada para confirmar y obtener tu enlace de gestión.',
+    wl_err:'Suscripción temporalmente no disponible. Tu lista queda guardada en el dispositivo.',
+    how_title:'Cómo funciona',
+    step1_t:'Introduce un valor', step1_d:'Cualquier empresa cotizada en EE.UU. NVDA, BRK.B, GS, PLTR — lo que quieras analizar.',
+    step2_t:'Consulta multi-fuente', step2_d:'Finnhub + Alpha Vantage + Yahoo Finance + FRED — fundamentales, 4 años de históricos financieros, accionariado, noticias y variables macro — todo en paralelo.',
+    step3_t:'Cálculos cuantitativos', step3_d:'Altman Z-Score, Piotroski F-Score, puntuación compuesta, tendencias históricas, comparativa sectorial — calculados en Python en el servidor.',
+    step4_t:'Síntesis institucional', step4_d:'Dos llamadas paralelas a GPT-4o-mini generan un informe de 11 secciones con análisis sectorial profundo, explicación detallada de cada ratio y desglose transparente de la puntuación.',
+    about_title:'Sobre este proyecto',
+    about_p1:'FINscope es una plataforma de inteligencia financiera full-stack que demuestra cómo las herramientas modernas permiten ofrecer análisis de renta variable de nivel institucional a coste marginal prácticamente nulo.',
+    about_p2:'El backend consulta en paralelo Finnhub, Alpha Vantage, Yahoo Finance y FRED — fundamentales, cuatro años de cuentas, accionariado, noticias, calendarios y variables macro. Calcula el Altman Z-Score, el Piotroski F-Score y una puntuación compuesta con desglose transparente regla a regla, y genera un informe de 11 secciones mediante dos llamadas paralelas a OpenAI ancladas en una tabla de tasas de descuento sectoriales.',
+    about_p3:'Gráficos técnicos de TradingView. Alertas de la lista de seguimiento mediante Resend + cron de Vercel. Solo informativo — no constituye asesoramiento de inversión.',
+    stack_h:'Stack tecnológico',
+    footer_disc:'FINscope es un proyecto educativo de portfolio que proporciona análisis financiero con fines exclusivamente informativos. Nada de lo aquí publicado constituye asesoramiento de inversión, recomendación ni oferta de compra o venta de ningún instrumento financiero. Realiza siempre tu propio análisis y consulta a un asesor financiero debidamente habilitado antes de tomar decisiones de inversión.',
+    sec_01:'Resumen Ejecutivo', sec_02:'Modelo de Negocio', sec_03:'Comportamiento Bursátil', sec_04:'Calidad Financiera',
+    sec_05:'Entorno Macroeconómico', sec_06:'Análisis de Riesgos', sec_07:'Accionariado y Gobierno Corporativo', sec_08:'Valoración',
+    sec_09:'Análisis Comparativo Sectorial', sec_10:'Escenarios y Perspectiva', sec_11:'Documentación Regulatoria (10-K · 10-Q)',
+    score_lbl:'Puntuación compuesta /100',
+    macro_10y:'Bono 10 años', macro_ff:'Tipo Fed Funds', macro_cpi:'IPC interanual', macro_pmi:'PMI Compuesto', macro_vix:'VIX', macro_hy:'Spread HY',
+    pillar_fund:'Fundamental', pillar_acc:'Calidad contable', pillar_an:'Analistas', pillar_ctx:'Contexto',
+    rec_headlines:'Titulares recientes (enlaces directos)', no_news:'Sin titulares recientes disponibles.',
+    rev_segs:'Desglose de ingresos por segmento', geo_exp:'Exposición geográfica', data_source:'Fuente: informes de la empresa / estimación de IA',
+    hist_fin:'Histórico financiero (últimos 4 ejercicios)',
+    hist_chart:'Ingresos, resultado operativo, beneficio neto y FCL ($M)',
+    earnings_hist:'Histórico de resultados — últimos trimestres',
+    solvency_scores:'Indicadores de solvencia y calidad',
+    altman_card:'Altman Z-Score', altman_sub:'Modelo de predicción de insolvencia',
+    altman_explain:'<strong>Qué es:</strong> El Altman Z-Score combina 5 ratios (liquidez, rentabilidad acumulada, eficiencia operativa, solvencia y rotación de activos) en un indicador de probabilidad de insolvencia. <strong>Umbrales:</strong> Z > 2,99 = zona segura · 1,81–2,99 = zona gris · Z < 1,81 = riesgo de quiebra. <strong>Limitación:</strong> No es aplicable a entidades financieras (estructura de balance diferente) ni a empresas tecnológicas de bajo activo tangible.',
+    piotroski_card:'Piotroski F-Score', piotroski_sub:'Señal de calidad fundamental (9 criterios)',
+    piotroski_explain:'<strong>Qué es:</strong> Un indicador de 9 puntos que evalúa Rentabilidad (ROA positivo, FCL positivo, ROA mejorando, FCL > Beneficio neto), Apalancamiento (D/Capital bajando, ratio de liquidez mejorando, sin dilución de capital) y Eficiencia operativa (margen bruto mejorando, rotación de activos mejorando). <strong>Umbrales:</strong> 7–9 = fundamentales sólidos · 4–6 = calidad moderada · 0–3 = señales de deterioro.',
+    macro_live:'Indicadores macroeconómicos en tiempo real',
+    tv_chart:'Análisis técnico (TradingView — totalmente interactivo)', tv_source:'Arrastra para ampliar · Cambia intervalo · Añade indicadores',
+    key_risks:'Riesgos principales', tech_note:'El análisis técnico se muestra mediante el gráfico interactivo de TradingView. Haz clic y arrastra para ampliar, cambia el intervalo temporal o añade indicadores técnicos.',
+    own_breakdown:'Estructura del accionariado (% del capital en circulación)', own_metrics:'Actividad de directivos',
+    own_institutional:'Inversores institucionales', own_insiders:'Directivos y accionistas de control', own_retail:'Minoristas y otros',
+    own_insider_net:'Variación neta directivos (3m)', own_mspr:'MSPR (ratio mensual de compra)',
+    analyst_consensus:'Consenso de analistas', analyst_target:'Precio objetivo consenso', analyst_na:'Datos de consenso de analistas no disponibles.',
+    fair_value_range:'Rango de valor razonable implícito (DCF)', wacc_note:'Tasa de descuento utilizada:', fv_below:'por debajo del valor razonable', fv_in:'dentro del rango de valor razonable', fv_above:'por encima del valor razonable',
+    key_disc:'Divulgaciones clave',
+    key_metrics:'Métricas clave', disclaimer:'Solo informativo. No constituye asesoramiento de inversión.',
+    loading_msg:'Consultando 4 fuentes de datos + 2 pasadas de IA en paralelo…',
+    adv_ratios:'Ratios avanzados de calidad financiera',
+    adv_fcf_ni:'Conversión FCL / Beneficio Neto', adv_op_lev:'Apalancamiento operativo (ΔOp%/ΔIng%)', adv_nd_ebitda:'Deuda Neta / EBITDA (estimado)',
+    sec_filings_title:'Documentos presentados ante la SEC',
+    score_breakdown_hint:'Pulsa cualquier pilar para expandir el desglose detallado de la puntuación',
+    mn_pe:'PER (últ. 12m)', mn_pef:'PER Estimado', mn_pb:'Precio/Valor Contable', mn_ev:'VE/EBITDA',
+    mn_peg:'Ratio PEG', mn_ps:'Precio/Ventas',
+    mn_nm:'Margen Neto', mn_om:'Margen Operativo', mn_gm:'Margen Bruto', mn_fcfm:'Margen Caja Libre',
+    mn_roe:'Rentab. Capital (ROE)', mn_roa:'Rentab. Activos (ROA)', mn_roic:'Retorno Capital Invertido',
+    mn_rg:'Crecimiento Ingresos', mn_eg:'Crecimiento BPA', mn_eps:'BPA (últ. 12m)',
+    mn_de:'Deuda/Capital', mn_cr:'Ratio Liquidez Corriente', mn_qr:'Test Ácido',
+    mn_div:'Rentabilidad por Dividendo', mn_fcf:'Flujo de Caja Libre', mn_beta:'Beta de Mercado',
+    mn_short:'Posiciones Cortas (%)',
+    mn_w52h:'Máximo 52 semanas', mn_w52l:'Mínimo 52 semanas', mn_score:'Puntuación Compuesta',
+    econ_calendar:'Próximos eventos económicos relevantes', next_earnings:'Próxima presentación de resultados'
+  }
+};
+
+let LANG = localStorage.getItem('finscope_lang') || 'en';
+// ── Number formatting: institutional convention = US-style separators for shares and integer counts ──
+function fmtShares(n){
+  if(n===null||n===undefined||n==='') return '—';
+  const v = Number(n);
+  if(!isFinite(v)) return '—';
+  return v.toLocaleString('en-US');
+}
+function fmtSignedShares(n){
+  if(n===null||n===undefined||n==='') return '—';
+  const v = Number(n);
+  if(!isFinite(v)) return '—';
+  return (v>0?'+':'') + v.toLocaleString('en-US');
+}
+let _charts = {};
+let _openedSecs = new Set();
+window._D = null;
+
+function applyI18n(){
+  const tr = I18N[LANG];
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k = el.getAttribute('data-i18n');
+    if(tr[k]) { if(k.endsWith('_html')) el.innerHTML = tr[k]; else el.textContent = tr[k]; }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{
+    const k = el.getAttribute('data-i18n-placeholder');
+    if(tr[k]) el.placeholder = tr[k];
+  });
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active', b.dataset.lang === LANG));
+  document.documentElement.setAttribute('lang', LANG);
+}
+function setLang(l){
+  LANG = l; localStorage.setItem('finscope_lang', l); applyI18n();
+  if(window._D) run(window._D.ticker);
 }
 
-# ─── HTTP helpers ──────────────────────────────────────────────────────────────
+const fmt  = (v,d=1) => v==null?'N/A':Number(v).toFixed(d);
+const fmtP = (v,d=1) => v==null?'N/A':`${Number(v).toFixed(d)}%`;
+const fmtC = (v,d=2) => v==null?'N/A':`$${Number(v).toFixed(d)}`;
+const scCol = sc => sc>=70?'var(--green)':sc>=50?'var(--amber)':'var(--red)';
+const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const para = s => {
+  const raw = (s||'').toString().trim();
+  // Hide AI-fallback boilerplate so quantitative content carries the section
+  if(/^AI synthesis unavailable\.?$/i.test(raw)) return '';
+  if(/^Síntesis de IA no disponible\.?$/i.test(raw)) return '';
+  if(raw.length < 30 && /unavailable|no disponible/i.test(raw)) return '';
+  const escaped = esc(raw);
+  return escaped.split(/\n\n+/).filter(Boolean).map(p=>`<p>${p}</p>`).join('') || `<p>${escaped}</p>`;
+};
 
-def fh(path, params, timeout=10):
-    params['token'] = FINNHUB
-    url = 'https://finnhub.io/api/v1/' + path + '?' + urllib.parse.urlencode(params)
-    try:
-        req = urllib.request.Request(url, headers={'Accept':'application/json','User-Agent':'FINscope/4.0'})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read())
-    except:
-        return {}
+function bdg(type,val){
+  if(val==null||isNaN(val))return '';
+  let c='',l='';
+  if(type==='pe'){c=val<=0?'b-r':val<15?'b-g':val<30?'b-a':'b-r';l=val<=0?'Neg':val<15?'Low':val<30?'Fair':'High';}
+  else if(type==='mg'){c=val>20?'b-g':val>8?'b-a':'b-r';l=val>20?'Strong':val>8?'OK':'Thin';}
+  else if(type==='roe'){c=val>20?'b-g':val>10?'b-a':'b-r';l=val>20?'Strong':val>10?'Good':'Low';}
+  else if(type==='gr'){c=val>15?'b-g':val>0?'b-a':'b-r';l=val>15?'Strong':val>0?'Modest':'Neg';}
+  else if(type==='de'){c=val<0.5?'b-g':val<1.5?'b-a':'b-r';l=val<0.5?'Low':val<1.5?'OK':'High';}
+  return c?`<span class="bdg ${c}">${l}</span>`:'';
+}
+function vcClass(c,i){
+  if(c==='green'||i==='bull')return 'vg';
+  if(c==='red'||i==='bear')return 'vr';
+  if(c==='yellow'||c==='gray'||i==='watch')return 'vy';
+  return 'va';
+}
+function vcIcon(i,c){
+  if(i==='bull'||c==='green')return '▲';
+  if(i==='bear'||c==='red')return '▼';
+  if(i==='watch')return '◉';
+  return '◆';
+}
 
-def fred(series_id):
-    try:
-        url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
-        req = urllib.request.Request(url, headers={'User-Agent':'FINscope/4.0'})
-        with urllib.request.urlopen(req, timeout=7) as r:
-            lines = r.read().decode().strip().split('\n')
-            for line in reversed(lines):
-                parts = line.split(',')
-                if len(parts)==2 and parts[1].strip() not in ('','.'):
-                    try: return float(parts[1].strip())
-                    except: continue
-    except: pass
-    return None
+const PIE_COLORS = ['#0f2d6b','#2563eb','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#9f1239'];
+const CHART_FONT = {family:'Inter',size:10,weight:'600'};
 
-def get_macro():
-    try:
-        with ThreadPoolExecutor(max_workers=3) as ex:
-            futs = {'t10':ex.submit(fred,'DGS10'),'ff':ex.submit(fred,'FEDFUNDS'),'vix':ex.submit(fred,'VIXCLS')}
-            res = {k:v.result() for k,v in futs.items()}
-        return {'risk_free_rate':res.get('t10') or 4.42,'policy_rate':res.get('ff') or 5.33,
-                'cpi_yoy':3.2,'pmi_composite':51.0,'credit_spread_hy':320,'vix':res.get('vix') or 18.0}
-    except:
-        return {'risk_free_rate':4.42,'policy_rate':5.33,'cpi_yoy':3.2,'pmi_composite':51.0,'credit_spread_hy':320,'vix':18.0}
+function destroyChart(id){ if(_charts[id]){ _charts[id].destroy(); delete _charts[id]; } }
 
-def _av(function, extra_params, timeout=10):
-    params = {'function':function,'apikey':AV_KEY,'datatype':'json'}
-    params.update(extra_params)
-    url = 'https://www.alphavantage.co/query?' + urllib.parse.urlencode(params)
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent':'FINscope/4.0'})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.loads(r.read())
-            if isinstance(data,dict) and ('Information' in data or 'Note' in data):
-                return {}
-            return data
-    except:
-        return {}
+function renderPie(canvasId, items, valueKey, labelKey){
+  const el = document.getElementById(canvasId); if(!el || !items || !items.length) return;
+  destroyChart(canvasId);
+  _charts[canvasId] = new Chart(el.getContext('2d'), {
+    type:'doughnut',
+    data:{labels:items.map(x=>x[labelKey]), datasets:[{data:items.map(x=>x[valueKey]||0), backgroundColor:PIE_COLORS.slice(0,items.length), borderWidth:2, borderColor:'#fff'}]},
+    options:{responsive:true, maintainAspectRatio:false, cutout:'55%',
+      plugins:{legend:{position:'bottom', labels:{color:'#6b7a99',font:CHART_FONT,padding:8,boxWidth:10}},
+               tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed}%`}}}}
+  });
+}
 
-# ─── Scalar helpers ─────────────────────────────────────────────────────────
+function renderHistChart(data, canvasId){
+  canvasId = canvasId || 'histChart';
+  const el = document.getElementById(canvasId); if(!el||!data||!data.length) return;
+  destroyChart(canvasId);
+  const rows = [...data].reverse();
+  _charts[canvasId] = new Chart(el.getContext('2d'), {
+    type:'bar',
+    data:{labels:rows.map(r=>r.year),
+      datasets:[
+        {label:'Revenue', data:rows.map(r=>r.revenue_m||0), backgroundColor:'rgba(15,45,107,0.85)'},
+        {label:'Operating Inc', data:rows.map(r=>r.operating_income_m||0), backgroundColor:'rgba(37,99,235,0.75)'},
+        {label:'Net Income', data:rows.map(r=>r.net_income_m||0), backgroundColor:'rgba(22,163,74,0.75)'},
+        {label:'FCF', data:rows.map(r=>r.fcf_m||0), backgroundColor:'rgba(217,119,6,0.7)'},
+      ]},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom', labels:{color:'#6b7a99',font:CHART_FONT,padding:8,boxWidth:10}},
+               tooltip:{callbacks:{label:c=>`${c.dataset.label}: $${(c.parsed.y/1000).toFixed(1)}B`}}},
+      scales:{x:{ticks:{color:'#6b7a99',font:{family:'Inter',size:10}},grid:{display:false}},
+              y:{ticks:{color:'#6b7a99',font:{family:'Inter',size:10},callback:v=>'$'+(v/1000).toFixed(0)+'B'},grid:{color:'#e2e6ef'}}}}
+  });
+}
 
-def _sf(v):
-    if v in (None,'None','-','','N/A'): return None
-    try: return float(str(v).replace(',',''))
-    except: return None
+function renderEarnsChart(data){
+  const el = document.getElementById('earnsChart'); if(!el||!data||!data.length) return;
+  destroyChart('earnsChart');
+  const rows = [...data].reverse();
+  _charts['earnsChart'] = new Chart(el.getContext('2d'), {
+    type:'bar',
+    data:{labels:rows.map(e=>e.period||''),
+      datasets:[
+        {label:'Actual EPS', data:rows.map(e=>e.actual||0), backgroundColor:'rgba(15,45,107,.85)'},
+        {label:'Estimated EPS', data:rows.map(e=>e.estimate||0), backgroundColor:'rgba(200,210,230,.7)'},
+      ]},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom', labels:{color:'#6b7a99',font:CHART_FONT,padding:8,boxWidth:10}}},
+      scales:{x:{ticks:{color:'#6b7a99',font:{family:'Inter',size:9}},grid:{display:false}},
+              y:{ticks:{color:'#6b7a99',font:{family:'Inter',size:10}},grid:{color:'#e2e6ef'}}}}
+  });
+}
 
-def _sfpct(v):
-    raw = _sf(v)
-    if raw is None: return None
-    return round(raw*100, 1)
+function renderOwnershipChart(own){
+  const el = document.getElementById('ownChart'); if(!el) return;
+  const inst = own.pct_institutions || 0;
+  const insi = own.pct_insiders || 0;
+  const retail = Math.max(0, 100 - inst - insi);
+  if(inst === 0 && insi === 0) return;
+  const tr = I18N[LANG];
+  destroyChart('ownChart');
+  _charts['ownChart'] = new Chart(el.getContext('2d'), {
+    type:'doughnut',
+    data:{labels:[tr.own_institutional, tr.own_insiders, tr.own_retail],
+      datasets:[{data:[inst, insi, retail], backgroundColor:['#0f2d6b','#2563eb','#a0aec0'], borderWidth:2, borderColor:'#fff'}]},
+    options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{legend:{position:'bottom', labels:{color:'#6b7a99',font:CHART_FONT,padding:8,boxWidth:10}},
+               tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed.toFixed(1)}%`}}}}
+  });
+}
 
-def gm(m, *keys):
-    for k in keys:
-        v = m.get(k)
-        if v is not None:
-            try: return float(v)
-            except: pass
-    return None
+const RADAR_COLORS = [
+  {bg:'rgba(15,45,107,0.18)',  border:'#0f2d6b'},
+  {bg:'rgba(37,99,235,0.15)',  border:'#2563eb'},
+  {bg:'rgba(22,163,74,0.15)',  border:'#16a34a'},
+  {bg:'rgba(217,119,6,0.15)',  border:'#d97706'},
+  {bg:'rgba(220,38,38,0.15)',  border:'#dc2626'},
+  {bg:'rgba(124,58,237,0.15)', border:'#7c3aed'},
+];
 
-def resolve(fh_val, av_val):
-    for v in (fh_val, av_val):
-        if v is not None:
-            try: return float(v)
-            except: pass
-    return None
-
-def get_de_fh(m):
-    raw = gm(m,'totalDebt/totalEquityAnnual','totalDebt/totalEquityQuarterly',
-               'debtToEquityAnnual','longTermDebt/equityAnnual')
-    if raw is None: return None
-    return float(raw)/100 if float(raw) > 10 else float(raw)
-
-def get_rev_growth_fh(m):
-    v = gm(m,'revenueGrowthTTMYoy','revenueGrowthQuarterlyYoy','revenueGrowth3Y')
-    if v is None: return None
-    return float(v)*100 if abs(float(v)) < 3 else float(v)
-
-def get_eps_growth_fh(m):
-    v = gm(m,'epsGrowthTTMYoy','epsGrowthQuarterlyYoy','epsGrowth3Y')
-    if v is None: return None
-    return float(v)*100 if abs(float(v)) < 3 else float(v)
-
-# ─── Data sources ──────────────────────────────────────────────────────────────
-
-def _parse_fh_financials(data):
-    """Parse Finnhub stock/financials-reported (SEC XBRL) → hist_fin format."""
-    def _find(items, *keys):
-        for k in keys:
-            for item in items:
-                c = item.get('concept','')
-                if c == k or c.endswith(':'+k):
-                    v = item.get('value')
-                    if v is not None:
-                        try: return float(v)
-                        except: pass
-        return None
-    reports = (data.get('data') or [])[:4]
-    hist = []
-    for rep in reports:
-        year = (rep.get('endDate') or rep.get('startDate') or '')[:4]
-        report = rep.get('report') or {}
-        ic = report.get('ic') or []; cf_s = report.get('cf') or []
-        r   = _find(ic,'Revenues','RevenueFromContractWithCustomerExcludingAssessedTax',
-                    'SalesRevenueNet','RevenueFromContractWithCustomerIncludingAssessedTax')
-        ni  = _find(ic,'NetIncomeLoss','NetIncome','ProfitLoss')
-        gp  = _find(ic,'GrossProfit')
-        oi  = _find(ic,'OperatingIncomeLoss','IncomeLossFromContinuingOperationsBeforeIncomeTaxes')
-        ocf = _find(cf_s,'NetCashProvidedByUsedInOperatingActivities','NetCashProvidedByOperatingActivities')
-        cpx = _find(cf_s,'PaymentsToAcquirePropertyPlantAndEquipment','PaymentsForCapitalImprovements')
-        fcf_h = (ocf - abs(cpx)) if (ocf is not None and cpx is not None) else None
-        if r and r > 0:
-            hist.append({'year':year,'revenue_m':round(r/1e6),
-                'net_income_m':round(ni/1e6) if ni is not None else None,
-                'operating_income_m':round(oi/1e6) if oi is not None else None,
-                'fcf_m':round(fcf_h/1e6) if fcf_h is not None else None,
-                'gross_margin_pct':round(gp/r*100,1) if gp else None,
-                'operating_margin_pct':round(oi/r*100,1) if oi else None,
-                'net_margin_pct':round(ni/r*100,1) if ni else None})
-    return hist
-
-_YF_USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-]
-
-def _yf_fetch(url, ua_index=0):
-    req = urllib.request.Request(url, headers={
-        'User-Agent': _YF_USER_AGENTS[ua_index % len(_YF_USER_AGENTS)],
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-    })
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.loads(r.read())
-
-def get_sec_edgar(cik):
-    """
-    SEC EDGAR XBRL companyconcept API — most reliable FCF source (data is official 10-K).
-    Returns dict with fcf, ocf, capex, revenue (latest annual).  Requires CIK from Finnhub profile.
-    """
-    if not cik:
-        return {}
-    try:
-        cik_padded = str(int(cik)).zfill(10)
-    except Exception:
-        return {}
-
-    headers = {'User-Agent': 'FINscope Research alvaro2005ho@gmail.com', 'Accept': 'application/json'}
-    base = f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_padded}'
-
-    def _fetch_concept(concept):
-        url = f'{base}/us-gaap/{concept}.json'
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=8) as r:
-                return json.loads(r.read())
-        except Exception:
-            return None
-
-    def _latest_annual_usd(data):
-        if not data: return None
-        units = (data.get('units') or {}).get('USD') or []
-        annuals = [x for x in units if x.get('form') == '10-K' and x.get('fp') == 'FY']
-        if not annuals:
-            annuals = [x for x in units if x.get('form') == '10-K']
-        if not annuals:
-            return None
-        annuals.sort(key=lambda x: x.get('end', ''), reverse=True)
-        return _sf(annuals[0].get('val'))
-
-    # Try the 2 most common concepts only (saves ~6-8 HTTP calls vs prior 4×3=12)
-    ocf_concepts = ['NetCashProvidedByUsedInOperatingActivities','NetCashProvidedByOperatingActivities']
-    cpx_concepts = ['PaymentsToAcquirePropertyPlantAndEquipment','PurchaseOfPropertyPlantAndEquipment']
-    rev_concepts = ['Revenues','RevenueFromContractWithCustomerExcludingAssessedTax']
-
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        ocf_futs = {c: ex.submit(_fetch_concept, c) for c in ocf_concepts}
-        cpx_futs = {c: ex.submit(_fetch_concept, c) for c in cpx_concepts}
-        rev_futs = {c: ex.submit(_fetch_concept, c) for c in rev_concepts}
-
-        ocf = None
-        for c in ocf_concepts:
-            try:
-                d = ocf_futs[c].result(timeout=6)
-                v = _latest_annual_usd(d)
-                if v is not None: ocf = v; break
-            except: continue
-        capex = None
-        for c in cpx_concepts:
-            try:
-                d = cpx_futs[c].result(timeout=6)
-                v = _latest_annual_usd(d)
-                if v is not None: capex = v; break
-            except: continue
-        revenue = None
-        for c in rev_concepts:
-            try:
-                d = rev_futs[c].result(timeout=6)
-                v = _latest_annual_usd(d)
-                if v is not None: revenue = v; break
-            except: continue
-
-    fcf = (ocf - abs(capex)) if (ocf is not None and capex is not None) else None
-    return {
-        'fcf':     fcf,
-        'ocf':     ocf,
-        'capex':   capex,
-        'revenue': revenue,
+function renderPeerRadar(d, canvasId){
+  const el = document.getElementById(canvasId); if(!el) return;
+  const ai = d.ai||{};
+  let rows = (ai.competitors||{}).table||[];
+  // fallback to peer_comparison
+  if(!rows.length){
+    const pm = d.metrics||{};
+    rows = [{ticker:d.ticker, name:d.name, pe:pm.pe, ev_ebitda:pm.ev_ebitda,
+      rev_growth_pct:pm.rev_growth, net_margin_pct:pm.net_margin,
+      gross_margin_pct:pm.gross_margin, roe_pct:pm.roe, is_subject:true}]
+      .concat((d.peer_comparison||[]).map(p=>({
+        ticker:p.ticker, name:p.name||p.ticker,
+        pe:p.pe, ev_ebitda:p.ev_ebitda, rev_growth_pct:p.rev_growth,
+        net_margin_pct:p.net_margin, gross_margin_pct:p.gross_margin,
+        roe_pct:p.roe, is_subject:false
+      })));
+  }
+  if(rows.length < 2){ return; }
+  // Normalise to 0–10 (higher = better)
+  const norm = (v, lo, hi, inv=false) => {
+    if(v==null || isNaN(v)) return 4;
+    const s = (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * 10;
+    return parseFloat((inv ? 10 - s : s).toFixed(2));
+  };
+  const tr = I18N[LANG];
+  const labels = [
+    LANG==='es'?'Margen Neto':'Net Margin',
+    LANG==='es'?'Margen Bruto':'Gross Margin',
+    'ROE',
+    LANG==='es'?'Crec. Ingresos':'Rev Growth',
+    LANG==='es'?'P/E (inv.)':'P/E (inv.)',
+    LANG==='es'?'VE/EBITDA (inv.)':'EV/EBITDA (inv.)',
+  ];
+  destroyChart(canvasId);
+  _charts[canvasId] = new Chart(el.getContext('2d'), {
+    type: 'radar',
+    data: {
+      labels,
+      datasets: rows.slice(0,6).map((r,i) => ({
+        label: r.ticker||'',
+        data: [
+          norm(r.net_margin_pct,   0, 55),
+          norm(r.gross_margin_pct, 0, 85),
+          norm(r.roe_pct,          0, 60),
+          norm(r.rev_growth_pct, -15, 60),
+          norm(r.pe,               5, 70, true),
+          norm(r.ev_ebitda,        3, 55, true),
+        ],
+        backgroundColor: RADAR_COLORS[i%RADAR_COLORS.length].bg,
+        borderColor:     RADAR_COLORS[i%RADAR_COLORS.length].border,
+        borderWidth:     r.is_subject ? 2.5 : 1.5,
+        pointRadius:     3,
+        pointBackgroundColor: RADAR_COLORS[i%RADAR_COLORS.length].border,
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom', labels:{color:'#6b7a99',font:CHART_FONT,padding:10,boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.r.toFixed(1)}/10`}}
+      },
+      scales:{r:{
+        min:0, max:10,
+        ticks:{stepSize:2, color:'#a0aec0', font:{size:9}, backdropColor:'transparent'},
+        grid:{color:'rgba(0,0,0,0.06)'},
+        pointLabels:{color:'#3d4f70', font:{size:10, family:'Inter', weight:'600'}},
+        angleLines:{color:'rgba(0,0,0,0.08)'}
+      }}
     }
+  });
+}
+
+function renderTradingView(ticker, containerID){
+  const el = document.getElementById(containerID); if(!el) return;
+  el.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.className = 'tvw-iframe';
+  iframe.allowFullscreen = true;
+  iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_${ticker}&symbol=${encodeURIComponent(ticker)}&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=F8F9FB&studies=%5B%22RSI%40tv-basicstudies%22%2C%22MACD%40tv-basicstudies%22%2C%22MASimple%40tv-basicstudies%22%5D&theme=light&style=1&timezone=Etc%2FUTC&withdateranges=1&locale=${LANG}`;
+  el.appendChild(iframe);
+}
+
+function toggleSec(num){
+  const body = document.getElementById('b'+num);
+  const arr  = document.getElementById('a'+num);
+  if(!body) return;
+  const isOpen = body.style.display==='block';
+  body.style.display = isOpen?'none':'block';
+  if(arr) arr.style.transform = isOpen?'':'rotate(180deg)';
+  if(!isOpen && !_openedSecs.has(num)){
+    _openedSecs.add(num);
+    setTimeout(()=>renderSecCharts(num), 80);
+  }
+}
+
+function renderSecCharts(num){
+  const d = window._D; if(!d) return;
+  const ai = d.ai||{};
+  if(num==='02'){
+    renderPie('segChart', (ai.business_model||{}).revenue_segments||[], 'pct','name');
+    renderPie('geoChart', (ai.business_model||{}).geographic_exposure||[], 'pct','region');
+  }
+  if(num==='03'){
+    renderHistChart(d.historical_financials||[], 'perfHistChart');
+    renderEarnsChart(d.earnings||[]);
+  }
+  if(num==='04') renderHistChart(d.historical_financials||[]);
+  if(num==='06') renderTradingView(d.ticker, 'tvContainer');
+  if(num==='07') renderOwnershipChart(d.ownership||{});
+  if(num==='09') renderPeerRadar(d, 'peerRadar');
+}
+
+async function run(ticker){
+  const raw = (ticker || document.getElementById('ti').value || '').trim().toUpperCase();
+  if(!raw) return;
+  const btn = document.getElementById('sb'); btn.disabled=true; btn.textContent='…';
+  const ra = document.getElementById('ra'); const tr = I18N[LANG];
+  ra.innerHTML=`<div class="loading"><div class="spin"></div><div class="ll">${esc(raw)}</div><div class="ls">${tr.loading_msg}</div></div>`;
+  ra.scrollIntoView({behavior:'smooth',block:'start'});
+  Object.values(_charts).forEach(c=>c.destroy()); _charts={}; _openedSecs=new Set();
+
+  try{
+    const resp = await fetch(`/api/analyse?ticker=${encodeURIComponent(raw)}&lang=${LANG}`);
+    const d = await resp.json();
+    if(d.error) throw new Error(d.error);
+    window._D = d;
+    renderReport(d);
+  } catch(err){
+    ra.innerHTML=`<div class="err-box"><div class="err-lbl">Error</div><div class="err-msg">${esc(err.message||'Something went wrong.')}</div></div>`;
+  }
+  btn.disabled=false; btn.textContent=tr.analyse;
+}
+
+function qs(ticker){ document.getElementById('ti').value=ticker; run(ticker); }
+document.getElementById('ti').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
+
+function renderReport(d){
+ try{
+  const ai = d.ai||{};
+  const m = d.metrics||{};
+  const an = d.analyst||{};
+  const mac = d.macro||{};
+  const tr = I18N[LANG];
+  const es_ = ai.executive_summary||{};
+  const sc = d.score?.total??50;
+  const sc_c = scCol(sc);
+  const pillars = [
+    {label:tr.pillar_fund, val:d.score?.fundamental??0, max:40, color:'var(--blue)'},
+    {label:tr.pillar_acc,  val:d.score?.accounting??0, max:20, color:'var(--green)'},
+    {label:tr.pillar_an,   val:d.score?.analyst??0,    max:30, color:'var(--blue2)'},
+    {label:tr.pillar_ctx,  val:d.score?.context??0,    max:10, color:'var(--amber)'},
+  ];
+  const vc = vcClass(es_.verdict_color, es_.verdict_icon);
+  const vi = vcIcon(es_.verdict_icon, es_.verdict_color);
+  const altZ = d.altman;
+  const pio  = d.piotroski??0;
+  const altCl = altZ==null?'grey':altZ>3?'safe':altZ>1.8?'grey':'dist';
+  const pioCl = pio>=7?'safe':pio>=5?'grey':'dist';
+  const totalA = an.total||0;
+
+  // ── Section 01: Executive Summary — Company Snapshot + Key Takeaways + AI text + Catalysts + News ──
+  const news = d.news||[];
+
+  // Company snapshot card with real data
+  const fmtMcapShort = v => {
+    if(v==null||isNaN(v)) return 'N/A';
+    if(v>=1e6) return '$'+(v/1e6).toFixed(2)+'T';
+    if(v>=1000) return '$'+(v/1000).toFixed(1)+'B';
+    return '$'+Number(v).toFixed(0)+'M';
+  };
+  const snapshotItems = [
+    {l:LANG==='es'?'País sede':'Headquarters',  v: esc(d.country||'—')},
+    {l:LANG==='es'?'Sector':'Sector',           v: esc(d.sector||d.industry||'—')},
+    {l:LANG==='es'?'Industria':'Industry',      v: esc(d.industry||'—')},
+    {l:LANG==='es'?'Empleados':'Employees',     v: d.employees ? fmtShares(d.employees) : '—'},
+    {l:LANG==='es'?'Capitalización':'Market cap', v: fmtMcapShort(m.market_cap_m)},
+    {l:LANG==='es'?'Beta':'Beta',               v: m.beta!=null ? Number(m.beta).toFixed(2) : '—'},
+    {l:LANG==='es'?'P/E (TTM)':'P/E (TTM)',     v: m.pe!=null ? Number(m.pe).toFixed(1)+'x' : '—'},
+    {l:LANG==='es'?'P/E estimado':'P/E forward',v: m.pe_forward!=null ? Number(m.pe_forward).toFixed(1)+'x' : '—'},
+  ];
+  const snapshotHTML = `
+    <div style="background:linear-gradient(135deg,rgba(15,45,107,.05),rgba(37,99,235,.025));border-radius:10px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(15,45,107,.08)">
+      <div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">${LANG==='es'?'Resumen de la compañía':'Company snapshot'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        ${snapshotItems.map(x=>`<div><div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em">${x.l}</div><div style="font-size:14px;font-weight:700;color:var(--ink);margin-top:2px">${x.v}</div></div>`).join('')}
+      </div>
+      ${d.description?`<div style="font-size:12px;color:#3d4f70;line-height:1.55;margin-top:12px;padding-top:10px;border-top:1px solid rgba(108,122,153,.18)">${esc(d.description).slice(0,500)}${d.description.length>500?'…':''}</div>`:''}
+    </div>`;
+
+  // Key takeaways with semáforo (from AI key_takeaways OR health_flags as backup)
+  const aiTakeaways = (es_.key_takeaways || []);
+  const flagTakeaways = (d.health_flags || []).map(f=>({label:f.label,status:f.status,reason:f.reason}));
+  const takeaways = aiTakeaways.length ? aiTakeaways : flagTakeaways;
+  const takeawayHTML = takeaways.length ? `
+    <div style="margin-bottom:14px">
+      <div class="albl" style="margin-top:0">${LANG==='es'?'Aspectos clave':'Key takeaways'} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'señales binarias derivadas del semáforo de salud y de la lectura de la IA':'binary signals from health checks + AI synthesis'}</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${takeaways.slice(0,6).map(t=>{
+          const st = (t.status||'').toLowerCase();
+          const col = st==='green'?'var(--green)':st==='red'?'var(--red)':st==='amber'?'var(--amber)':'var(--blue2)';
+          const ic  = st==='green'?'●':st==='red'?'●':st==='amber'?'◐':'●';
+          return `<div style="display:flex;gap:10px;padding:8px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${col}">
+            <span style="color:${col};font-size:14px;line-height:1.4">${ic}</span>
+            <div style="flex:1">
+              <div style="font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.35">${esc(t.label||'')}</div>
+              ${t.reason?`<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">${esc(t.reason)}</div>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  // Catalysts: upcoming earnings + macro events
+  const econEv = (d.economic_calendar || []).slice(0,3);
+  const catalystHTML = (d.upcoming_earnings || econEv.length) ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Próximos catalizadores':'Upcoming catalysts'} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'eventos próximos que pueden mover la cotización':'upcoming events that may move the price'}</span></div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+      ${d.upcoming_earnings?`
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:linear-gradient(135deg,rgba(15,45,107,.06),rgba(37,99,235,.03));border-radius:6px;border-left:3px solid var(--blue2)">
+          <span style="font-size:10px;font-weight:800;color:var(--blue2);min-width:64px">${LANG==='es'?'RESULTADOS':'EARNINGS'}</span>
+          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink)">${LANG==='es'?'Próxima presentación de resultados':'Next earnings release'}</div>${(()=>{try{const t=new Date(d.upcoming_earnings+'T00:00:00Z').getTime();const dd=Math.round((t-Date.now())/86400000);if(!isFinite(dd))return'';return `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums">${dd>=0?(LANG==='es'?'En ':'In ')+dd+(LANG==='es'?' días':' days'):(LANG==='es'?'Hace ':'')+Math.abs(dd)+(LANG==='es'?' días':' days ago')}</div>`}catch(e){return''}})()}</div>
+          <span style="font-size:13px;font-weight:800;color:var(--blue2);font-variant-numeric:tabular-nums">${esc(d.upcoming_earnings)}</span>
+        </div>`:''}
+      ${econEv.map(ev=>`
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${ev.impact==='high'?'var(--red)':'var(--amber)'}">
+          <span style="font-size:10px;font-weight:800;color:${ev.impact==='high'?'var(--red)':'var(--amber)'};min-width:64px">${esc((ev.impact||'').toUpperCase())}</span>
+          <div style="flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(ev.event||'')}</div><div style="font-size:10px;color:var(--muted);margin-top:2px">${esc(ev.country||'')}</div></div>
+          <span style="font-size:12px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">${esc(ev.date||'')}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  const newsHTML = news.length ? `
+    <div class="albl" style="margin-top:14px">${tr.rec_headlines}</div>
+    <div class="news-list">
+      ${news.slice(0,6).map(n=>`
+        <a class="news-item" href="${esc(n.url||'#')}" target="_blank" rel="noopener">
+          <strong>${esc(n.headline)}</strong>
+          <div class="news-src">${esc(n.source||'')}</div>
+        </a>`).join('')}
+    </div>` : `<div class="albl" style="margin-top:14px">${tr.rec_headlines}</div><div class="news-item" style="border-left-color:var(--muted)"><em>${tr.no_news}</em></div>`;
+
+  const s01 = `${snapshotHTML}<div class="atxt">${para(es_.text||'')}</div>${takeawayHTML}${catalystHTML}${newsHTML}${invalidationBox(es_.invalidation)}`;
+
+  // ── Section 02: Business Model — Real SEC XBRL segments + moat scorecard ──
+  const bm = ai.business_model||{};
+  let segs = bm.revenue_segments||[];
+  const geos = bm.geographic_exposure||[];
+  const moat = bm.moat||{};
+
+  // Prefer REAL SEC XBRL segments if available
+  const secSegs = (d.sec_segments && d.sec_segments.segments) || [];
+  if(secSegs.length){
+    segs = secSegs.map(s=>({
+      name: s.name,
+      pct: s.pct,
+      value_usd: s.value_usd,
+      description: ''
+    }));
+  }
+
+  const segItems = segs.map(s=>{
+    const valStr = s.value_usd ? ` · $${(s.value_usd/1e9).toFixed(1)}B` : '';
+    return `<div class="own-metric"><span>${esc(s.name)}${valStr}${s.description?`<br><span style="font-size:10px;color:var(--muted)">${esc(s.description)}</span>`:''}</span><span class="v">${s.pct}%</span></div>`;
+  }).join('');
+  const geoItems = geos.map(g=>`<div class="own-metric"><span>${esc(g.region)}${g.note?`<br><span style="font-size:10px;color:var(--muted)">${esc(g.note)}</span>`:''}</span><span class="v">${g.pct}%</span></div>`).join('');
+
+  // Moat scorecard
+  const moatHTML = moat.type ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Análisis de ventaja competitiva (moat)':'Competitive moat scorecard'}</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Tipo de moat':'Moat type'}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${esc(moat.type)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Fuerza (0-5)':'Strength (0-5)'}</div>
+          <div style="display:flex;gap:3px;margin-top:4px">${Array.from({length:5}).map((_,i)=>`<div style="width:14px;height:14px;border-radius:3px;background:${i<(moat.strength_0_5||0)?'var(--blue2)':'rgba(108,122,153,.18)'}"></div>`).join('')}</div>
+        </div>
+      </div>
+      ${moat.evidence?`<div style="font-size:12px;color:#3d4f70;line-height:1.55;margin-top:10px;padding-top:10px;border-top:1px solid rgba(108,122,153,.18)">${esc(moat.evidence)}</div>`:''}
+    </div>` : '';
+
+  const secSourceNote = secSegs.length
+    ? (LANG==='es'?'Fuente: 10-K disgregado por SEC XBRL':'Source: SEC XBRL disaggregated 10-K')
+    : tr.data_source;
+
+  const s02 = `
+    <div class="atxt">${para(bm.text||'')}</div>
+    <div class="chart-row">
+      <div class="chart-box">
+        <div class="chart-lbl">${tr.rev_segs}</div>
+        <div class="ch-wrap ch-pie"><canvas id="segChart"></canvas></div>
+        ${segItems?`<div style="margin-top:10px">${segItems}</div>`:''}
+      </div>
+      <div class="chart-box">
+        <div class="chart-lbl">${tr.geo_exp}</div>
+        <div class="ch-wrap ch-pie"><canvas id="geoChart"></canvas></div>
+        ${geoItems?`<div style="margin-top:10px">${geoItems}</div>`:''}
+      </div>
+    </div>
+    <div class="chart-note">${secSourceNote}</div>
+    ${moatHTML}
+    ${invalidationBox(bm.invalidation)}`;
+
+  // ── Section 03: Performance — Returns table + technical indicators + historical chart + earnings ──
+  const perf = ai.performance||{};
+  const hist = d.historical_financials||[];
+  const tech = d.technicals || {};
+  const rets = tech.returns || {};
+
+  // Returns table — ticker AND S&P 500 with alpha column
+  const spyRets = d.spy_returns || {};
+  const periodLabels = LANG==='es'
+    ? {'1M':'1 mes','3M':'3 meses','6M':'6 meses','YTD':'YTD','1Y':'1 año','3Y':'3 años','5Y':'5 años'}
+    : {'1M':'1M','3M':'3M','6M':'6M','YTD':'YTD','1Y':'1Y','3Y':'3Y','5Y':'5Y'};
+  const retCells = ['1M','3M','6M','YTD','1Y','3Y','5Y'].map(p=>{
+    const v = rets[p];
+    const spy = spyRets[p];
+    const alpha = (v!=null && spy!=null) ? (v - spy) : null;
+    if(v==null) return `<div style="text-align:center;padding:10px 6px;background:var(--surface);border-radius:6px;border:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);font-weight:700">${periodLabels[p]}</div><div style="font-size:14px;color:var(--muted);margin-top:4px">—</div></div>`;
+    const col = v>=0?'var(--green)':'var(--red)';
+    const sign = v>=0?'+':'';
+    const alphaHTML = alpha!=null ? `<div style="font-size:9.5px;font-weight:700;color:${alpha>=0?'var(--green)':'var(--red)'};margin-top:2px;font-variant-numeric:tabular-nums" title="${LANG==='es'?'Alpha vs S&P 500':'Alpha vs S&P 500'}">α ${alpha>=0?'+':''}${alpha.toFixed(1)}pp</div>` : '';
+    const spyHTML = spy!=null ? `<div style="font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums">SPY ${spy>=0?'+':''}${spy.toFixed(1)}%</div>` : '';
+    return `<div style="text-align:center;padding:10px 6px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${periodLabels[p]}</div>
+      <div style="font-size:15px;font-weight:800;color:${col};margin-top:4px;font-variant-numeric:tabular-nums">${sign}${v.toFixed(1)}%</div>
+      ${spyHTML}
+      ${alphaHTML}
+    </div>`;
+  }).join('');
+  const returnsTableHTML = Object.keys(rets).length ? `
+    <div class="albl">${LANG==='es'?'Retornos por período · vs S&P 500':'Returns table · vs S&P 500'}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px">${retCells}</div>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'α = alpha en puntos porcentuales vs S&P 500 (SPY) en el mismo período.':'α = alpha in percentage points vs S&P 500 (SPY) over the same period.'}</div>` : '';
+
+  // Technical indicators
+  const techCards = [];
+  if(tech.rsi14 != null){
+    const v = tech.rsi14;
+    const interp = v>70?(LANG==='es'?'Sobrecompra':'Overbought'):v<30?(LANG==='es'?'Sobreventa':'Oversold'):(LANG==='es'?'Neutral':'Neutral');
+    const col = v>70?'var(--red)':v<30?'var(--green)':'var(--blue2)';
+    techCards.push({lbl:'RSI(14)', val:v.toFixed(1), sub:interp, col});
+  }
+  if(tech.sma50 != null && tech.sma200 != null){
+    const cs = tech.cross_status;
+    const interp = cs==='golden_cross_active'?(LANG==='es'?'Cruz dorada activa':'Golden cross active')
+                 : cs==='death_cross_active'?(LANG==='es'?'Cruz de la muerte activa':'Death cross active')
+                 : (LANG==='es'?'Cruce neutral':'Neutral cross');
+    const col = cs==='golden_cross_active'?'var(--green)':cs==='death_cross_active'?'var(--red)':'var(--blue2)';
+    techCards.push({lbl:'SMA50 / SMA200', val:`$${tech.sma50} / $${tech.sma200}`, sub:interp, col});
+  }
+  if(tech.macd != null){
+    const interp = tech.macd_signal==='bullish'?(LANG==='es'?'Señal alcista':'Bullish signal'):(LANG==='es'?'Señal bajista':'Bearish signal');
+    const col = tech.macd>0?'var(--green)':'var(--red)';
+    techCards.push({lbl:'MACD (12,26)', val:tech.macd>=0?'+'+tech.macd:tech.macd, sub:interp, col});
+  }
+  if(tech.vol_30d_annualised != null){
+    const v = tech.vol_30d_annualised;
+    const interp = v>40?(LANG==='es'?'Volatilidad elevada':'Elevated volatility'):v>25?(LANG==='es'?'Volatilidad moderada':'Moderate volatility'):(LANG==='es'?'Volatilidad baja':'Low volatility');
+    const col = v>40?'var(--red)':v>25?'var(--amber)':'var(--green)';
+    techCards.push({lbl:LANG==='es'?'Volatilidad 30d (anual.)':'30d annualised vol', val:v.toFixed(1)+'%', sub:interp, col});
+  }
+  const techHTML = techCards.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Indicadores técnicos (calculados sobre 1 año de datos)':'Technical indicators (computed from 1Y daily data)'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:8px">
+      ${techCards.map(c=>`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;border-left:3px solid ${c.col}">
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${esc(c.lbl)}</div>
+          <div style="font-size:18px;font-weight:800;color:${c.col};margin-top:4px;font-variant-numeric:tabular-nums">${esc(c.val)}</div>
+          <div style="font-size:11px;color:var(--ink);margin-top:3px">${esc(c.sub)}</div>
+        </div>`).join('')}
+    </div>` : '';
+
+  const retSummaryHTML = perf.returns_summary ? `<div class="atxt" style="margin-top:14px"><strong>${LANG==='es'?'Síntesis de retornos:':'Returns summary:'}</strong> ${esc(perf.returns_summary)}</div>` : '';
+
+  // Margin walk — table showing gross/op/net margin per year, with pp change YoY
+  const marginWalkHTML = hist.length >= 2 ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Evolución de márgenes (margin walk)':'Margin walk (year-over-year)'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Ejercicio':'Year'}</th>
+        <th style="text-align:right">${LANG==='es'?'Bruto':'Gross'}</th>
+        <th style="text-align:right">${LANG==='es'?'Operativo':'Operating'}</th>
+        <th style="text-align:right">${LANG==='es'?'Neto':'Net'}</th>
+        <th style="text-align:right">Δ ${LANG==='es'?'Op YoY':'Op YoY'}</th>
+        <th style="text-align:right">Δ ${LANG==='es'?'Neto YoY':'Net YoY'}</th>
+      </tr></thead>
+      <tbody>
+        ${hist.map((r,i)=>{
+          const prev = hist[i+1];
+          const opDelta = (r.operating_margin_pct!=null && prev && prev.operating_margin_pct!=null) ? (r.operating_margin_pct - prev.operating_margin_pct) : null;
+          const netDelta = (r.net_margin_pct!=null && prev && prev.net_margin_pct!=null) ? (r.net_margin_pct - prev.net_margin_pct) : null;
+          const dCol = v => v==null?'var(--muted)':v>0?'var(--green)':v<0?'var(--red)':'var(--muted)';
+          const dStr = v => v==null?'—':(v>=0?'+':'')+v.toFixed(1)+'pp';
+          return `<tr>
+            <td><strong>${esc(r.year||'—')}</strong></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${r.gross_margin_pct!=null?r.gross_margin_pct.toFixed(1)+'%':'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${r.operating_margin_pct!=null?r.operating_margin_pct.toFixed(1)+'%':'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${r.net_margin_pct!=null?r.net_margin_pct.toFixed(1)+'%':'—'}</td>
+            <td style="text-align:right;color:${dCol(opDelta)};font-weight:700;font-variant-numeric:tabular-nums">${dStr(opDelta)}</td>
+            <td style="text-align:right;color:${dCol(netDelta)};font-weight:700;font-variant-numeric:tabular-nums">${dStr(netDelta)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>` : '';
+
+  // ── Beat / miss history (computed from earnings list) ──
+  const bmHist = d.beat_miss_history||null;
+  const beatMissHTML = bmHist && bmHist.history && bmHist.history.length ? `
+    <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Historial de sorpresas · últimos 8 trimestres':'Earnings surprise history · last 8 quarters'}</div>
+        <div style="display:flex;gap:14px;font-size:11px">
+          <div><span style="color:var(--muted)">${LANG==='es'?'Beat rate':'Beat rate'}: </span><strong style="color:${bmHist.beat_rate_pct>=75?'var(--green)':bmHist.beat_rate_pct>=50?'var(--amber)':'var(--red)'};font-variant-numeric:tabular-nums">${bmHist.beat_rate_pct}%</strong></div>
+          <div><span style="color:var(--muted)">${LANG==='es'?'Sorpresa media':'Avg surprise'}: </span><strong style="color:${bmHist.avg_surprise_pct>=0?'var(--green)':'var(--red)'};font-variant-numeric:tabular-nums">${bmHist.avg_surprise_pct>=0?'+':''}${bmHist.avg_surprise_pct}%</strong></div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Trimestre':'Period'}</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Real':'Actual'}</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Estimado':'Estimate'}</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Sorpresa':'Surprise'}</th>
+        </tr></thead>
+        <tbody>
+        ${bmHist.history.map(h=>`<tr>
+          <td style="padding:6px 8px;color:var(--ink);font-weight:600">${esc(h.period||'—')}</td>
+          <td style="padding:6px 8px;text-align:right">${h.actual!=null?h.actual.toFixed(2):'—'}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--muted)">${h.estimate!=null?h.estimate.toFixed(2):'—'}</td>
+          <td style="padding:6px 8px;text-align:right;color:${h.surprise_pct>=0?'var(--green)':'var(--red)'};font-weight:700">${h.surprise_pct>=0?'+':''}${h.surprise_pct}%</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`:'';
+  const s03 = `
+    <div class="atxt">${para(perf.text||'')}</div>
+    ${returnsTableHTML}
+    ${retSummaryHTML}
+    ${techHTML}
+    ${marginWalkHTML}
+    ${hist.length ? `
+    <div class="chart-box-full" style="margin-top:14px">
+      <div class="chart-lbl">${tr.hist_chart}</div>
+      <div class="ch-wrap ch-tall"><canvas id="perfHistChart"></canvas></div>
+    </div>` : ''}
+    <div class="chart-box-full">
+      <div class="chart-lbl">${tr.earnings_hist}</div>
+      <div class="ch-wrap"><canvas id="earnsChart"></canvas></div>
+    </div>
+    ${invalidationBox(perf.invalidation)}${beatMissHTML}`;
+
+  // ── Section 04: Financial Quality ──
+  const fq = ai.financial_quality||{};
+  const histTableRows = hist.length ? hist.map(r=>`
+    <tr>
+      <td>${esc(r.year||'—')}</td>
+      <td>${r.revenue_m!=null?'$'+(r.revenue_m/1000).toFixed(1)+'B':'N/A'}</td>
+      <td>${r.operating_income_m!=null?'$'+(r.operating_income_m/1000).toFixed(1)+'B':'N/A'}</td>
+      <td>${r.net_income_m!=null?'$'+(r.net_income_m/1000).toFixed(1)+'B':'N/A'}</td>
+      <td>${r.fcf_m!=null?'$'+(r.fcf_m/1000).toFixed(1)+'B':'N/A'}</td>
+      <td>${r.gross_margin_pct!=null?r.gross_margin_pct+'%':'N/A'}</td>
+      <td>${r.net_margin_pct!=null?r.net_margin_pct+'%':'N/A'}</td>
+    </tr>`).join('') : '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:12px">Historical data not available</td></tr>';
+
+  const altColor = altZ==null?'var(--muted)':altZ>3?'var(--green)':altZ>1.8?'var(--amber)':'var(--red)';
+  const pioColor = pio>=7?'var(--green)':pio>=5?'var(--amber)':'var(--red)';
+
+  // Advanced ratios card (FCF/NI conversion, Operating Leverage, Net Debt/EBITDA)
+  const adv = d.advanced_ratios || {};
+  const advCards = [];
+  if(adv.fcf_ni_conversion != null){
+    const v = adv.fcf_ni_conversion;
+    const pct = (v*100).toFixed(0)+'%';
+    const interp = v>0.95 ? (LANG==='es'?'Alta calidad de beneficios':'High earnings quality')
+                : v>0.70 ? (LANG==='es'?'Calidad razonable':'Reasonable quality')
+                : v>0.50 ? (LANG==='es'?'Calidad mediocre — vigilar devengos':'Mediocre quality — watch accruals')
+                :          (LANG==='es'?'Alerta: brecha FCL/Beneficio Neto':'Flag: FCF/NI gap');
+    const col = v>0.95?'var(--green)':v>0.70?'var(--blue2)':v>0.50?'var(--amber)':'var(--red)';
+    advCards.push({lbl:LANG==='es'?'Conversión FCL / Beneficio Neto':'FCF / Net Income conversion', val:pct, sub:interp, col});
+  }
+  if(adv.operating_leverage != null){
+    const v = adv.operating_leverage;
+    const interp = Math.abs(v)>3 ? (LANG==='es'?'Apalancamiento operativo extremo':'Extreme operating leverage')
+                : Math.abs(v)>1.5 ? (LANG==='es'?'Alto apalancamiento operativo':'High operating leverage')
+                : Math.abs(v)>0.7 ? (LANG==='es'?'Apalancamiento operativo moderado':'Moderate operating leverage')
+                :                   (LANG==='es'?'Bajo apalancamiento operativo':'Low operating leverage');
+    const col = v>1.5?'var(--green)':v>0?'var(--blue2)':'var(--red)';
+    advCards.push({lbl:LANG==='es'?'Apalancamiento operativo (ΔOp%/ΔIng%)':'Operating leverage (ΔOpInc%/ΔRev%)', val:v.toFixed(2)+'x', sub:interp, col});
+  }
+  if(adv.net_debt_ebitda != null){
+    const v = adv.net_debt_ebitda;
+    const interp = v<1 ? (LANG==='es'?'Balance neto en caja':'Net cash balance sheet')
+                : v<2 ? (LANG==='es'?'Apalancamiento conservador':'Conservative leverage')
+                : v<4 ? (LANG==='es'?'Apalancamiento moderado':'Moderate leverage')
+                :       (LANG==='es'?'Apalancamiento elevado':'Elevated leverage');
+    const col = v<1?'var(--green)':v<2.5?'var(--blue2)':v<4?'var(--amber)':'var(--red)';
+    advCards.push({lbl:LANG==='es'?'Deuda Neta / EBITDA (estimado)':'Net Debt / EBITDA (estimated)', val:v.toFixed(2)+'x', sub:interp, col});
+  }
+  const advRatiosHTML = advCards.length ? `
+    <div class="albl" style="margin-top:18px">${LANG==='es'?'Ratios avanzados de calidad financiera':'Advanced financial quality ratios'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px">
+      ${advCards.map(c=>`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;border-left:3px solid ${c.col}">
+          <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${esc(c.lbl)}</div>
+          <div style="font-size:24px;font-weight:800;color:${c.col};margin-top:4px;font-variant-numeric:tabular-nums">${esc(c.val)}</div>
+          <div style="font-size:11px;color:var(--ink);margin-top:4px;line-height:1.4">${esc(c.sub)}</div>
+        </div>`).join('')}
+    </div>` : '';
+
+  // Financial health semáforo at top of section
+  const flags = d.health_flags || [];
+  const flagsHTML = flags.length ? `
+    <div class="albl" style="margin-top:0">${LANG==='es'?'Semáforo de salud financiera':'Financial health snapshot'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:8px 0 18px">
+      ${flags.map(f=>{
+        const col = f.status==='green'?'var(--green)':f.status==='red'?'var(--red)':'var(--amber)';
+        const ic  = f.status==='green'?'✓':f.status==='red'?'✕':'·';
+        return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${col};border-radius:6px;padding:10px 12px">
+          <div style="display:flex;align-items:center;gap:8px"><span style="color:${col};font-weight:800;font-size:14px">${ic}</span><span style="font-size:12px;font-weight:700;color:var(--ink)">${esc(f.label)}</span></div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.4">${esc(f.reason||'')}</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const s04 = `
+    ${flagsHTML}
+    <div class="atxt">${para(fq.text||'')}</div>
+    ${advRatiosHTML}
+    <div class="albl">${tr.hist_fin}</div>
+    <div class="chart-box-full">
+      <div class="chart-lbl">${tr.hist_chart}</div>
+      <div class="ch-wrap ch-tall"><canvas id="histChart"></canvas></div>
+    </div>
+    <table class="data-tbl" style="margin-top:14px">
+      <thead><tr><th>Year</th><th>Revenue</th><th>Op. Inc</th><th>Net Inc</th><th>FCF</th><th>Gross M</th><th>Net M</th></tr></thead>
+      <tbody>${histTableRows}</tbody>
+    </table>
+    <div class="albl">${tr.solvency_scores}</div>
+    <div class="solgrid">
+      <div class="solcard">
+        <div class="sol-lbl">${tr.altman_card}</div>
+        <div class="sol-sub">${tr.altman_sub}</div>
+        <div class="sol-val" style="color:${altColor}">${altZ!=null?altZ:'N/A'}</div>
+        <div class="sol-int ${altCl}">${esc(d.altman_zone||'N/A')}</div>
+      </div>
+      <div class="solcard">
+        <div class="sol-lbl">${tr.piotroski_card}</div>
+        <div class="sol-sub">${tr.piotroski_sub}</div>
+        <div class="sol-val" style="color:${pioColor}">${pio}<span style="font-size:16px;color:var(--muted);font-weight:500">/9</span></div>
+        <div class="sol-int ${pioCl}">${esc(d.piotroski_label||'')}</div>
+        <div class="pio-dots">${Array.from({length:9},(_,i)=>`<div class="pio-dot ${i<pio?'on':''}"></div>`).join('')}</div>
+      </div>
+    </div>
+    <div class="info-box">${tr.altman_explain}</div>
+    <div class="info-box">${tr.piotroski_explain}</div>
+    ${invalidationBox(fq.invalidation)}`;
+
+  // ── Section 05: Macro Context ──
+  const mc_ai = ai.macro_context||{};
+  const calHTML = (d.economic_calendar||[]).length ? `
+    <div class="albl" style="margin-top:16px">${tr.econ_calendar||'Upcoming Economic Events'}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+      ${(d.economic_calendar||[]).map(ev=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${ev.impact==='high'?'var(--red)':'var(--amber)'}">
+          <span style="font-size:10px;color:var(--muted);min-width:80px">${esc(ev.date||'')}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--ink)">${esc(ev.event||'')}</span>
+          <span style="font-size:10px;color:var(--muted);margin-left:auto">${esc(ev.country||'')} · ${esc(ev.impact||'')}</span>
+        </div>`).join('')}
+    </div>` : '';
+  const s05 = `
+    <div class="atxt">${para(mc_ai.text||'')}</div>
+    <div class="albl">${tr.macro_live} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'10Y/FedFunds/VIX vía FRED en tiempo real; CPI/PMI/HY-Spread estáticos · actualizado':'10Y/FedFunds/VIX live via FRED; CPI/PMI/HY-Spread static · refreshed'} ${(d.data_freshness&&d.data_freshness.computed_at_utc)?esc(d.data_freshness.computed_at_utc.slice(0,16)+' UTC'):''}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+      ${[
+        {l:tr.macro_10y, v:`${(mac.risk_free_rate||0).toFixed(2)}%`},
+        {l:tr.macro_ff, v:`${(mac.policy_rate||0).toFixed(2)}%`},
+        {l:tr.macro_cpi, v:`${(mac.cpi_yoy||0).toFixed(1)}%`},
+        {l:tr.macro_pmi, v:`${(mac.pmi_composite||0).toFixed(1)}`},
+        {l:tr.macro_vix, v:`${(mac.vix||0).toFixed(1)}`},
+        {l:tr.macro_hy, v:`${mac.credit_spread_hy||'—'}bps`},
+      ].map(x=>`<div class="solcard"><div class="sol-lbl">${x.l}</div><div style="font-size:20px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px">${x.v}</div></div>`).join('')}
+    </div>
+    ${calHTML}
+    ${invalidationBox(mc_ai.invalidation)}`;
+
+  // ── Section 06: Risk Analysis + TradingView + technical levels ──
+  const ra_ai = ai.risk_analysis||{};
+  const risks = ra_ai.risks||[];
+  const techR = d.technicals || {};
+  const price = d.price || 0;
+  const w52h = m.week52_high, w52l = m.week52_low;
+  // Compute support/resistance levels
+  const levels = [];
+  if(w52h) levels.push({type:'resistance', label:LANG==='es'?'Máximo 52 semanas':'52-week high', value:w52h, distPct: price?((w52h-price)/price*100):null});
+  if(techR.sma200 && techR.sma200 < price) levels.push({type:'support', label:'SMA 200', value:techR.sma200, distPct: price?((techR.sma200-price)/price*100):null});
+  if(techR.sma200 && techR.sma200 > price) levels.push({type:'resistance', label:'SMA 200', value:techR.sma200, distPct: price?((techR.sma200-price)/price*100):null});
+  if(techR.sma50 && techR.sma50 < price) levels.push({type:'support', label:'SMA 50', value:techR.sma50, distPct: price?((techR.sma50-price)/price*100):null});
+  if(techR.sma50 && techR.sma50 > price) levels.push({type:'resistance', label:'SMA 50', value:techR.sma50, distPct: price?((techR.sma50-price)/price*100):null});
+  if(w52l) levels.push({type:'support', label:LANG==='es'?'Mínimo 52 semanas':'52-week low', value:w52l, distPct: price?((w52l-price)/price*100):null});
+  const levelsHTML = levels.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Niveles técnicos clave':'Key technical levels'}</div>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+      ${levels.map(l=>{
+        const col = l.type==='resistance'?'var(--red)':'var(--green)';
+        const typeLabel = l.type==='resistance'?(LANG==='es'?'RESISTENCIA':'RESISTANCE'):(LANG==='es'?'SOPORTE':'SUPPORT');
+        const distStr = l.distPct!=null?`${l.distPct>=0?'+':''}${l.distPct.toFixed(1)}% ${LANG==='es'?'distancia':'away'}`:'';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border-radius:6px;border-left:3px solid ${col}">
+          <span style="font-size:9px;font-weight:800;color:${col};min-width:84px">${typeLabel}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--ink);flex:1">${esc(l.label)}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">$${l.value.toFixed(2)}</span>
+          <span style="font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:90px;text-align:right">${distStr}</span>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const s06 = `
+    <div class="tvw">
+      <div class="tvw-h"><span>${tr.tv_chart}</span><span class="tvw-src">${tr.tv_source}</span></div>
+      <div id="tvContainer"></div>
+    </div>
+    ${levelsHTML}
+    <div class="info-box" style="margin-top:14px">${tr.tech_note}</div>
+    <div class="atxt" style="margin-top:16px">${para(ra_ai.text||'')}</div>
+    ${ra_ai.technical_takeaway?`<div style="margin-top:14px;padding:12px 14px;background:rgba(37,99,235,.04);border-left:3px solid var(--blue2);border-radius:6px"><div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${LANG==='es'?'Lectura técnica resumida':'Technical readout'}</div><div style="font-size:12.5px;color:#3d4f70;line-height:1.6">${esc(ra_ai.technical_takeaway)}</div></div>`:''}
+    ${risks.length?`<div class="albl">${tr.key_risks}</div><div class="risk-list">${risks.map(r=>`<div class="risk-item">${esc(r)}</div>`).join('')}</div>`:''}
+    ${invalidationBox(ra_ai.invalidation)}`;
+
+  // ── Section 07: Ownership & Governance ──
+  const ow = ai.ownership||{};
+  const ownData = d.ownership||{};
+  const topHolders = ow.top_holders||[];
+  const holdersHTML = topHolders.length ? topHolders.map(h=>`<div class="own-metric"><span>${esc(h.name)}</span><span class="v">${h.stake_pct}%</span></div>`).join('') : '';
+
+  const analystHTML = totalA>0?`
+    <div class="albl">${tr.analyst_consensus}</div>
+    <div class="abars">
+      ${[
+        {lbl:'Strong Buy', val:an.strong_buy||0, color:'var(--green)'},
+        {lbl:'Buy',        val:an.buy||0,        color:'#22c55e'},
+        {lbl:'Hold',       val:an.hold||0,       color:'var(--amber)'},
+        {lbl:'Sell',       val:an.sell||0,       color:'#f97316'},
+        {lbl:'Strong Sell',val:an.strong_sell||0,color:'var(--red)'},
+      ].map(a=>`<div class="ab-row"><div class="ab-lbl">${a.lbl}</div><div class="ab-trk"><div class="ab-fill" style="width:${totalA>0?(a.val/totalA*100).toFixed(0):0}%;background:${a.color}"></div></div><div class="ab-cnt" style="color:${a.color}">${a.val}</div></div>`).join('')}
+      <div class="tgt-row"><div><div class="tgt-lbl">${tr.analyst_target} (${totalA})</div><div class="tgt-val">${an.target_price?fmtC(an.target_price):'N/A'}</div></div>${an.upside!=null?`<span class="uptag ${Number(an.upside)>=0?'up':'dn'}">${Number(an.upside)>=0?'+':''}${Number(an.upside).toFixed(1)}%</span>`:''}</div>
+    </div>`:`<div style="font-size:12px;color:var(--muted);margin-top:12px;font-style:italic">${tr.analyst_na}</div>`;
+
+  const ownBreakdownCard = (ownData.pct_institutions!=null || ownData.pct_insiders!=null) ? `
+    <div class="chart-box">
+      <div class="chart-lbl">${tr.own_breakdown}</div>
+      <div class="ch-wrap ch-pie"><canvas id="ownChart"></canvas></div>
+    </div>` : '';
+
+  const ownMetricsCard = `
+    <div class="own-card">
+      <div class="chart-lbl">${tr.own_metrics}</div>
+      <div class="own-metric"><span>${tr.own_institutional}</span><span class="v">${ownData.pct_institutions!=null?Number(ownData.pct_institutions).toFixed(1)+'%':'N/A'}</span></div>
+      <div class="own-metric"><span>${tr.own_insiders}</span><span class="v">${ownData.pct_insiders!=null?Number(ownData.pct_insiders).toFixed(1)+'%':'N/A'}</span></div>
+      <div class="own-metric"><span>${tr.own_insider_net}</span><span class="v" style="color:${(ownData.insider_net_change||0)>0?'var(--green)':(ownData.insider_net_change||0)<0?'var(--red)':'var(--ink)'}">${fmtSignedShares(ownData.insider_net_change||0)}</span></div>
+      <div class="own-metric"><span>${tr.own_mspr}</span><span class="v">${ownData.insider_mspr!=null?Number(ownData.insider_mspr).toFixed(2):'N/A'}</span></div>
+    </div>`;
+
+  // Real top institutional holders from Finnhub — display as % of company
+  const realHolders = d.real_top_holders || [];
+  // Shares outstanding ≈ market_cap / price (in shares units, not M)
+  const sharesOutEst = (m.market_cap_m && d.price && d.price > 0) ? (m.market_cap_m * 1e6 / d.price) : null;
+  const realHoldersHTML = realHolders.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Mayores accionistas institucionales (Form 13F)':'Top institutional holders (Form 13F)'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Institución':'Institution'}</th>
+        <th style="text-align:right">${LANG==='es'?'% de la empresa':'% of company'}</th>
+        <th style="text-align:right">${LANG==='es'?'Acciones':'Shares'}</th>
+        <th style="text-align:right">Δ ${LANG==='es'?'trim.':'qtr'}</th>
+        <th style="text-align:right">${LANG==='es'?'% en su cartera':'% in their portfolio'}</th>
+        <th style="text-align:right">${LANG==='es'?'Fecha':'Filing date'}</th>
+      </tr></thead>
+      <tbody>
+        ${realHolders.slice(0,10).map(h=>{
+          const chgCol = h.change>0?'var(--green)':h.change<0?'var(--red)':'var(--muted)';
+          const chgSign = h.change>0?'+':'';
+          const pctOfCo = (h.share && sharesOutEst) ? (h.share/sharesOutEst*100) : null;
+          const pctCol = pctOfCo!=null && pctOfCo>5 ? 'var(--blue)' : 'var(--ink)';
+          return `<tr>
+            <td><strong>${esc(h.name)}</strong></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:${pctCol};font-weight:700">${pctOfCo!=null?pctOfCo.toFixed(2)+'%':'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)">${h.share?fmtShares(h.share):'—'}</td>
+            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${h.change?chgSign+fmtShares(Math.abs(h.change)):'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${h.portfolio_pct!=null?Number(h.portfolio_pct).toFixed(2)+'%':'—'}</td>
+            <td style="text-align:right;color:var(--muted)">${esc(h.filing_date||'—')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'% de la empresa = acciones poseídas ÷ acciones en circulación estimadas (market cap ÷ precio). Fuente: Form 13F SEC.':'% of company = shares held ÷ estimated shares outstanding (market cap ÷ price). Source: SEC Form 13F.'}</div>` : '';
+
+  // Insider transactions (Form 4)
+  const insTxns = d.recent_insider_txns || [];
+  const insTxnsHTML = insTxns.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Operaciones de directivos (Form 4, últimos 6 meses)':'Insider transactions (Form 4, last 6 months)'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Directivo':'Insider'}</th>
+        <th style="text-align:right">${LANG==='es'?'Acciones':'Shares'}</th>
+        <th style="text-align:right">${LANG==='es'?'Precio':'Price'}</th>
+        <th style="text-align:center">${LANG==='es'?'Tipo':'Code'}</th>
+        <th style="text-align:right">${LANG==='es'?'Fecha':'Date'}</th>
+      </tr></thead>
+      <tbody>
+        ${insTxns.slice(0,8).map(t=>{
+          const chgCol = t.change>0?'var(--green)':t.change<0?'var(--red)':'var(--muted)';
+          const chgSign = t.change>0?'+':'';
+          return `<tr>
+            <td><strong>${esc(t.name)}</strong></td>
+            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${t.change?chgSign+fmtShares(Math.abs(t.change)):'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${t.transaction_price?'$'+Number(t.transaction_price).toFixed(2):'—'}</td>
+            <td style="text-align:center;font-size:11px;font-weight:700">${esc(t.transaction_code||'')}</td>
+            <td style="text-align:right;color:var(--muted)">${esc(t.transaction_date||'—')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    ${insTxns.some(t=>t.transaction_code)?`<div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'Códigos comunes: P = compra, S = venta, A = adjudicación, M = ejercicio opción, F = retención fiscal':'Common codes: P = Purchase, S = Sale, A = Award/grant, M = Option exercise, F = Tax withholding'}</div>`:''}` : '';
+
+  const s07 = `
+    <div class="atxt">${para(ow.text||'')}</div>
+    ${(ownBreakdownCard || ownMetricsCard)?`<div class="own-grid">${ownBreakdownCard}${ownMetricsCard}</div>`:''}
+    ${realHoldersHTML}
+    ${insTxnsHTML}
+    ${holdersHTML?`<div class="albl">${LANG==='es'?'Otros accionistas mencionados':'Other holders cited'}</div><div style="margin-top:10px">${holdersHTML}</div>`:''}
+    ${analystHTML}
+    ${invalidationBox(ow.invalidation)}`;
+
+  // ── Section 08: Valuation ──
+  const val = ai.valuation||{};
+  const fvLow = val.fair_value_low||0;
+  const fvHigh = val.fair_value_high||0;
+  const fvCur = d.price||0;
+  let fvBarHTML = '';
+  if(fvLow>0 && fvHigh>0 && fvHigh>fvLow){
+    const pinPct = Math.max(0, Math.min(100, ((fvCur-fvLow)/(fvHigh-fvLow)*100)||0));
+    const positionLabel = fvCur<fvLow ? tr.fv_below : fvCur>fvHigh ? tr.fv_above : tr.fv_in;
+    fvBarHTML = `
+      <div class="fv-wrap">
+        <div class="fv-head">${tr.fair_value_range}</div>
+        <div class="fv-nums"><span class="fv-low">$${fvLow}</span><span style="font-size:11px;color:var(--muted)">${tr.fair_value_range}</span><span class="fv-high">$${fvHigh}</span></div>
+        <div class="fv-trk"><div class="fv-range" style="width:100%"></div><div class="fv-pin" style="left:${pinPct}%"></div></div>
+        <div class="fv-cur">${fmtC(fvCur)} · ${positionLabel}</div>
+        ${val.wacc_used?`<div class="fv-wacc">${tr.wacc_note} ${val.wacc_used}%</div>`:''}
+      </div>`;
+  }
+  // Multi-method valuation table — uses backend-computed values
+  const vMethods = d.valuation_methods || {};
+  const methodRows = [];
+  const cur = d.price || 0;
+  const _vrow = (key, methodName) => {
+    const v = vMethods[key];
+    if(!v || !v.fair_value) return;
+    const upside = cur>0 ? ((v.fair_value - cur)/cur*100) : 0;
+    const upCol = upside>0?'var(--green)':'var(--red)';
+    const upSign = upside>=0?'+':'';
+    methodRows.push(`<tr>
+      <td><strong>${esc(v.method||methodName)}</strong>${v.note?`<div style="font-size:10px;color:var(--muted);font-weight:400;margin-top:2px">${esc(v.note)}</div>`:''}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">$${v.fair_value.toFixed(2)}</td>
+      <td style="text-align:right;color:${upCol};font-weight:700;font-variant-numeric:tabular-nums">${upSign}${upside.toFixed(1)}%</td>
+    </tr>`);
+  };
+  _vrow('pe_relative',          'P/E relative');
+  _vrow('ev_ebitda_relative',   'EV/EBITDA relative');
+  _vrow('dcf',                   'DCF (2-stage)');
+  // Add AI fair value range as 4th method
+  if(val.fair_value_low && val.fair_value_high){
+    const mid = (val.fair_value_low + val.fair_value_high)/2;
+    const upside = cur>0 ? ((mid - cur)/cur*100) : 0;
+    const upCol = upside>0?'var(--green)':'var(--red)';
+    const upSign = upside>=0?'+':'';
+    methodRows.push(`<tr>
+      <td><strong>${LANG==='es'?'IA — rango integrado':'AI — integrated range'}</strong><div style="font-size:10px;color:var(--muted);font-weight:400;margin-top:2px">${LANG==='es'?'Rango sintetizado del análisis institucional':'Synthesized range from institutional analysis'}</div></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">$${val.fair_value_low}–$${val.fair_value_high}</td>
+      <td style="text-align:right;color:${upCol};font-weight:700;font-variant-numeric:tabular-nums">${upSign}${upside.toFixed(1)}%</td>
+    </tr>`);
+  }
+  // Consensus
+  if(an.target_price){
+    const upside = cur>0 ? ((an.target_price - cur)/cur*100) : 0;
+    const upCol = upside>0?'var(--green)':'var(--red)';
+    const upSign = upside>=0?'+':'';
+    methodRows.push(`<tr>
+      <td><strong>${LANG==='es'?'Consenso de analistas':'Analyst consensus'}</strong><div style="font-size:10px;color:var(--muted);font-weight:400;margin-top:2px">${an.total||0} ${LANG==='es'?'analistas cubriendo el valor':'analysts covering the stock'}</div></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">$${Number(an.target_price).toFixed(2)}</td>
+      <td style="text-align:right;color:${upCol};font-weight:700;font-variant-numeric:tabular-nums">${upSign}${upside.toFixed(1)}%</td>
+    </tr>`);
+  }
+  const multiValHTML = methodRows.length ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Valoración multi-método':'Multi-method valuation'}</div>
+    <table class="data-tbl" style="margin-top:8px">
+      <thead><tr>
+        <th>${LANG==='es'?'Método':'Method'}</th>
+        <th style="text-align:right">${LANG==='es'?'Valor justo implícito':'Implied fair value'}</th>
+        <th style="text-align:right">${LANG==='es'?'Frente a cotización':'vs current price'}</th>
+      </tr></thead>
+      <tbody>${methodRows.join('')}</tbody>
+    </table>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'Cada método aplica supuestos distintos; el valor real probable está dentro del rango que dibujan estos métodos.':'Each method uses different assumptions; the likely fair value lies somewhere within the range these methods describe.'}</div>` : '';
+
+  // DCF details when available
+  const dcfM = vMethods.dcf || {};
+  const dcfDetailsHTML = dcfM.fair_value ? `
+    <div class="albl" style="margin-top:14px">${LANG==='es'?'Supuestos del DCF (2 etapas)':'DCF assumptions (2-stage)'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">WACC</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.wacc_used}%</div></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'Crec. alto':'High growth'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.high_growth}%</div></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'Crec. terminal':'Terminal g'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.terminal_growth}%</div></div>
+      ${dcfM.tv_pct_of_ev?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'VT % del EV':'TV as % of EV'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.tv_pct_of_ev}%</div></div>`:''}
+    </div>` : '';
+
+  // ── Advanced valuation overlays: Reverse DCF + WACC×g sensitivity (computed server-side) ──
+  const rdcf = d.reverse_dcf||null;
+  const sens = d.dcf_sensitivity||null;
+  const sbc  = d.sbc_analysis||null;
+  const qoe  = d.quality_of_earnings||null;
+  const reverseDcfHTML = rdcf ? `
+    <div style="margin-top:14px;padding:14px 16px;background:linear-gradient(135deg,rgba(15,45,107,.05),rgba(37,99,235,.02));border-radius:8px;border-left:3px solid var(--blue)">
+      <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'DCF inverso · crecimiento implícito':'Reverse DCF · implied growth'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'WACC usado':'WACC used'}</div><div style="font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${rdcf.wacc}%</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Crecimiento FCF implícito (5a)':'Implied 5y FCF growth'}</div><div style="font-size:18px;font-weight:800;color:var(--blue2);font-variant-numeric:tabular-nums">${rdcf.implied_growth_pct}%</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Crecimiento terminal':'Terminal g'}</div><div style="font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${rdcf.terminal_g}%</div></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic;line-height:1.4">${LANG==='es'?'El precio actual exige este crecimiento de FCF durante 5 años para justificar la capitalización.':'The current market cap implicitly requires this FCF growth rate over the next 5 years.'} ${esc(rdcf.method||'')}</div>
+    </div>`:'';
+  const sensTableHTML = sens && sens.matrix_fair_value ? `
+    <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px">
+      <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">${LANG==='es'?'Sensibilidad DCF · valor razonable por celda':'DCF sensitivity · fair value per cell'}</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'WACC ↓ / g →':'WACC ↓ / g →'}</th>
+          ${sens.g_axis.map(g=>`<th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${g}%</th>`).join('')}
+        </tr></thead>
+        <tbody>
+        ${sens.matrix_fair_value.map((row,i)=>`<tr>
+          <td style="padding:6px 8px;font-weight:700;color:var(--ink)">${sens.wacc_axis[i]}%</td>
+          ${row.map(v=>{ if(v===null) return '<td style="padding:6px 8px;text-align:right;color:var(--muted)">—</td>'; const cur=sens.current_price||0; const c = v>cur*1.1?'var(--green)':v<cur*0.9?'var(--red)':'var(--ink)'; return `<td style="padding:6px 8px;text-align:right;color:${c};font-weight:600">$${v.toFixed(0)}</td>`; }).join('')}
+        </tr>`).join('')}
+        </tbody>
+      </table></div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:8px;font-style:italic">${LANG==='es'?`Precio actual $${sens.current_price}. Verde = fair value > precio actual +10%; rojo = < precio actual −10%.`:`Current price $${sens.current_price}. Green = fair value > current price +10%; red = < current price −10%.`}</div>
+    </div>`:'';
+  const sbcHTML = sbc ? `
+    <div style="margin-top:14px;padding:14px 16px;background:rgba(245,158,11,.05);border-left:3px solid var(--amber);border-radius:8px">
+      <div style="font-size:10px;font-weight:800;color:#a06300;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'Compensación con acciones · calidad de FCF':'Stock-based compensation · FCF quality'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">SBC (anual)</div><div style="font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${esc(sbc.sbc_str||'—')}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">SBC / Revenue</div><div style="font-size:16px;font-weight:800;color:${sbc.sbc_rev_pct>10?'var(--red)':sbc.sbc_rev_pct>5?'var(--amber)':'var(--green)'};font-variant-numeric:tabular-nums">${sbc.sbc_rev_pct!=null?sbc.sbc_rev_pct+'%':'—'}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">SBC / FCF</div><div style="font-size:16px;font-weight:800;color:${sbc.sbc_fcf_pct>30?'var(--red)':sbc.sbc_fcf_pct>15?'var(--amber)':'var(--green)'};font-variant-numeric:tabular-nums">${sbc.sbc_fcf_pct!=null?sbc.sbc_fcf_pct+'%':'—'}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Margen FCF ex-SBC':'FCF margin ex-SBC'}</div><div style="font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${sbc.fcf_ex_sbc_margin_pct!=null?sbc.fcf_ex_sbc_margin_pct+'%':'—'}</div></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic">${esc(sbc.note||'')}</div>
+    </div>`:'';
+  const qoeHTML = qoe && qoe.sloan != null ? `
+    <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px">
+      <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'Calidad de beneficios · Sloan accruals':'Quality of earnings · Sloan accruals'}</div>
+      <div style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">Sloan ratio</div><div style="font-size:20px;font-weight:800;color:${qoe.flag==='aggressive_accruals'?'var(--red)':qoe.flag==='conservative_accruals'?'var(--amber)':'var(--green)'};font-variant-numeric:tabular-nums">${qoe.sloan}</div></div>
+        <div style="font-size:11.5px;color:#3d4f70;line-height:1.5;max-width:560px">${LANG==='es'?'Sloan = (BN − FCO) / Activos medios. Banda saludable: |Sloan| < 0.10. > 0.10 sugiere acumulaciones agresivas (calidad débil). < −0.10 conservador.':'Sloan = (NI − CFO) / Avg Assets. Healthy band: |Sloan| < 0.10. > 0.10 = aggressive accruals (weak quality). < −0.10 = conservative.'}</div>
+      </div>
+    </div>`:'';
+  // Combine and inject at end of section 8 — these naturally extend the Valuation/Quality analysis
+  const s08_extras = reverseDcfHTML + sensTableHTML + sbcHTML + qoeHTML;
+  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}${invalidationBox(val.invalidation)}${s08_extras}`;
 
 
-def get_yf_data(ticker):
-    """Yahoo Finance quoteSummary — no API key needed. Third data source. Retries with alt UA on failure."""
-    modules = 'defaultKeyStatistics,financialData,summaryDetail,calendarEvents,cashflowStatementHistory,majorHoldersBreakdown'
-    url = f'https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={urllib.parse.quote(modules)}'
-    data = None
-    for attempt in range(3):
-        try:
-            data = _yf_fetch(url, attempt)
-            if data and (data.get('quoteSummary') or {}).get('result'):
-                break
-        except Exception:
-            data = None
-            time.sleep(0.4)
-            continue
-    if not data:
-        return {}
-    try:
-        result = (data.get('quoteSummary') or {}).get('result') or []
-        if not result: return {}
-        obj = result[0]
-        ks  = obj.get('defaultKeyStatistics') or {}
-        fd  = obj.get('financialData') or {}
-        sd  = obj.get('summaryDetail') or {}
-        ce  = obj.get('calendarEvents') or {}
-        cfh = obj.get('cashflowStatementHistory') or {}
-        mhb = obj.get('majorHoldersBreakdown') or {}
+  // ── Section 09: Competitors ──
+  const comp = ai.competitors||{};
+  let compTable = comp.table||[];
+  // JS-level fallback: build from d.peer_comparison if AI returned empty table
+  if(!compTable.length){
+    const pm = m;
+    compTable = [{ticker:d.ticker, name:d.name, pe:pm.pe, ev_ebitda:pm.ev_ebitda,
+      rev_growth_pct:pm.rev_growth, net_margin_pct:pm.net_margin,
+      gross_margin_pct:pm.gross_margin, roe_pct:pm.roe,
+      market_cap_m:pm.market_cap_m, is_subject:true}]
+      .concat((d.peer_comparison||[]).map(p=>({
+        ticker:p.ticker, name:p.name||p.ticker,
+        pe:p.pe, ev_ebitda:p.ev_ebitda,
+        rev_growth_pct:p.rev_growth, net_margin_pct:p.net_margin,
+        gross_margin_pct:p.gross_margin, roe_pct:p.roe,
+        market_cap_m:p.market_cap, is_subject:false
+      })));
+  }
+  const fmtMcap = v => {
+    if(v==null||isNaN(v)) return 'N/A';
+    if(v>=1e6) return '$'+(v/1e6).toFixed(2)+'T';
+    if(v>=1000) return '$'+(v/1000).toFixed(1)+'B';
+    return '$'+Number(v).toFixed(0)+'M';
+  };
+  const cmpLbl = (k1,k2) => LANG==='es'?k1:k2;
+  const compTableHTML = compTable.length>1?`
+    <div class="chart-box-full" style="margin-top:14px">
+      <div class="chart-lbl">${cmpLbl('Comparativa multidimensional (escala 0–10, mayor = mejor)','Multi-dimensional comparison (0–10 scale, higher = better)')}</div>
+      <div class="ch-wrap" style="height:300px"><canvas id="peerRadar"></canvas></div>
+      <div class="chart-note">${cmpLbl('P/E y VE/EBITDA invertidos: ratio más bajo = puntuación más alta','P/E and EV/EBITDA are inverted: lower ratio = higher score')}</div>
+    </div>
+    <table class="data-tbl" style="margin-top:16px">
+      <thead><tr>
+        <th>${cmpLbl('Empresa','Company')}</th>
+        <th>Mkt Cap</th><th>P/E</th><th>EV/EBITDA</th>
+        <th>${cmpLbl('Crec. Ing.','Rev Growth')}</th>
+        <th>${cmpLbl('M. Neto','Net M')}</th>
+        <th>${cmpLbl('M. Bruto','Gross M')}</th>
+        <th>ROE</th>
+      </tr></thead>
+      <tbody>${compTable.map(r=>`
+        <tr class="${r.is_subject?'hi':''}">
+          <td><strong>${esc(r.ticker||'—')}</strong> <span style="font-size:10px;font-weight:400;color:var(--muted)">${esc(r.name||'')}</span></td>
+          <td>${fmtMcap(r.market_cap_m)}</td>
+          <td>${r.pe!=null?r.pe.toFixed(1)+'x':'N/A'}</td>
+          <td>${r.ev_ebitda!=null?r.ev_ebitda.toFixed(1)+'x':'N/A'}</td>
+          <td>${r.rev_growth_pct!=null?(r.rev_growth_pct>=0?'+':'')+r.rev_growth_pct.toFixed(1)+'%':'N/A'}</td>
+          <td>${r.net_margin_pct!=null?r.net_margin_pct.toFixed(1)+'%':'N/A'}</td>
+          <td>${r.gross_margin_pct!=null?r.gross_margin_pct.toFixed(1)+'%':'N/A'}</td>
+          <td>${r.roe_pct!=null?r.roe_pct.toFixed(1)+'%':'N/A'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`:`<div style="font-size:12px;color:var(--muted);margin-top:12px;font-style:italic">${cmpLbl('Datos de comparación no disponibles.','Peer comparison data not available.')}</div>`;
+  const s09 = `<div class="atxt">${para(comp.text||'')}</div>${compTableHTML}${invalidationBox(comp.invalidation)}`;
 
-        def _yf(d, *keys):
-            for k in keys:
-                v = d.get(k)
-                if isinstance(v, dict): v = v.get('raw')
-                if v is not None:
-                    try: return float(v)
-                    except: pass
-            return None
+  // ── Section 10: Scenarios & Verdict (with assumptions + triggers per scenario) ──
+  const sc_ai = ai.scenarios||{};
+  const mkSc = (card, cls) => {
+    if(!card) return '';
+    const pt = card.price_target||0;
+    const upPct = card.upside_pct || card.downside_pct;
+    const isUp = card.upside_pct != null && card.upside_pct != 0;
+    const a = card.assumptions || {};
+    const trigs = card.triggers_to_monitor || [];
+    const assumptionsHTML = (a.revenue_growth_yoy_pct!=null || a.operating_margin_pct!=null || a.implied_pe!=null || a.catalyst) ? `
+      <div style="margin-top:10px;padding:10px;background:rgba(255,255,255,.6);border-radius:6px;border-top:2px solid rgba(0,0,0,.04)">
+        <div style="font-size:9px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${LANG==='es'?'Supuestos':'Assumptions'}</div>
+        ${a.revenue_growth_yoy_pct!=null?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#3d4f70">${LANG==='es'?'Crec. ingresos YoY':'Rev growth YoY'}</span><strong style="font-variant-numeric:tabular-nums">${a.revenue_growth_yoy_pct>=0?'+':''}${a.revenue_growth_yoy_pct}%</strong></div>`:''}
+        ${a.operating_margin_pct!=null?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#3d4f70">${LANG==='es'?'Margen operativo':'Op margin'}</span><strong style="font-variant-numeric:tabular-nums">${a.operating_margin_pct}%</strong></div>`:''}
+        ${a.implied_pe!=null?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#3d4f70">${LANG==='es'?'P/E implícito':'Implied P/E'}</span><strong style="font-variant-numeric:tabular-nums">${a.implied_pe}x</strong></div>`:''}
+        ${a.catalyst?`<div style="font-size:10.5px;color:#3d4f70;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(108,122,153,.2);line-height:1.45"><strong style="color:var(--ink)">${LANG==='es'?'Catalizador:':'Catalyst:'}</strong> ${esc(a.catalyst)}</div>`:''}
+      </div>` : '';
+    const trigsHTML = trigs.length ? `
+      <div style="margin-top:8px;padding:8px 10px;background:rgba(15,45,107,.04);border-radius:6px">
+        <div style="font-size:9px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${LANG==='es'?'Qué monitorizar':'Triggers to monitor'}</div>
+        ${trigs.map(t=>`<div style="font-size:10.5px;color:#3d4f70;line-height:1.4;padding:2px 0">• ${esc(t)}</div>`).join('')}
+      </div>` : '';
+    return `<div class="sc-card ${cls}">
+      <div class="sc-tag">${esc(card.label||cls)}</div>
+      <div class="sc-price">${pt>0?'$'+pt:'N/A'}</div>
+      <div class="sc-updown">${upPct!=null&&upPct!=0?(isUp?'+':'-')+Math.abs(upPct)+'%':'—'}</div>
+      <div class="sc-prob">${card.probability_pct||0}% ${LANG==='es'?'probabilidad':'probability'}</div>
+      <div class="sc-thesis">${para(card.thesis||'')}</div>
+      ${assumptionsHTML}
+      ${trigsHTML}
+    </div>`;
+  };
+  // Hide scenarios entirely when AI section C failed (avoids three N/A cards with stale 33/34/33 probabilities)
+  const aiStatus = (ai._section_status||{});
+  const scenariosFailed = aiStatus.c_macro_risk_owner_val_comp_scen === 'fallback';
+  // Also hide when all three cards lack a real price target (AI returned without filling)
+  const allTargetsMissing = !((sc_ai.bull||{}).price_target) && !((sc_ai.base||{}).price_target) && !((sc_ai.bear||{}).price_target);
+  // Expected return + Kelly card (computed server-side)
+  const er = d.expected_return||null;
+  const expectedReturnHTML = er ? `
+    <div style="margin-top:14px;padding:14px 16px;background:linear-gradient(135deg,rgba(15,45,107,.04),rgba(37,99,235,.02));border-radius:8px;border-left:3px solid var(--blue2)">
+      <div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'Retorno esperado y dimensionamiento':'Expected return & sizing'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Retorno esperado (ponderado)':'Probability-weighted return'}</div><div style="font-size:18px;font-weight:800;color:${er.expected_return_pct>=0?'var(--green)':'var(--red)'};font-variant-numeric:tabular-nums">${er.expected_return_pct>=0?'+':''}${er.expected_return_pct}%</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Asimetría (alza/baja)':'Asymmetry (up/down)'}</div><div style="font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${er.upside_to_downside!=null?er.upside_to_downside.toFixed(2)+'x':'—'}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Kelly trimestral (sugerido)':'Quarter-Kelly (suggested)'}</div><div style="font-size:18px;font-weight:800;color:var(--blue2);font-variant-numeric:tabular-nums">${er.kelly_quarter_pct!=null?er.kelly_quarter_pct+'%':'—'}</div></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic;line-height:1.4">${esc(er.note||'')}</div>
+    </div>`:'';
+  const s10 = (scenariosFailed||allTargetsMissing) ?
+    `<div style="padding:18px;background:rgba(245,158,11,.06);border-left:3px solid var(--amber);border-radius:6px;font-size:12.5px;color:#5b4a13;line-height:1.55">${LANG==='es'?'<strong>Sección no disponible en esta consulta.</strong> El módulo de escenarios bull/base/bear requiere síntesis IA completa y datos de mercado válidos. Reintenta el análisis o consulta las métricas cuantitativas del resto del informe.':'<strong>Section unavailable for this run.</strong> The bull/base/bear scenario module requires full AI synthesis and valid market inputs. Retry the analysis or consult the quantitative metrics in the other sections.'}</div>${expectedReturnHTML}` :
+    `<div class="atxt">${para(sc_ai.text||'')}</div>
+    <div class="sc-grid">${mkSc(sc_ai.bull,'bull')}${mkSc(sc_ai.base,'base')}${mkSc(sc_ai.bear,'bear')}</div>${expectedReturnHTML}`;
 
-        def _pct(v):
-            if v is None: return None
-            return round(v*100, 2) if abs(v) < 3 else round(v, 2)
+  // ── Section 11: SEC Filings ──
+  const sec = ai.sec_filings||{};
+  const discs = sec.key_disclosures||[];
+  const filings = d.sec_filings_list || [];
+  // Map AI summaries to filings by form+date
+  const aiSummaries = sec.filing_summaries || [];
+  const summaryFor = (form, date) => {
+    const m = aiSummaries.find(s => s.form === form && (s.date||'').slice(0,10) === (date||'').slice(0,10));
+    return m ? m.one_line_summary : null;
+  };
 
-        # ── FCF: cashflowStatementHistory first (more accurate), then financialData ──
-        cf_stmts = cfh.get('cashflowStatements') or []
-        fcf_yf = None
-        if cf_stmts:
-            cf0 = cf_stmts[0]
-            fcf_yf = _yf(cf0, 'freeCashFlow')
-            if fcf_yf is None:
-                ocf  = _yf(cf0, 'totalCashFromOperatingActivities')
-                cpx  = _yf(cf0, 'capitalExpenditures')
-                if ocf is not None and cpx is not None:
-                    fcf_yf = ocf - abs(cpx)
-        if fcf_yf is None:
-            fcf_yf = _yf(fd, 'freeCashflow')
+  const filingsHTML = filings.length ? `
+    <div class="albl">${LANG==='es'?'Documentos presentados ante la SEC (últimos)':'Recent SEC filings'}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+      ${filings.map(f=>{
+        const formColor = f.form==='10-K'?'var(--blue)':f.form==='10-Q'?'var(--blue2)':f.form==='8-K'?'var(--amber)':'var(--muted)';
+        const formDesc = {
+          '10-K':LANG==='es'?'Informe anual':'Annual report',
+          '10-Q':LANG==='es'?'Informe trimestral':'Quarterly report',
+          '8-K': LANG==='es'?'Hecho relevante':'Material event',
+          '20-F':LANG==='es'?'Informe anual (no-EE.UU.)':'Annual report (non-US)',
+          '6-K': LANG==='es'?'Informe trimestral (no-EE.UU.)':'Interim report (non-US)',
+          'DEF 14A':LANG==='es'?'Convocatoria de Junta':'Proxy statement',
+          'S-1': LANG==='es'?'Folleto de salida a bolsa':'IPO registration'
+        }[f.form] || '';
+        const link = f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="color:var(--blue2);text-decoration:none;font-size:11px;font-weight:600">${LANG==='es'?'Abrir →':'Open →'}</a>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+        const summary = summaryFor(f.form, f.filed_date);
+        return `<div style="padding:10px 14px;background:var(--surface);border-radius:6px;border-left:3px solid ${formColor}">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="min-width:56px"><span style="font-size:12px;font-weight:800;color:${formColor};letter-spacing:.02em">${esc(f.form)}</span></div>
+            <div style="flex:1">
+              <div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(formDesc)}</div>
+              <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${LANG==='es'?'Presentado':'Filed'}: ${esc(f.filed_date||'—')}${f.period?` · ${LANG==='es'?'período':'period'}: ${esc(f.period)}`:''}</div>
+            </div>
+            ${link}
+          </div>
+          ${summary?`<div style="font-size:11.5px;color:#3d4f70;line-height:1.5;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(108,122,153,.18)"><strong style="color:var(--ink)">${LANG==='es'?'Contenido:':'Content:'}</strong> ${esc(summary)}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>` : '';
+  const s11 = `
+    <div class="atxt">${para(sec.text||'')}</div>
+    ${discs.length?`<div class="albl">${tr.key_disc}</div><div class="disc-list">${discs.map(x=>`<div class="disc-item">${esc(x)}</div>`).join('')}</div>`:''}
+    ${filingsHTML}`;
 
-        rev_yf   = _yf(fd, 'totalRevenue')
-        fcf_m_yf = round(fcf_yf/rev_yf*100, 1) if (fcf_yf and rev_yf and rev_yf > 0) else None
-        fcf_s_yf = None
-        if fcf_yf is not None:
-            fcf_s_yf = f"${fcf_yf/1e9:.1f}B" if abs(fcf_yf) >= 1e9 else f"${fcf_yf/1e6:.0f}M"
+  // ── Metric rows sidebar (with source badges) ──
+  const mRows = [
+    {n:tr.mn_pe,    v:fmt(m.pe),                                     b:bdg('pe',parseFloat(m.pe)),  k:'pe'},
+    {n:tr.mn_pef,   v:fmt(m.pe_forward),                             b:'', k:'pe_forward'},
+    {n:tr.mn_pb,    v:fmt(m.pb),                                     b:'', k:'pb'},
+    {n:tr.mn_ev,    v:m.ev_ebitda!=null?fmt(m.ev_ebitda)+'x':'N/A',  b:'', k:'ev_ebitda'},
+    {n:tr.mn_peg,   v:m.peg!=null?fmt(m.peg,2):'N/A',                b:'', k:'peg'},
+    {n:tr.mn_ps,    v:m.ps!=null?fmt(m.ps,1)+'x':'N/A',              b:'', k:'ps'},
+    {n:tr.mn_nm,    v:fmtP(m.net_margin),  b:bdg('mg',parseFloat(m.net_margin)), k:'net_margin'},
+    {n:tr.mn_om,    v:fmtP(m.op_margin),   b:bdg('mg',parseFloat(m.op_margin)),  k:'op_margin'},
+    {n:tr.mn_gm,    v:fmtP(m.gross_margin),b:'', k:'gross_margin'},
+    {n:tr.mn_fcfm,  v:fmtP(m.fcf_margin),  b:'', k:'fcf_margin'},
+    {n:tr.mn_roe,   v:fmtP(m.roe),         b:bdg('roe',parseFloat(m.roe)), k:'roe'},
+    {n:tr.mn_roa,   v:fmtP(m.roa),         b:'', k:'roa'},
+    {n:tr.mn_roic,  v:fmtP(m.roic),        b:'', k:'roic'},
+    {n:tr.mn_rg,    v:fmtP(m.rev_growth),  b:bdg('gr',parseFloat(m.rev_growth)), k:'rev_growth'},
+    {n:tr.mn_eg,    v:fmtP(m.eps_growth),  b:'', k:'eps_growth'},
+    {n:tr.mn_eps,   v:fmtC(m.eps),         b:'', k:'eps'},
+    {n:tr.mn_de,    v:fmt(m.de),           b:bdg('de',parseFloat(m.de)), k:'de'},
+    {n:tr.mn_cr,    v:fmt(m.current_ratio),b:'', k:'current_ratio'},
+    {n:tr.mn_qr,    v:fmt(m.quick_ratio),  b:'', k:''},
+    {n:tr.mn_div,   v:fmtP(m.div_yield),   b:'', k:'div_yield'},
+    {n:tr.mn_fcf,   v:m.fcf||'N/A',        b:'', k:'fcf'},
+    {n:tr.mn_beta,  v:fmt(m.beta),         b:'', k:'beta'},
+    {n:tr.mn_short, v:m.short_pct!=null?fmtP(m.short_pct):'N/A',  b:'', k:'short_pct'},
+    {n:tr.mn_w52h,  v:fmtC(m.week52_high), b:'', k:''},
+    {n:tr.mn_w52l,  v:fmtC(m.week52_low),  b:'', k:''},
+    {n:tr.mn_score, v:`${sc}/100`, b:'', vc:sc_c, k:''},
+  ];
 
-        # ── Ownership: majorHoldersBreakdown is more accurate than defaultKeyStatistics ──
-        inst_pct = _yf(mhb, 'institutionsPercentHeld')
-        insi_pct = _yf(mhb, 'insiderPercentHeld')
-        if inst_pct is None: inst_pct = _yf(ks, 'heldPercentInstitutions')
-        if insi_pct is None: insi_pct = _yf(ks, 'heldPercentInsiders')
-        if inst_pct is not None and inst_pct < 2: inst_pct = round(inst_pct*100, 2)
-        if insi_pct is not None and insi_pct < 2: insi_pct = round(insi_pct*100, 2)
+  const priceHTML = d.price ? `<div><div class="rh-price-num">${fmtC(d.price)}</div><div class="rh-price-chg ${(d.change||0)>=0?'up':'dn'}">${(d.change||0)>=0?'+':''}${(d.change||0).toFixed(2)} (${(d.change_pct||0).toFixed(2)}%)</div></div>` : '';
 
-        mc_yf = _yf(sd, 'marketCap')
-        earn_dates = (ce.get('earnings') or {}).get('earningsDate') or []
-        next_earn = None
-        for ed in earn_dates:
-            ts = ed.get('raw') if isinstance(ed, dict) else ed
-            if ts:
-                try: next_earn = time.strftime('%Y-%m-%d', time.gmtime(float(ts))); break
-                except: pass
+  const ra = document.getElementById('ra');
+  ra.innerHTML = `<div class="report">
+    <div class="rh">
+      <div class="rh-left">
+        <div class="rh-logo">${d.logo?`<img src="${esc(d.logo)}" alt="" onerror="this.parentNode.innerHTML='<div class=rh-logo-fb>${esc(d.ticker.slice(0,2))}</div>'">`:`<div class="rh-logo-fb">${esc(d.ticker.slice(0,2))}</div>`}</div>
+        <div><div class="rh-ticker">${esc(d.ticker)}</div><div class="rh-name">${esc(d.name)}</div><div class="rh-exch">${esc(d.exchange||'')} · ${esc(d.industry||'')}</div></div>
+      </div>
+      <div class="rh-right">${priceHTML}<div><div class="rh-score-num" style="color:${sc_c}">${sc}</div><div class="rh-score-lbl">${tr.score_lbl}</div></div></div>
+    </div>
+    <div class="disc-banner">${tr.disclaimer}</div>
+    <div class="macro-strip">
+      <div class="ms-item"><div class="ms-lbl">${tr.macro_10y}</div><div class="ms-val">${(mac.risk_free_rate||0).toFixed(2)}%</div></div>
+      <div class="ms-item"><div class="ms-lbl">${tr.macro_ff}</div><div class="ms-val">${(mac.policy_rate||0).toFixed(2)}%</div></div>
+      <div class="ms-item"><div class="ms-lbl">${tr.macro_cpi}</div><div class="ms-val">${(mac.cpi_yoy||0).toFixed(1)}%</div></div>
+      <div class="ms-item"><div class="ms-lbl">${tr.macro_pmi}</div><div class="ms-val">${(mac.pmi_composite||0).toFixed(1)}</div></div>
+      <div class="ms-item"><div class="ms-lbl">${tr.macro_vix}</div><div class="ms-val">${(mac.vix||0).toFixed(1)}</div></div>
+      <div class="ms-item"><div class="ms-lbl">${tr.macro_hy}</div><div class="ms-val">${mac.credit_spread_hy||'—'}bps</div></div>
+    </div>
+    <div class="sbar">${pillars.map((p,i)=>`<div class="sb-i" data-pillar="${['fundamental','accounting','analyst','context'][i]}" onclick="toggleBreakdown(this)" style="cursor:pointer" title="${LANG==='es'?'Pulsa para ver el desglose detallado':'Click to expand the score breakdown'}"><div class="sb-lbl">${p.label} <span style="font-size:9px;color:var(--muted);font-weight:500;opacity:.7">▾</span></div><div class="sb-val" style="color:${p.color}">${p.val}<span style="font-size:10px;color:var(--muted);font-weight:500"> /${p.max}</span></div><div class="sb-trk"><div class="sb-fill" style="width:${(p.val/p.max*100).toFixed(0)}%;background:${p.color}"></div></div></div>`).join('')}</div>
+    ${(()=>{
+      const bd = (d.score && d.score.breakdown) || {};
+      const pids = ['fundamental','accounting','analyst','context'];
+      const labelMap = {fundamental:tr.pillar_fund, accounting:tr.pillar_acc, analyst:tr.pillar_an, context:tr.pillar_ctx};
+      const blocks = pids.map(pk=>{
+        const items = bd[pk]||[]; if(!items.length) return '';
+        return `<div data-bd="${pk}" style="display:none;margin-top:6px;padding-top:10px;border-top:1px dashed rgba(108,122,153,.2)">
+          <div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${labelMap[pk]} — ${LANG==='es'?'desglose':'breakdown'}</div>
+          ${items.map(x=>{const p=x.pts||0;const c=p>0?'#16a34a':p<0?'#dc2626':'#6b7a99';const sign=p>0?'+':p<0?'':'·';return `<div style="display:flex;justify-content:space-between;gap:14px;padding:5px 0;font-size:12px;color:#3d4f70"><span style="flex:1">${esc(x.reason||'')}</span><span style="color:${c};font-weight:700;font-variant-numeric:tabular-nums;min-width:36px;text-align:right">${sign}${p}</span></div>`;}).join('')}
+        </div>`;
+      }).join('');
+      return blocks ? `<div id="scoreBreakdown" style="display:none;background:linear-gradient(135deg,rgba(15,45,107,.045),rgba(37,99,235,.02));border-radius:8px;padding:14px 18px;margin:-8px 24px 14px;border-left:3px solid var(--blue2)">${blocks}</div>` : '';
+    })()}
+    <div class="verdict ${vc}"><div class="vi">${vi}</div><div><div class="vt">${esc(es_.verdict||'')}</div><div class="vs">${esc(es_.verdict_sub||'')}</div></div></div>
+    <div class="rbody">
+      <div class="rleft">
+        ${buildSection('01', tr.sec_01, s01, true)}
+        ${buildSection('02', tr.sec_02, s02)}
+        ${buildSection('03', tr.sec_03, s03)}
+        ${buildSection('04', tr.sec_04, s04)}
+        ${buildSection('05', tr.sec_05, s05)}
+        ${buildSection('06', tr.sec_06, s06)}
+        ${buildSection('07', tr.sec_07, s07)}
+        ${buildSection('08', tr.sec_08, s08)}
+        ${buildSection('09', tr.sec_09, s09)}
+        ${buildSection('10', tr.sec_10, s10)}
+        ${buildSection('11', tr.sec_11, s11)}
+      </div>
+      <div class="rright">
+        <div class="mg-lbl">${tr.key_metrics}</div>
+        ${mRows.map(r=>`<div class="mrow"><span class="mn">${r.n}${r.k?srcBadge(r.k):''}</span><div class="mv-wrap"><span class="mv" ${r.vc?`style="color:${r.vc}"`:''}>${r.v}</span>${r.b}</div></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
 
-        return {
-            'pe_forward':       _yf(ks, 'forwardPE'),
-            'ev_ebitda':        _yf(ks, 'enterpriseToEbitda'),
-            'pb':               _yf(ks, 'priceToBook'),
-            'beta':             _yf(ks, 'beta'),
-            'eps_fwd':          _yf(ks, 'forwardEps'),
-            'peg_ratio':        _yf(ks, 'pegRatio'),
-            'price_to_sales':   _yf(ks, 'priceToSalesTrailing12Months'),
-            'short_pct':        _pct(_yf(ks, 'shortPercentOfFloat')),
-            'enterprise_value': _yf(ks, 'enterpriseValue'),
-            'pct_institutions': inst_pct,
-            'pct_insiders':     insi_pct,
-            'fcf_raw':          fcf_yf,
-            'fcf_str':          fcf_s_yf,
-            'fcf_margin':       fcf_m_yf,
-            'rev_ttm':          rev_yf,
-            'op_margin':        _pct(_yf(fd, 'operatingMargins')),
-            'net_margin':       _pct(_yf(fd, 'profitMargins')),
-            'roe':              _pct(_yf(fd, 'returnOnEquity')),
-            'roa':              _pct(_yf(fd, 'returnOnAssets')),
-            'rev_growth':       _pct(_yf(fd, 'revenueGrowth')),
-            'eps_growth':       _pct(_yf(fd, 'earningsGrowth')),
-            'gross_margin':     _pct(_yf(fd, 'grossMargins')),
-            'div_yield':        _pct(_yf(sd, 'dividendYield')),
-            'target_price':     _yf(fd, 'targetMeanPrice', 'targetMedianPrice'),
-            'current_ratio':    _yf(fd, 'currentRatio'),
-            'de':               _yf(fd, 'debtToEquity'),
-            'week52_high':      _yf(sd, 'fiftyTwoWeekHigh'),
-            'week52_low':       _yf(sd, 'fiftyTwoWeekLow'),
-            'market_cap':       round(mc_yf/1e6) if mc_yf else None,
-            'upcoming_earnings': next_earn,
+  // Render section 01 charts (it's open by default)
+  setTimeout(()=>{ /* no charts in s01 */ }, 50);
+ } catch(renderErr){
+  console.error('renderReport crash:', renderErr);
+  document.getElementById('ra').innerHTML=`<div class="err-box"><div class="err-lbl">Render Error</div><div class="err-msg">${esc(renderErr.message||'Unknown error in renderReport')}<br><br><small>${esc(renderErr.stack||'')}</small></div></div>`;
+ }
+}
+
+function toggleBreakdown(el){
+  const pk = el.getAttribute('data-pillar');
+  const wrap = document.getElementById('scoreBreakdown');
+  if(!wrap) return;
+  const target = wrap.querySelector(`[data-bd="${pk}"]`);
+  if(!target) return;
+  const isOpen = wrap.style.display === 'block' && target.style.display === 'block';
+  // hide all
+  wrap.querySelectorAll('[data-bd]').forEach(x=>x.style.display='none');
+  if(isOpen){ wrap.style.display = 'none'; }
+  else { wrap.style.display = 'block'; target.style.display = 'block'; }
+}
+// ── Source badge for sidebar metrics ──
+function srcBadge(metricKey){
+  const src = (window._D && window._D.metrics_sources && window._D.metrics_sources[metricKey]) || null;
+  if(!src) return '';
+  const colors = {FH:'#0f2d6b', AV:'#2563eb', YF:'#7c3aed', SEC:'#16a34a', CALC:'#6b7a99'};
+  const tip = {FH:'Finnhub', AV:'Alpha Vantage', YF:'Yahoo Finance', SEC:'SEC EDGAR (10-K)', CALC:LANG==='es'?'Calculado matemáticamente':'Mathematically derived'}[src] || src;
+  return `<span class="src-tag" title="${esc(tip)}" style="display:inline-block;font-size:8.5px;font-weight:800;padding:1px 4px;margin-left:5px;border-radius:3px;background:${colors[src]||'#888'};color:#fff;letter-spacing:.04em;vertical-align:middle">${src}</span>`;
+}
+
+// ── Invalidation conditions box (renders at end of each section) ──
+function invalidationBox(invs){
+  // Strip schema-placeholder leakage from AI output (institutional report should never show template text)
+  invs = (invs||[]).filter(iv=>{
+    if(!iv) return false;
+    const t = (iv.trigger || '').toString().trim();
+    if(!t || t.length < 12) return false;
+    if(/^REPLACE\b/i.test(t)) return false;
+    if(/≤\s*25 words/i.test(t)) return false;
+    if(/concrete falsifiable/i.test(t)) return false;
+    if(/^(specific|name of metric|specific numeric|specific figure)/i.test(t)) return false;
+    if(/falsifiable statement$/i.test(t)) return false;
+    return true;
+  });
+  if(!invs || !invs.length) return '';
+  const head = LANG==='es'
+    ? 'Esta lectura quedaría invalidada si:'
+    : 'This thesis would be invalidated if:';
+  const items = invs.slice(0,4).map(iv=>{
+    const op = iv.operator==='<'?'<':iv.operator==='>'?'>':iv.operator==='='?'=':iv.operator||'';
+    const horizonMap = {'P1Q':LANG==='es'?'próximo trimestre':'next quarter','P2Q':LANG==='es'?'próximos 2 trimestres':'next 2 quarters','P1Y':LANG==='es'?'próximos 12 meses':'next 12 months'};
+    const horizon = horizonMap[iv.horizon] || iv.horizon || '';
+    return `<div style="display:flex;gap:10px;padding:8px 12px;background:rgba(217,119,6,.04);border-radius:6px;border-left:3px solid var(--amber)">
+      <span style="color:var(--amber);font-size:14px;line-height:1.2;font-weight:700">⚠</span>
+      <div style="flex:1;font-size:12.5px;color:#3d4f70;line-height:1.55">
+        <strong style="color:var(--ink)">${esc(iv.trigger||'')}</strong>
+        ${iv.metric?`<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums">${esc(iv.metric)} ${op} ${esc(String(iv.value||''))}${horizon?' · '+horizon:''}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:14px;padding:12px 14px;background:linear-gradient(135deg,rgba(217,119,6,.05),rgba(217,119,6,.02));border-radius:8px;border:1px solid rgba(217,119,6,.18)">
+    <div style="font-size:10px;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${head}</div>
+    <div style="display:flex;flex-direction:column;gap:5px">${items}</div>
+  </div>`;
+}
+
+function buildSection(num, title, content, openByDefault=false){
+  const disp = openByDefault?'block':'none';
+  const rot  = openByDefault?'rotate(180deg)':'';
+  if(openByDefault) _openedSecs.add(num);
+  return `
+    <div class="report-sec">
+      <div class="sec-hdr" onclick="toggleSec('${num}')">
+        <div class="sec-hdr-l"><span class="sec-n">${num}</span><span class="sec-t">${title}</span></div>
+        <div class="sec-arr" id="a${num}" style="transform:${rot}">▼</div>
+      </div>
+      <div class="sec-body" id="b${num}" style="display:${disp}">${content}</div>
+    </div>`;
+}
+
+// ═══ Watchlist ═══
+let watchlist = JSON.parse(localStorage.getItem('finscope_watchlist')||'[]');
+
+function renderWatchlist(){
+  const el = document.getElementById('tlist'); if(!el) return;
+  if(!watchlist.length){
+    el.innerHTML = `<div class="tl-empty">${LANG==='es'?'Aún no has añadido tickers.':'No tickers added yet.'}</div>`;
+    return;
+  }
+  el.innerHTML = watchlist.map(t=>`<div class="titem"><span class="ti-sym">${esc(t)}</span><button class="ti-rm" onclick="removeTicker('${esc(t)}')">✕</button></div>`).join('');
+}
+function addTicker(){
+  const inp = document.getElementById('addInp');
+  const tk = (inp.value||'').trim().toUpperCase();
+  if(!tk){ inp.value=''; return; }
+  if(watchlist.includes(tk)){ inp.value=''; return; }
+  if(watchlist.length >= 5){ alert(LANG==='es'?'Máximo 5 tickers.':'Maximum 5 tickers.'); return; }
+  if(!/^[A-Z.\-]{1,10}$/.test(tk)){ alert(LANG==='es'?'Ticker inválido.':'Invalid ticker.'); return; }
+  watchlist.push(tk);
+  localStorage.setItem('finscope_watchlist', JSON.stringify(watchlist));
+  inp.value='';
+  renderWatchlist();
+}
+function removeTicker(tk){
+  watchlist = watchlist.filter(x=>x!==tk);
+  localStorage.setItem('finscope_watchlist', JSON.stringify(watchlist));
+  renderWatchlist();
+}
+
+async function subscribeWL(){
+  const tr = I18N[LANG];
+  const emailInp = document.getElementById('emailInp');
+  const msg = document.getElementById('portMsg');
+  const btn = document.getElementById('subBtn');
+  const email = (emailInp.value||'').trim().toLowerCase();
+  msg.className = 'port-msg';
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    msg.className = 'port-msg err'; msg.textContent = tr.wl_email_invalid; return;
+  }
+  if(!watchlist.length){
+    msg.className = 'port-msg err'; msg.textContent = tr.wl_min; return;
+  }
+  btn.disabled = true; btn.textContent = tr.wl_sending;
+  try{
+    const resp = await fetch('/api/watchlist-subscribe', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, tickers: watchlist, lang: LANG })
+    });
+    if(resp.ok){
+      const data = await resp.json();
+      if(data.ok){
+        if(data.email_sent === false){
+          // Saved but email not delivered — show partial success
+          msg.className = 'port-msg err';
+          msg.textContent = LANG==='es'
+            ? '⚠ Suscripción guardada, pero el envío del correo falló. Revisa la configuración de Resend en Vercel (RESEND_API_KEY y FROM_EMAIL).'
+            : '⚠ Subscription saved, but email delivery failed. Check Resend config in Vercel (RESEND_API_KEY and FROM_EMAIL).';
+        } else {
+          msg.className = 'port-msg ok'; msg.textContent = tr.wl_ok;
+          emailInp.value = '';
         }
-    except:
-        return {}
-
-def get_av_data(ticker):
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        f_ov  = ex.submit(_av, 'OVERVIEW', {'symbol':ticker}, 10)
-        f_inc = ex.submit(_av, 'INCOME_STATEMENT', {'symbol':ticker}, 12)
-        f_cf  = ex.submit(_av, 'CASH_FLOW', {'symbol':ticker}, 12)
-        try:    ov      = f_ov.result(timeout=11) or {}
-        except: ov      = {}
-        try:    inc_rep = (f_inc.result(timeout=13) or {}).get('annualReports') or []
-        except: inc_rep = []
-        try:    cf_rep  = (f_cf.result(timeout=13) or {}).get('annualReports') or []
-        except: cf_rep  = []
-    inc_rep = inc_rep[:4]; cf_rep = cf_rep[:4]
-
-    ev_ebitda  = _sf(ov.get('EVToEBITDA'));      pe_ttm    = _sf(ov.get('TrailingPE'))
-    pe_forward = _sf(ov.get('ForwardPE'));        pb        = _sf(ov.get('PriceToBookRatio'))
-    net_margin = _sfpct(ov.get('ProfitMargin'));  op_margin = _sfpct(ov.get('OperatingMarginTTM'))
-    roe        = _sfpct(ov.get('ReturnOnEquityTTM')); roa   = _sfpct(ov.get('ReturnOnAssetsTTM'))
-    rev_growth = _sfpct(ov.get('QuarterlyRevenueGrowthYOY'))
-    eps_growth = _sfpct(ov.get('QuarterlyEarningsGrowthYOY'))
-    eps_ttm    = _sf(ov.get('EPS')) or _sf(ov.get('DilutedEPSTTM'))
-    beta       = _sf(ov.get('Beta'))
-    week52_high= _sf(ov.get('52WeekHigh')); week52_low = _sf(ov.get('52WeekLow'))
-    target_price = _sf(ov.get('AnalystTargetPrice'))
-    div_yield_raw = _sf(ov.get('DividendYield'))
-    div_yield  = round(div_yield_raw*100, 2) if div_yield_raw else None
-    rev_ttm    = _sf(ov.get('RevenueTTM')); gp_ttm = _sf(ov.get('GrossProfitTTM'))
-    mc_raw     = _sf(ov.get('MarketCapitalization'))
-    market_cap_m = round(mc_raw/1e6) if mc_raw else None
-    gross_margin = round(gp_ttm/rev_ttm*100, 1) if gp_ttm and rev_ttm else None
-    pct_inst   = _sf(ov.get('PercentInstitutions'))
-    pct_insi   = _sf(ov.get('PercentInsiders'))
-    description= ov.get('Description', '') or ''
-    country    = ov.get('Country', '') or ''
-    sector     = ov.get('Sector', '') or ''
-    industry   = ov.get('Industry', '') or ''
-    employees  = ov.get('FullTimeEmployees', '') or ''
-    shares_out = _sf(ov.get('SharesOutstanding'))
-
-    cf_latest = cf_rep[0] if cf_rep else {}
-    op_cf = _sf(cf_latest.get('operatingCashflow')); capex = _sf(cf_latest.get('capitalExpenditures'))
-    fcf_raw = op_cf - abs(capex) if (op_cf is not None and capex is not None) else None
-    fcf_str = None; fcf_margin = None
-    if fcf_raw is not None:
-        fcf_str = f"${fcf_raw/1e9:.1f}B" if abs(fcf_raw) >= 1e9 else f"${fcf_raw/1e6:.0f}M"
-        if rev_ttm and rev_ttm > 0:
-            fcf_margin = round(fcf_raw/rev_ttm*100, 1)
-
-    hist_fin = []
-    for i in range(min(4, len(inc_rep))):
-        inc = inc_rep[i] or {}; cf = cf_rep[i] if i < len(cf_rep) else {}
-        year = (inc.get('fiscalDateEnding') or '')[:4]
-        r  = _sf(inc.get('totalRevenue'));  ni = _sf(inc.get('netIncome'))
-        gp = _sf(inc.get('grossProfit'));   oi = _sf(inc.get('operatingIncome'))
-        op_cf_h = _sf(cf.get('operatingCashflow')); capex_h = _sf(cf.get('capitalExpenditures'))
-        fcf_h = (op_cf_h - abs(capex_h)) if (op_cf_h is not None and capex_h is not None) else None
-        if r and r > 0:
-            hist_fin.append({'year':year,'revenue_m':round(r/1e6),
-                'net_income_m':round(ni/1e6) if ni is not None else None,
-                'operating_income_m':round(oi/1e6) if oi is not None else None,
-                'fcf_m':round(fcf_h/1e6) if fcf_h is not None else None,
-                'gross_margin_pct':round(gp/r*100,1) if gp else None,
-                'operating_margin_pct':round(oi/r*100,1) if oi else None,
-                'net_margin_pct':round(ni/r*100,1) if ni else None})
-
-    return {
-        'ev_ebitda':ev_ebitda,'pe_ttm':pe_ttm,'pe_forward':pe_forward,'pb':pb,
-        'net_margin':net_margin,'op_margin':op_margin,'gross_margin':gross_margin,
-        'roe':roe,'roa':roa,'rev_growth':rev_growth,'eps_growth':eps_growth,
-        'eps_ttm':eps_ttm,'beta':beta,'week52_high':week52_high,'week52_low':week52_low,
-        'target_price':target_price,'div_yield':div_yield,
-        'fcf_raw':fcf_raw,'fcf_str':fcf_str,'fcf_margin':fcf_margin,
-        'market_cap':market_cap_m,'rev_ttm':rev_ttm,
-        'pct_institutions':pct_inst,'pct_insiders':pct_insi,
-        'description':description[:1200],'country':country,'sector':sector,'industry':industry,
-        'employees':employees,'shares_out':shares_out,
-        'historical_financials':hist_fin,
+      } else {
+        throw new Error(data.error||'Subscribe failed');
+      }
+    } else {
+      throw new Error('API unavailable');
     }
-
-def get_candles_and_technicals(ticker):
-    """Fetch 1Y daily candles from Finnhub and compute RSI(14), SMA50, SMA200, volatility, returns table."""
-    try:
-        now = int(time.time())
-        from_ts = now - 5 * 365 * 24 * 3600  # 5Y for the longer returns
-        data = fh('stock/candle', {'symbol':ticker, 'resolution':'D', 'from':from_ts, 'to':now}, 12)
-        if not isinstance(data, dict) or data.get('s') != 'ok':
-            return {}
-        closes = data.get('c') or []
-        timestamps = data.get('t') or []
-        if len(closes) < 50:
-            return {}
-    except: return {}
-
-    closes = [float(c) for c in closes if c is not None]
-    n = len(closes)
-    latest = closes[-1]
-
-    # RSI(14)
-    def _rsi(prices, period=14):
-        if len(prices) < period+1: return None
-        gains, losses = [], []
-        for i in range(1, period+1):
-            d = prices[-period-1+i] - prices[-period-2+i] if i>0 else 0
-            (gains if d>0 else losses).append(abs(d))
-        avg_gain = sum(gains)/period if gains else 0
-        avg_loss = sum(losses)/period if losses else 0.0001
-        rs = avg_gain/avg_loss if avg_loss>0 else 100
-        return round(100 - (100/(1+rs)), 1)
-
-    rsi14 = _rsi(closes, 14)
-    sma20 = round(sum(closes[-20:])/20, 2) if n>=20 else None
-    sma50 = round(sum(closes[-50:])/50, 2) if n>=50 else None
-    sma200 = round(sum(closes[-200:])/200, 2) if n>=200 else None
-
-    # Cross status
-    cross_status = None
-    if sma50 and sma200:
-        if sma50 > sma200 * 1.005: cross_status = 'golden_cross_active'
-        elif sma50 < sma200 * 0.995: cross_status = 'death_cross_active'
-        else: cross_status = 'neutral'
-
-    # 30d annualised vol
-    vol_30d = None
-    if n >= 31:
-        try:
-            import math as _m
-            rets = [closes[i]/closes[i-1]-1 for i in range(n-30, n)]
-            mean = sum(rets)/len(rets)
-            var = sum((r-mean)**2 for r in rets)/len(rets)
-            vol_30d = round((var**0.5) * (252**0.5) * 100, 1)
-        except: pass
-
-    # MACD (12,26 EMA)
-    def _ema(prices, period):
-        k = 2/(period+1)
-        ema = prices[0]
-        for p in prices[1:]:
-            ema = p*k + ema*(1-k)
-        return ema
-    macd_value = None
-    macd_signal_status = None
-    if n >= 35:
-        try:
-            ema12 = _ema(closes[-50:], 12)
-            ema26 = _ema(closes[-50:], 26)
-            macd_value = round(ema12 - ema26, 2)
-            macd_signal_status = 'bullish' if macd_value>0 else 'bearish'
-        except: pass
-
-    # Returns table vs different periods
-    def _period_return(period_days):
-        if n <= period_days: return None
-        start = closes[-period_days-1] if period_days < n else closes[0]
-        return round((latest/start - 1)*100, 2)
-
-    ytd_ret = None
-    try:
-        import datetime as _dt
-        if timestamps:
-            year_start_ts = int(_dt.datetime(_dt.datetime.utcfromtimestamp(timestamps[-1]).year,1,1).timestamp())
-            idx = next((i for i,t in enumerate(timestamps) if t >= year_start_ts), 0)
-            if idx < n:
-                ytd_ret = round((latest/closes[idx]-1)*100, 2)
-    except: pass
-
-    returns = {
-        '1M':  _period_return(21),
-        '3M':  _period_return(63),
-        '6M':  _period_return(126),
-        'YTD': ytd_ret,
-        '1Y':  _period_return(252),
-        '3Y':  _period_return(252*3),
-        '5Y':  _period_return(252*5),
-    }
-
-    return {
-        'rsi14': rsi14,
-        'sma20': sma20, 'sma50': sma50, 'sma200': sma200,
-        'cross_status': cross_status,
-        'vol_30d_annualised': vol_30d,
-        'macd': macd_value, 'macd_signal': macd_signal_status,
-        'returns': returns,
-        'latest_close': round(latest, 2),
-    }
-
-
-def get_sec_segments(cik):
-    """SEC EDGAR — pull revenue disaggregated by segment (ProductOrService) and geography."""
-    if not cik: return {}
-    try: cik_padded = str(int(cik)).zfill(10)
-    except: return {}
-    headers = {'User-Agent':'FINscope Research alvaro2005ho@gmail.com', 'Accept':'application/json'}
-
-    def _fetch(concept):
-        url = f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_padded}/us-gaap/{concept}.json'
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=8) as r:
-                return json.loads(r.read())
-        except: return None
-
-    # Get the disaggregated revenue concept
-    rev_data = (_fetch('RevenueFromContractWithCustomerExcludingAssessedTax')
-                or _fetch('Revenues')
-                or _fetch('SalesRevenueNet'))
-    if not rev_data:
-        return {}
-    units = (rev_data.get('units') or {}).get('USD') or []
-    # Find most recent fiscal year
-    annuals = [x for x in units if x.get('form')=='10-K' and x.get('fp')=='FY']
-    if not annuals: return {}
-    annuals.sort(key=lambda x: x.get('end',''), reverse=True)
-    latest_end = annuals[0].get('end','')[:7]  # YYYY-MM
-
-    # All entries with same fiscal year end
-    cohort = [x for x in units if x.get('end','')[:7] == latest_end]
-    total_rev = max((x.get('val',0) for x in cohort), default=0)
-
-    # Members: each "member" in disaggregation has accn/start/end/val
-    segments = []
-    seen = set()
-    for x in cohort:
-        member = x.get('member') or x.get('axis') or ''
-        if not member: continue
-        if member in seen: continue
-        val = x.get('val', 0)
-        if val and total_rev > 0 and val < total_rev:
-            seen.add(member)
-            # Clean member name: us-gaap:ProductMember → "Product"
-            clean = member.split(':')[-1].replace('Member','').replace('SegmentMember','')
-            # Heuristic to add spaces between CamelCase
-            import re as _re
-            clean_spaced = _re.sub(r'(?<!^)(?=[A-Z])', ' ', clean).strip()
-            segments.append({'name': clean_spaced, 'value_usd': val, 'pct': round(val/total_rev*100, 1)})
-
-    return {
-        'fiscal_year_end': latest_end,
-        'total_revenue_usd': total_rev,
-        'segments': sorted(segments, key=lambda s: s['value_usd'], reverse=True)[:8],
-    }
-
-
-def get_sec_sbc(cik):
-    """SEC EDGAR — Stock-Based Compensation (latest annual). Critical for tech FCF quality."""
-    if not cik: return None
-    try: cik_padded = str(int(cik)).zfill(10)
-    except: return None
-    headers = {'User-Agent':'FINscope Research alvaro2005ho@gmail.com','Accept':'application/json'}
-    concepts = ['ShareBasedCompensation','StockBasedCompensation',
-                'AllocatedShareBasedCompensationExpense']
-    for concept in concepts:
-        url = f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_padded}/us-gaap/{concept}.json'
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=6) as r:
-                data = json.loads(r.read())
-                units = (data.get('units') or {}).get('USD') or []
-                annuals = [x for x in units if x.get('form')=='10-K' and x.get('fp')=='FY']
-                if not annuals: continue
-                annuals.sort(key=lambda x: x.get('end',''), reverse=True)
-                v = _sf(annuals[0].get('val'))
-                if v: return float(v)
-        except: continue
-    return None
-
-
-def compute_quality_of_earnings(hist_fin, ni_latest, ocf_latest, total_assets_latest):
-    """Sloan accruals ratio: (NI - CFO) / Avg Total Assets.
-    Healthy band: |Sloan| < 0.10. Above = aggressive; below = conservative."""
-    out = {'sloan': None, 'flag': None, 'partial_beneish': None}
-    try:
-        if ni_latest is not None and ocf_latest is not None and total_assets_latest and total_assets_latest > 0:
-            accruals = float(ni_latest) - float(ocf_latest)
-            sloan = accruals / float(total_assets_latest)
-            out['sloan'] = round(sloan, 4)
-            out['flag'] = 'aggressive_accruals' if sloan > 0.10 else 'conservative_accruals' if sloan < -0.10 else 'healthy'
-    except: pass
-    try:
-        if hist_fin and len(hist_fin) >= 2:
-            r0 = hist_fin[0].get('revenue_m'); r1 = hist_fin[1].get('revenue_m')
-            sgi = (r0/r1) if (r0 and r1 and r1>0) else None
-            if sgi is not None:
-                out['partial_beneish'] = {'sgi': round(sgi, 3),
-                                          'note': 'Partial — full M-Score requires DSRI, GMI, AQI, SGI, DEPI, SGAI, LVGI, TATA'}
-    except: pass
-    return out
-
-
-def compute_reverse_dcf(price, market_cap, fcf_raw, beta, de, risk_free_rate, sector_wacc=None):
-    """Bisect on g_high s.t. DCF EV == current market cap."""
-    if not (price and market_cap and fcf_raw and risk_free_rate and float(fcf_raw) > 0):
-        return None
-    try:
-        if sector_wacc:
-            wacc = float(sector_wacc)
-        else:
-            erp = 5.0
-            ke = float(risk_free_rate) + (float(beta) if beta else 1.0) * erp
-            kd = 5.0
-            de_ratio = float(de) if de else 0.5
-            e_w = 1/(1+de_ratio); d_w = de_ratio/(1+de_ratio)
-            wacc = ke*e_w + kd*d_w
-        target_ev = float(market_cap)*1e6
-        fcf0 = float(fcf_raw)
-        g_term = 3.0
-        lo, hi = -10.0, 60.0
-        for _ in range(60):
-            g = (lo+hi)/2
-            fcf = fcf0
-            pv = 0
-            for year in range(1,6):
-                g_t = g - (g - g_term) * year/5
-                fcf = fcf * (1 + g_t/100)
-                pv += fcf / ((1 + wacc/100) ** year)
-            tv = fcf*(1+g_term/100)/((wacc-g_term)/100) if wacc > g_term else None
-            tv_pv = tv/((1+wacc/100)**5) if tv else 0
-            ev = pv + tv_pv
-            if ev < target_ev: lo = g
-            else: hi = g
-            if abs(hi-lo) < 0.05: break
-        return {
-            'wacc': round(wacc,1),
-            'terminal_g': g_term,
-            'implied_growth_pct': round((lo+hi)/2, 1),
-            'method': 'Reverse-DCF 2-stage; bisection on g_high s.t. EV = market cap',
-        }
-    except: return None
-
-
-def compute_dcf_sensitivity(fcf_raw, beta, de, risk_free_rate, rev_growth, market_cap, price):
-    """DCF sensitivity matrix: fair value across (WACC, terminal g) grid."""
-    if not (price and market_cap and fcf_raw and risk_free_rate and float(fcf_raw) > 0):
-        return None
-    try:
-        erp = 5.0
-        ke = float(risk_free_rate) + (float(beta) if beta else 1.0) * erp
-        kd = 5.0
-        de_ratio = float(de) if de else 0.5
-        e_w = 1/(1+de_ratio); d_w = de_ratio/(1+de_ratio)
-        base_wacc = ke*e_w + kd*d_w
-        base_g = 3.0
-        g_high = min(max(float(rev_growth or 8), 2), 25) if rev_growth else 8
-        shares_est = float(market_cap)*1e6 / float(price)
-        net_debt = float(market_cap)*1e6 * (float(de) if de else 0) * 0.25
-        wacc_axis = [round(base_wacc-2,1), round(base_wacc-1,1), round(base_wacc,1),
-                     round(base_wacc+1,1), round(base_wacc+2,1)]
-        g_axis = [2.0, 2.5, 3.0, 3.5, 4.0]
-        matrix = []
-        for w in wacc_axis:
-            row = []
-            for g_t in g_axis:
-                fcf = float(fcf_raw); pv = 0
-                for year in range(1,6):
-                    g_t_yr = g_high - (g_high - g_t)*year/5
-                    fcf = fcf*(1+g_t_yr/100)
-                    pv += fcf/((1+w/100)**year)
-                tv = fcf*(1+g_t/100)/((w-g_t)/100) if w > g_t else None
-                tv_pv = tv/((1+w/100)**5) if tv else 0
-                ev = pv + tv_pv
-                fair = (ev - net_debt) / shares_est if shares_est else None
-                row.append(round(fair,2) if fair and 0 < fair < price*10 else None)
-            matrix.append(row)
-        return {
-            'wacc_axis': wacc_axis, 'g_axis': g_axis,
-            'matrix_fair_value': matrix,
-            'base_wacc': round(base_wacc,1), 'base_g': base_g,
-            'current_price': price,
-        }
-    except: return None
-
-
-def compute_beat_miss_history(earnings_list):
-    """8 quarters of EPS surprises with magnitude and consistency."""
-    if not earnings_list: return None
-    rows = []; beat_count = 0; total = 0; surprises = []
-    for e in earnings_list[:8]:
-        period = e.get('period'); actual = e.get('actual'); est = e.get('estimate')
-        surprise = e.get('surprisePercent') or e.get('surprise')
-        if actual is None or est is None: continue
-        try: actual_f = float(actual); est_f = float(est)
-        except: continue
-        if surprise is None and est_f != 0:
-            surprise = (actual_f - est_f)/abs(est_f)*100
-        if surprise is None: continue
-        try: surprise = float(surprise)
-        except: continue
-        rows.append({'period':period,'actual':actual_f,'estimate':est_f,'surprise_pct':round(surprise,1)})
-        surprises.append(surprise); total += 1
-        if surprise > 0: beat_count += 1
-    if total == 0: return None
-    avg = sum(surprises)/total
-    return {
-        'history': rows,
-        'beat_rate_pct': round(beat_count/total*100, 0),
-        'avg_surprise_pct': round(avg, 1),
-        'consistency_score': round(beat_count/total*5, 1),
-    }
-
-
-def compute_expected_return_and_kelly(scenarios, price):
-    """Probability-weighted expected return + Kelly fraction."""
-    if not scenarios or not price or price <= 0: return None
-    try:
-        bull = scenarios.get('bull') or {}; base = scenarios.get('base') or {}; bear = scenarios.get('bear') or {}
-        b_pt = float(bull.get('price_target') or 0); ba_pt = float(base.get('price_target') or 0); be_pt = float(bear.get('price_target') or 0)
-        b_p = float(bull.get('probability_pct') or 0)/100
-        ba_p = float(base.get('probability_pct') or 0)/100
-        be_p = float(bear.get('probability_pct') or 0)/100
-        if not (b_pt and ba_pt and be_pt): return None
-        s = b_p+ba_p+be_p
-        if s > 0 and abs(s - 1.0) > 0.05:
-            b_p, ba_p, be_p = b_p/s, ba_p/s, be_p/s
-        b_ret = (b_pt-price)/price; ba_ret = (ba_pt-price)/price; be_ret = (be_pt-price)/price
-        expected = b_p*b_ret + ba_p*ba_ret + be_p*be_ret
-        upside = max(b_ret, ba_ret)
-        downside = abs(min(be_ret, ba_ret))
-        asymmetry = upside/downside if downside > 0 else None
-        p_pos = b_p + (ba_p if ba_ret > 0 else 0)
-        q_neg = 1 - p_pos
-        b_ratio = upside/downside if downside > 0 else None
-        kelly = None
-        if b_ratio and b_ratio > 0:
-            kelly = max(0, (b_ratio*p_pos - q_neg)/b_ratio)
-        return {
-            'expected_return_pct': round(expected*100, 1),
-            'upside_to_downside': round(asymmetry, 2) if asymmetry else None,
-            'kelly_full_pct': round(kelly*100, 1) if kelly is not None else None,
-            'kelly_quarter_pct': round(kelly*25, 1) if kelly is not None else None,
-            'note': 'Quarter-Kelly is the institutional convention; full-Kelly maximises log-growth but accepts ruinous variance.'
-        }
-    except: return None
-
-
-def get_finnhub_ownership(ticker):
-    """Real top institutional holders + recent insider transactions from Finnhub."""
-    out = {'top_holders': [], 'insider_transactions': [], 'esg_score': None}
-    try:
-        own = fh('stock/ownership', {'symbol':ticker, 'limit':10}, 8)
-        if isinstance(own, dict):
-            owners = own.get('ownership') or []
-            for o in owners[:10]:
-                out['top_holders'].append({
-                    'name': o.get('name', '')[:80],
-                    'share': o.get('share', 0),
-                    'change': o.get('change', 0),
-                    'filing_date': (o.get('filingDate', '') or '')[:10],
-                    'portfolio_pct': o.get('portfolioPercent'),
-                })
-    except: pass
-    try:
-        now = int(time.time())
-        from_d = time.strftime('%Y-%m-%d', time.gmtime(now - 180*24*3600))
-        to_d   = time.strftime('%Y-%m-%d', time.gmtime(now))
-        tx = fh('stock/insider-transactions', {'symbol':ticker, 'from':from_d, 'to':to_d}, 8)
-        if isinstance(tx, dict):
-            for t in (tx.get('data') or [])[:8]:
-                out['insider_transactions'].append({
-                    'name': t.get('name', '')[:80],
-                    'share': t.get('share', 0),
-                    'change': t.get('change', 0),
-                    'transaction_price': t.get('transactionPrice', 0),
-                    'transaction_date': (t.get('transactionDate', '') or '')[:10],
-                    'transaction_code': t.get('transactionCode', ''),
-                })
-    except: pass
-    return out
-
-
-def compute_health_flags(net_margin, op_margin, gross_margin, roe, roic, de, cr, qr,
-                        fcf_raw, fcf_margin, fcf_ni_ratio, rev_growth, hist_fin, lang='en'):
-    """Compute 5-binary health semáforo with reasons."""
-    flags = []
-    def _f(name_en, name_es, ok, reason_en, reason_es):
-        flags.append({
-            'label': name_es if lang=='es' else name_en,
-            'status': 'green' if ok else 'red',
-            'reason': reason_es if lang=='es' else reason_en,
-        })
-
-    # 1) Liquidez
-    _liq_ok = (cr is not None and cr >= 1.2) or (qr is not None and qr >= 1.0)
-    _f('Liquidity', 'Liquidez',
-       _liq_ok,
-       f'Current ratio {cr}, quick ratio {qr}' if cr or qr else 'Insufficient liquidity data',
-       f'Ratio de liquidez {cr}, test ácido {qr}' if cr or qr else 'Datos de liquidez insuficientes')
-
-    # 2) Apalancamiento controlado
-    _lev_ok = de is not None and de < 1.5
-    _f('Leverage', 'Apalancamiento',
-       _lev_ok,
-       f'D/E {de:.2f} — within prudent range' if de is not None else 'D/E unknown',
-       f'Deuda/Capital {de:.2f} — dentro del rango prudente' if de is not None else 'Apalancamiento desconocido')
-
-    # 3) FCF positivo y saludable
-    _fcf_ok = fcf_raw is not None and float(fcf_raw) > 0 and (fcf_margin is None or fcf_margin > 5)
-    _f('FCF', 'Flujo de caja libre',
-       _fcf_ok,
-       f'FCF generation positive ({fcf_margin}% margin)' if fcf_margin else 'FCF positive',
-       f'Generación de FCL positiva (margen {fcf_margin}%)' if fcf_margin else 'FCL positivo')
-
-    # 4) Márgenes estables/expansivos
-    _margin_ok = (net_margin is not None and net_margin > 5) and (op_margin is not None and op_margin > 8)
-    _f('Margins', 'Márgenes',
-       _margin_ok,
-       f'Net margin {net_margin}%, op margin {op_margin}%',
-       f'Margen neto {net_margin}%, operativo {op_margin}%')
-
-    # 5) Calidad de beneficios (FCF/NI conversion)
-    _eq_ok = fcf_ni_ratio is None or fcf_ni_ratio > 0.70
-    _f('Earnings quality', 'Calidad de beneficios',
-       _eq_ok,
-       f'FCF/Net Income conversion {round(fcf_ni_ratio*100)}%' if fcf_ni_ratio else 'Conversion ratio unavailable',
-       f'Conversión FCL/Beneficio Neto {round(fcf_ni_ratio*100)}%' if fcf_ni_ratio else 'Ratio de conversión no disponible')
-
-    return flags
-
-
-def compute_multi_method_valuation(eps_ttm, eps_growth, ev_ebitda, net_margin, op_margin,
-                                   rev_growth, fcf_raw, de, beta, risk_free_rate,
-                                   peer_comparison, market_cap, price, hist_fin, sector_wacc=None):
-    """Multi-method valuation: P/E relative, EV/EBITDA relative, DCF 2-stage, consensus."""
-    result = {}
-
-    # ── 1. P/E relative valuation ──
-    if eps_ttm and eps_ttm > 0:
-        try:
-            peer_pes = [p.get('pe') for p in (peer_comparison or []) if p.get('pe') and 0 < p['pe'] < 100]
-            if peer_pes:
-                median_pe = sorted(peer_pes)[len(peer_pes)//2]
-                eps_fwd = float(eps_ttm) * (1 + min(max(float(eps_growth or 0), -30), 80)/100) if eps_growth else float(eps_ttm)
-                result['pe_relative'] = {
-                    'method':           'P/E vs peer median',
-                    'peer_median_pe':   round(median_pe, 1),
-                    'eps_used':         round(eps_fwd, 2),
-                    'fair_value':       round(median_pe * eps_fwd, 2),
-                    'note':             'Uses peer median P/E applied to forward EPS estimate',
-                }
-        except: pass
-
-    # ── 2. EV/EBITDA relative valuation ──
-    if market_cap and net_margin and op_margin and price:
-        try:
-            peer_evs = [p.get('ev_ebitda') for p in (peer_comparison or []) if p.get('ev_ebitda') and 0 < p['ev_ebitda'] < 60]
-            if peer_evs:
-                median_ev = sorted(peer_evs)[len(peer_evs)//2]
-                # Approx EBITDA from market cap × (op_margin/net_margin) × rev_yield
-                rev_est = float(market_cap)*1e6 * (float(net_margin)/100) / float(price) if price else None
-                if rev_est and rev_est > 0:
-                    ebitda_est = rev_est * (float(op_margin)/100) * 1.25
-                    net_debt = float(market_cap)*1e6 * (float(de) if de else 0) * 0.25
-                    fair_ev = median_ev * ebitda_est
-                    fair_equity = fair_ev - net_debt
-                    shares_est = float(market_cap)*1e6 / float(price)
-                    fair_price = fair_equity / shares_est if shares_est > 0 else None
-                    if fair_price and 0 < fair_price < float(price)*10:
-                        result['ev_ebitda_relative'] = {
-                            'method':            'EV/EBITDA vs peer median',
-                            'peer_median_ev':    round(median_ev, 1),
-                            'ebitda_est_m':      round(ebitda_est/1e6, 0),
-                            'fair_value':        round(fair_price, 2),
-                            'note':              'Capital-structure neutral; preferred for cross-border comparison',
-                        }
-        except: pass
-
-    # ── 3. DCF 2-stage ──
-    try:
-        if fcf_raw and float(fcf_raw) > 0 and risk_free_rate and price:
-            # WACC: use sector_wacc if given, otherwise CAPM
-            if sector_wacc:
-                wacc = sector_wacc
-            else:
-                erp = 5.0  # equity risk premium for US large caps
-                ke  = float(risk_free_rate) + (float(beta) if beta else 1.0) * erp
-                kd  = 5.0  # rough after-tax cost of debt
-                de_ratio = float(de) if de else 0.5
-                e_weight = 1 / (1 + de_ratio)
-                d_weight = de_ratio / (1 + de_ratio)
-                wacc = ke * e_weight + kd * d_weight
-            # FCF growth: blend rev_growth and 5% terminal
-            g_high = min(max(float(rev_growth or 8), 2), 25) if rev_growth else 8
-            g_term = 3.0  # perpetual
-            # 5-year projection at g_high decaying to g_term
-            fcf = float(fcf_raw)
-            pv_sum = 0
-            shares_est = (float(market_cap)*1e6 / float(price)) if (market_cap and price) else None
-            for year in range(1, 6):
-                # decay growth linearly
-                g_t = g_high - (g_high - g_term) * year/5
-                fcf = fcf * (1 + g_t/100)
-                pv = fcf / ((1 + wacc/100) ** year)
-                pv_sum += pv
-            # Terminal value
-            tv = fcf * (1 + g_term/100) / ((wacc - g_term)/100) if wacc > g_term else None
-            tv_pv = tv / ((1 + wacc/100) ** 5) if tv else 0
-            enterprise_value = pv_sum + tv_pv
-            net_debt = float(market_cap)*1e6 * (float(de) if de else 0) * 0.25
-            equity_value = enterprise_value - net_debt
-            fair_price = equity_value / shares_est if shares_est else None
-            if fair_price and 0 < fair_price < float(price)*5:
-                result['dcf'] = {
-                    'method':           'DCF (2-stage)',
-                    'wacc_used':        round(wacc, 1),
-                    'terminal_growth':  g_term,
-                    'high_growth':      round(g_high, 1),
-                    'tv_pct_of_ev':     round(tv_pv/enterprise_value*100, 1) if enterprise_value else None,
-                    'fair_value':       round(fair_price, 2),
-                    'note':             '5Y explicit FCF + Gordon terminal; WACC bottom-up from CAPM',
-                }
-    except: pass
-
-    return result
-
-
-def get_peer_snapshot(ticker):
-    """Fetch real comparison metrics for a peer — Finnhub primary + Yahoo Finance fallback for missing fields."""
-    out = {'ticker':ticker, 'name':ticker}
-    try:
-        m_raw = fh('stock/metric', {'symbol':ticker, 'metric':'all'}, 10)
-        m = (m_raw.get('metric') or {}) if isinstance(m_raw, dict) else {}
-        prof = fh('stock/profile2', {'symbol':ticker}, 6)
-        name = (prof.get('name') or ticker) if isinstance(prof, dict) else ticker
-        out.update({
-            'name':        name,
-            'market_cap':  gm(m, 'marketCapitalization'),
-            'pe':          gm(m, 'peBasicExclExtraTTM', 'peAnnual'),
-            'ev_ebitda':   gm(m, 'evToEbitdaAnnual', 'evToEbitdaTTM'),
-            'net_margin':  gm(m, 'netMarginAnnual', 'netMarginTTM'),
-            'gross_margin':gm(m, 'grossMarginAnnual', 'grossMarginTTM'),
-            'roe':         gm(m, 'roeAnnual', 'roeTTM'),
-            'roa':         gm(m, 'roaAnnual', 'roaTTM'),
-            'rev_growth':  get_rev_growth_fh(m),
-            'beta':        gm(m, 'beta'),
-            'div_yield':   gm(m, 'dividendYieldIndicatedAnnual', 'currentDividendYieldTTM'),
-        })
-    except: pass
-
-    # Yahoo Finance fallback for any missing field
-    try:
-        if any(out.get(k) is None for k in ('pe','ev_ebitda','net_margin','gross_margin','roe','market_cap')):
-            yf_peer = get_yf_data(ticker)
-            if yf_peer:
-                if out.get('pe') is None:           out['pe']           = yf_peer.get('pe_forward')
-                if out.get('ev_ebitda') is None:    out['ev_ebitda']    = yf_peer.get('ev_ebitda')
-                if out.get('net_margin') is None:   out['net_margin']   = yf_peer.get('net_margin')
-                if out.get('gross_margin') is None: out['gross_margin'] = yf_peer.get('gross_margin')
-                if out.get('roe') is None:          out['roe']          = yf_peer.get('roe')
-                if out.get('rev_growth') is None:   out['rev_growth']   = yf_peer.get('rev_growth')
-                if out.get('market_cap') is None:   out['market_cap']   = yf_peer.get('market_cap')
-                if out.get('beta') is None:         out['beta']         = yf_peer.get('beta')
-    except: pass
-
-    return out
-
-# ─── Scoring ─────────────────────────────────────────────────────────────────
-
-def _t(en, es, lang):
-    return es if lang=='es' else en
-
-def compute_score(pm, om, roe, roa, roic, rg, de, cr, qr, fcf_raw, fcf_margin, fcf_ni_ratio,
-                  sb, bu, hd, se, ss, tp, price, beta, vix, hy_spread, lang='en'):
-    """
-    Returns dict with the four pillar scores AND a breakdown of each rule that fired.
-    Tighter thresholds — 40/40 fundamental requires elite quality across multiple axes.
-    breakdown[pillar] = [{pts: int, reason: str}, ...]
-    """
-    bd = {'fundamental':[], 'accounting':[], 'analyst':[], 'context':[]}
-
-    # ── FUNDAMENTAL (base 12, max 40) ──────────────────────────────────────────
-    f = 12
-    bd['fundamental'].append({'pts':12, 'reason':_t('Base score','Puntuación base', lang)})
-
-    # Net margin (max +7)
-    if pm is not None:
-        if pm > 30:
-            f += 7; bd['fundamental'].append({'pts':+7, 'reason':_t(f'Net margin {pm:.1f}% > 30% — elite profitability', f'Margen neto {pm:.1f}% > 30% — rentabilidad élite', lang)})
-        elif pm > 20:
-            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'Net margin {pm:.1f}% > 20% — strong', f'Margen neto {pm:.1f}% > 20% — sólido', lang)})
-        elif pm > 10:
-            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'Net margin {pm:.1f}% > 10%', f'Margen neto {pm:.1f}% > 10%', lang)})
-        elif pm > 3:
-            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'Net margin {pm:.1f}% positive but thin', f'Margen neto {pm:.1f}% positivo pero ajustado', lang)})
-        elif pm < 0:
-            f -= 5; bd['fundamental'].append({'pts':-5, 'reason':_t(f'Net margin {pm:.1f}% negative — loss-making', f'Margen neto {pm:.1f}% negativo — pérdidas', lang)})
-
-    # Operating margin (max +6)
-    if om is not None:
-        if om > 35:
-            f += 6; bd['fundamental'].append({'pts':+6, 'reason':_t(f'Operating margin {om:.1f}% > 35% — best-in-class', f'Margen operativo {om:.1f}% > 35% — top sector', lang)})
-        elif om > 25:
-            f += 4; bd['fundamental'].append({'pts':+4, 'reason':_t(f'Operating margin {om:.1f}% > 25%', f'Margen operativo {om:.1f}% > 25%', lang)})
-        elif om > 15:
-            f += 2; bd['fundamental'].append({'pts':+2, 'reason':_t(f'Operating margin {om:.1f}% > 15%', f'Margen operativo {om:.1f}% > 15%', lang)})
-        elif om < 0:
-            f -= 4; bd['fundamental'].append({'pts':-4, 'reason':_t(f'Operating margin {om:.1f}% negative', f'Margen operativo {om:.1f}% negativo', lang)})
-
-    # ROE (max +5) — penalised when extreme leverage drives it
-    if roe is not None:
-        if roe > 40 and (de is None or de < 1.5):
-            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'ROE {roe:.1f}% with controlled leverage', f'ROE {roe:.1f}% con apalancamiento controlado', lang)})
-        elif roe > 20:
-            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'ROE {roe:.1f}% > 20%', f'ROE {roe:.1f}% > 20%', lang)})
-        elif roe > 10:
-            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'ROE {roe:.1f}% above cost of equity proxy', f'ROE {roe:.1f}% por encima del coste de capital', lang)})
-        elif roe < 0:
-            f -= 4; bd['fundamental'].append({'pts':-4, 'reason':_t(f'ROE {roe:.1f}% negative', f'ROE {roe:.1f}% negativo', lang)})
-
-    # ROIC (max +5) — most important capital-efficiency metric
-    if roic is not None:
-        if roic > 25:
-            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'ROIC {roic:.1f}% — strong economic profit signal', f'ROIC {roic:.1f}% — fuerte señal de beneficio económico', lang)})
-        elif roic > 15:
-            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'ROIC {roic:.1f}% above sector WACC', f'ROIC {roic:.1f}% por encima del WACC sectorial', lang)})
-        elif roic > 8:
-            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'ROIC {roic:.1f}% modest spread vs WACC', f'ROIC {roic:.1f}% diferencial modesto vs WACC', lang)})
-        elif roic < 0:
-            f -= 3; bd['fundamental'].append({'pts':-3, 'reason':_t(f'ROIC {roic:.1f}% negative — value destruction', f'ROIC {roic:.1f}% negativo — destrucción de valor', lang)})
-
-    # Revenue growth (max +5)
-    if rg is not None:
-        if rg > 25:
-            f += 5; bd['fundamental'].append({'pts':+5, 'reason':_t(f'Revenue growth +{rg:.1f}% — top decile', f'Crecimiento de ingresos +{rg:.1f}% — decil superior', lang)})
-        elif rg > 12:
-            f += 3; bd['fundamental'].append({'pts':+3, 'reason':_t(f'Revenue growth +{rg:.1f}%', f'Crecimiento de ingresos +{rg:.1f}%', lang)})
-        elif rg > 3:
-            f += 1; bd['fundamental'].append({'pts':+1, 'reason':_t(f'Revenue growth +{rg:.1f}% modest', f'Crecimiento de ingresos +{rg:.1f}% modesto', lang)})
-        elif rg < 0:
-            f -= 4; bd['fundamental'].append({'pts':-4, 'reason':_t(f'Revenue declining {rg:.1f}%', f'Ingresos en caída {rg:.1f}%', lang)})
-
-    f = max(0, min(40, f))
-
-    # ── ANALYST (base 12 with coverage, base 4 without — fixes prior inflation bug) ──
-    total_recs = (sb or 0)+(bu or 0)+(hd or 0)+(se or 0)+(ss or 0)
-    has_target = tp is not None and price is not None and price > 0
-    if total_recs == 0 and not has_target:
-        a = 4
-        bd['analyst'].append({'pts':4, 'reason':_t('No analyst coverage (base reduced)','Sin cobertura de analistas (base reducida)', lang)})
-    else:
-        a = 12
-        bd['analyst'].append({'pts':12, 'reason':_t('Base score','Puntuación base', lang)})
-    if total_recs > 0:
-        buy_ratio = (sb+bu)/total_recs
-        sell_ratio = (se+ss)/total_recs
-        if buy_ratio > 0.75:
-            a += 8; bd['analyst'].append({'pts':+8, 'reason':_t(f'{buy_ratio*100:.0f}% Buy-rated by {total_recs} analysts', f'{buy_ratio*100:.0f}% recomendaciones Compra entre {total_recs} analistas', lang)})
-        elif buy_ratio > 0.55:
-            a += 5; bd['analyst'].append({'pts':+5, 'reason':_t(f'Majority Buy-rated ({buy_ratio*100:.0f}%)', f'Mayoría Compra ({buy_ratio*100:.0f}%)', lang)})
-        elif buy_ratio > 0.35:
-            a += 2; bd['analyst'].append({'pts':+2, 'reason':_t(f'Mixed coverage ({buy_ratio*100:.0f}% Buy)', f'Cobertura mixta ({buy_ratio*100:.0f}% Compra)', lang)})
-        if sell_ratio > 0.40:
-            a -= 6; bd['analyst'].append({'pts':-6, 'reason':_t(f'{sell_ratio*100:.0f}% Sell-rated', f'{sell_ratio*100:.0f}% recomendaciones Venta', lang)})
-        elif sell_ratio > 0.20:
-            a -= 3; bd['analyst'].append({'pts':-3, 'reason':_t(f'{sell_ratio*100:.0f}% Sell-rated', f'{sell_ratio*100:.0f}% recomendaciones Venta', lang)})
-    else:
-        bd['analyst'].append({'pts':0, 'reason':_t('No recent analyst recommendations available', 'Sin recomendaciones de analistas recientes', lang)})
-
-    if tp and price and price > 0:
-        up = (tp-price)/price*100
-        if up > 25:
-            a += 6; bd['analyst'].append({'pts':+6, 'reason':_t(f'Consensus target +{up:.1f}% above price', f'Precio objetivo consenso +{up:.1f}% sobre cotización', lang)})
-        elif up > 10:
-            a += 3; bd['analyst'].append({'pts':+3, 'reason':_t(f'Consensus target +{up:.1f}%', f'Consenso +{up:.1f}%', lang)})
-        elif up > 0:
-            a += 1; bd['analyst'].append({'pts':+1, 'reason':_t(f'Consensus target marginally above price (+{up:.1f}%)', f'Precio objetivo marginalmente sobre cotización (+{up:.1f}%)', lang)})
-        elif up < -10:
-            a -= 5; bd['analyst'].append({'pts':-5, 'reason':_t(f'Consensus target {up:.1f}% below price — overvaluation flag', f'Consenso {up:.1f}% bajo cotización — alerta de sobrevaloración', lang)})
-        elif up < 0:
-            a -= 2; bd['analyst'].append({'pts':-2, 'reason':_t(f'Consensus target {up:.1f}% below price', f'Consenso {up:.1f}% bajo cotización', lang)})
-
-    a = max(0, min(30, a))
-
-    # ── ACCOUNTING / SOLVENCY (base 8, max 20) ─────────────────────────────────
-    acc = 8
-    bd['accounting'].append({'pts':8, 'reason':_t('Base score','Puntuación base', lang)})
-
-    # Debt / Equity
-    if de is not None:
-        if de < 0.25:
-            acc += 5; bd['accounting'].append({'pts':+5, 'reason':_t(f'D/E {de:.2f} — minimal leverage', f'Deuda/Capital {de:.2f} — apalancamiento mínimo', lang)})
-        elif de < 0.75:
-            acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'D/E {de:.2f} — conservative', f'Deuda/Capital {de:.2f} — conservador', lang)})
-        elif de < 1.5:
-            acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'D/E {de:.2f} — moderate', f'Deuda/Capital {de:.2f} — moderado', lang)})
-        elif de > 3:
-            acc -= 5; bd['accounting'].append({'pts':-5, 'reason':_t(f'D/E {de:.2f} — heavily leveraged', f'Deuda/Capital {de:.2f} — muy apalancado', lang)})
-        elif de > 2:
-            acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t(f'D/E {de:.2f} — high leverage', f'Deuda/Capital {de:.2f} — apalancamiento alto', lang)})
-
-    # Current ratio
-    if cr is not None:
-        if cr > 2:
-            acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'Current ratio {cr:.2f} — strong liquidity', f'Ratio liquidez {cr:.2f} — sólido', lang)})
-        elif cr > 1.3:
-            acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'Current ratio {cr:.2f} — adequate liquidity', f'Ratio liquidez {cr:.2f} — adecuado', lang)})
-        elif 0 < cr < 1:
-            acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t(f'Current ratio {cr:.2f} below 1 — short-term liquidity stress', f'Ratio liquidez {cr:.2f} < 1 — tensión de tesorería', lang)})
-
-    # FCF generation (sign + magnitude vs revenue)
-    if fcf_raw is not None:
-        if float(fcf_raw) > 0 and fcf_margin and fcf_margin > 15:
-            acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'FCF margin {fcf_margin:.1f}% — high cash generation', f'Margen FCL {fcf_margin:.1f}% — alta generación de caja', lang)})
-        elif float(fcf_raw) > 0:
-            acc += 2; bd['accounting'].append({'pts':+2, 'reason':_t('Positive free cash flow', 'Flujo de caja libre positivo', lang)})
-        else:
-            acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t('Negative free cash flow', 'Flujo de caja libre negativo', lang)})
-
-    # FCF / Net Income conversion (earnings quality)
-    if fcf_ni_ratio is not None:
-        if fcf_ni_ratio > 0.95:
-            acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'FCF/NI {fcf_ni_ratio*100:.0f}% — high earnings quality', f'FCL/Beneficio neto {fcf_ni_ratio*100:.0f}% — alta calidad de beneficios', lang)})
-        elif fcf_ni_ratio < 0.50 and fcf_ni_ratio > 0:
-            acc -= 2; bd['accounting'].append({'pts':-2, 'reason':_t(f'FCF/NI {fcf_ni_ratio*100:.0f}% — earnings quality concern', f'FCL/Beneficio neto {fcf_ni_ratio*100:.0f}% — alerta calidad beneficios', lang)})
-
-    acc = max(0, min(20, acc))
-
-    # ── CONTEXT / MACRO-ADJUSTED (base 4, max 10) ──────────────────────────────
-    ctx = 4
-    bd['context'].append({'pts':4, 'reason':_t('Base score','Puntuación base', lang)})
-
-    # Beta vs market regime
-    if beta is not None and vix is not None:
-        if beta < 1.0 and vix > 22:
-            ctx += 2; bd['context'].append({'pts':+2, 'reason':_t(f'Beta {beta:.2f} (defensive) in elevated VIX {vix:.1f}', f'Beta {beta:.2f} (defensiva) con VIX elevado {vix:.1f}', lang)})
-        elif beta > 1.5 and vix > 25:
-            ctx -= 2; bd['context'].append({'pts':-2, 'reason':_t(f'Beta {beta:.2f} (high) into volatile market (VIX {vix:.1f})', f'Beta {beta:.2f} (alta) en mercado volátil (VIX {vix:.1f})', lang)})
-        elif beta is not None:
-            ctx += 1; bd['context'].append({'pts':+1, 'reason':_t(f'Beta {beta:.2f} aligned with market regime', f'Beta {beta:.2f} alineada con régimen de mercado', lang)})
-
-    # Credit spread regime
-    if hy_spread is not None:
-        if hy_spread < 350:
-            ctx += 2; bd['context'].append({'pts':+2, 'reason':_t(f'HY credit spread {hy_spread}bps — risk-on environment', f'Spread HY {hy_spread}pb — entorno risk-on', lang)})
-        elif hy_spread > 600:
-            ctx -= 2; bd['context'].append({'pts':-2, 'reason':_t(f'HY credit spread {hy_spread}bps — credit stress', f'Spread HY {hy_spread}pb — estrés crediticio', lang)})
-
-    # Quick ratio bonus
-    if qr is not None and qr > 1.5:
-        ctx += 1; bd['context'].append({'pts':+1, 'reason':_t(f'Quick ratio {qr:.2f} — solid acid-test', f'Test ácido {qr:.2f} — sólido', lang)})
-
-    ctx = max(0, min(10, ctx))
-
-    return {
-        'total': max(5, min(98, round(f+a+acc+ctx))),
-        'fundamental': round(f),
-        'accounting':  round(acc),
-        'analyst':     round(a),
-        'context':     round(ctx),
-        'breakdown':   bd,
-    }
-
-def calc_altman(m, av):
-    try:
-        roa = resolve(gm(m,'roaAnnual','roaTTM'), av.get('roa')) or 0
-        at  = gm(m,'assetTurnoverAnnual','assetTurnoverTTM') or 0.8
-        cr  = gm(m,'currentRatioAnnual','currentRatioQuarterly') or 1
-        de  = resolve(get_de_fh(m), av.get('de')) or 1.0
-        roa = roa/100 if roa > 1 else roa
-        x1  = max(0,(cr-1)*0.25); x2 = max(0,roa*0.4); x3 = max(0,roa*1.3)
-        x4  = min(5.0, 1/de) if de > 0 else 3.0
-        return round(1.2*x1 + 1.4*x2 + 3.3*x3 + 0.6*x4 + at, 2)
-    except: return None
-
-def altman_zone(z, lang='en'):
-    if z is None: return 'N/A'
-    if lang=='es':
-        return 'Zona segura (Z>3)' if z>2.99 else 'Zona gris (1.8–3)' if z>1.81 else 'Zona de riesgo (Z<1.8)'
-    return 'Safe zone (Z>3)' if z>2.99 else 'Grey zone (1.8–3)' if z>1.81 else 'Distress zone (Z<1.8)'
-
-def calc_piotroski(m, av):
-    s = 0
-    roa  = resolve(gm(m,'roaAnnual','roaTTM'), av.get('roa')) or 0
-    fcf  = av.get('fcf_raw') or gm(m,'freeCashFlowAnnual','freeCashFlowTTM') or 0
-    pm   = resolve(gm(m,'netMarginAnnual','netMarginTTM'), av.get('net_margin')) or 0
-    fcfm = av.get('fcf_margin') or 0
-    gma  = gm(m,'grossMarginAnnual') or 0
-    gmt  = resolve(gm(m,'grossMarginTTM'), av.get('gross_margin')) or 0
-    ata  = gm(m,'assetTurnoverAnnual') or 0; att = gm(m,'assetTurnoverTTM') or 0
-    cra  = gm(m,'currentRatioAnnual') or 0; crq = gm(m,'currentRatioQuarterly') or 0
-    de   = resolve(get_de_fh(m), av.get('de')) or 0
-    rg   = resolve(get_rev_growth_fh(m), av.get('rev_growth')) or 0
-    eg   = get_eps_growth_fh(m) or 0
-    if roa > 0: s += 1
-    if float(fcf) > 0: s += 1
-    if gm(m,'roaTTM') and (gm(m,'roaTTM') or 0) >= roa*0.9: s += 1
-    if fcfm > pm: s += 1
-    if de < 1.0: s += 1
-    if crq >= cra: s += 1
-    if eg >= rg*0.9: s += 1
-    if gmt >= gma: s += 1
-    if att >= ata*0.95: s += 1
-    return min(9, s)
-
-def piotroski_label(f, lang='en'):
-    if lang=='es':
-        return 'Calidad alta' if f>=7 else 'Calidad media' if f>=4 else 'Señales débiles'
-    return 'Strong quality' if f>=7 else 'Moderate quality' if f>=4 else 'Weak signals'
-
-# ─── AI prompts ─────────────────────────────────────────────────────────────
-
-def _lang_tag(lang):
-    if lang=='es':
-        return ('Redacta TODO el contenido en español financiero institucional, fluido y preciso, '
-                'como un analista senior CFA de un buy-side en Madrid escribiendo para un comité de '
-                'inversiones. Terminología obligatoria: "BPA" (no EPS), "VE/EBITDA" (no EV/EBITDA), '
-                '"margen de flujo de caja libre" (no FCF margin), "valor razonable" (no fair value), '
-                '"flujo de caja libre" o "FCL" (no FCF), "tasa de descuento" o "WACC" indistintamente, '
-                '"deuda neta" (no net debt), "apalancamiento financiero" (no leverage), "rotación de '
-                'activos" (no asset turnover), "fondo de maniobra" (no working capital), "cobertura de '
-                'intereses" (no interest coverage), "ROIC" o "retorno sobre capital invertido", '
-                '"economic profit" o "beneficio económico" (ROIC-WACC), "BPA estimado" (forward EPS), '
-                '"per estimado" (forward P/E). Mantén las claves JSON en inglés.')
-    return ('Write in clear, institutional-grade English for a sell-side / buy-side audience. '
-            'Use precise CFA terminology. Avoid generic adjectives ("strong", "good") unless backed '
-            'by an exact figure. Reference balance-sheet quality, working capital efficiency, '
-            'interest coverage, and FCF conversion when relevant.')
-
-
-def prompt_a(lang='en'):
-    lt = _lang_tag(lang)
-    return f"""You are the lead equity analyst at FINscope Research — an independent institutional research desk. You write for portfolio managers, CFOs and credit analysts. Output is INFORMATIONAL ONLY — never investment advice. Return ONLY valid JSON matching the schema exactly. No markdown fences, no preamble, no text outside the JSON.
-
-{lt}
-
-NON-NEGOTIABLE STANDARDS:
-- Every analytical sentence MUST contain at least one specific figure from input (P/E, margin, growth %, $bn, ratio, year)
-- NEVER say "we recommend / investors should / the stock will". Neutral framing only: "The data indicates", "Balance-sheet quality reflects", "Operating leverage of X% suggests".
-- Connect ratios to underlying drivers. Don't just quote them — explain WHY: e.g. "ROE of 65% reflects high asset turnover (X.Xx) combined with strong net margin (XX%) and modest leverage (D/E X.XX); a Du Pont decomposition would attribute most of the spread above peers to operating efficiency, not financial gearing."
-- Use historical_financials to extract multi-year trends with EXACT pp deltas: "Operating margin expanded from 28.4% in 2021 to 31.2% TTM, +280bps".
-- Cross-reference real news headlines and economic_calendar events when material.
-- MINIMUM 12 substantive sentences per text field. Verbose where it adds insight; never padding.
-- Explicitly identify accounting red flags when relevant: aggressive revenue recognition, FCF/NI gap, capitalised costs, working capital ballooning, off-balance-sheet liabilities. If none, say "No material accounting concerns identified in the disclosed line items."
-- Cite the specific business segments and geographies from the company description rather than generic "consumer markets".
-- Anchor every valuation reference to a sector-appropriate benchmark (sector median P/E, sector ROIC) — do not float numbers in a vacuum.
-
-REQUIRED JSON SCHEMA — only two sections, but DEEP coverage. EACH section ends with an `invalidation` array — falsifiable conditions with a metric, operator, value, and deadline. Without these, the memo is essay, not analysis.
-
-{{"executive_summary":{{"verdict":"3-6 word neutral status (e.g. 'High-quality compounder, premium multiple', 'Cyclical recovery in motion', 'Capital-intensive turnaround', 'Asset-light cash machine')","verdict_sub":"1-2 sentences with at least 3 specific figures: composite score, key strength, key risk","verdict_color":"green|amber|red","verdict_icon":"bull|neutral|bear|watch","text":"14-18 sentences. (1) Open with the business in one factual sentence — what they sell, to whom, where. (2) Composite score positioning with the two top drivers AND the clearest gap (use the score breakdown context). (3) Three strengths backed by exact figures including at least one balance-sheet metric (e.g. 'gross margin 71.3% vs peer median 52%, ROIC 64.5% with D/E 0.05'). (4) Three risks backed by figures with at least one valuation or accounting flag (FCF/NI conversion, working capital, multiple compression risk). (5) Quote valuation position vs peers in exact % premium/discount terms — use peer_comparison data. (6) Close with a forward-looking framing tied to upcoming_earnings, a named catalyst, or a macro factor — never a directional call. Target 320-380 words.","key_takeaways":[{{"label":"≤8 words","status":"green|amber|red","reason":"≤22 words with specific figure"}}],"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name of metric","operator":"<|>|=|crosses","value":"specific numeric value or event","horizon":"P1Q|P2Q|P1Y"}}]}},"business_model":{{"text":"16-20 sentences. (1) What products / services and the underlying technology or service mechanism — 2-3 sentences. (2) Real revenue streams with their EXACT % from sec_segments input when available (otherwise from description) — name each segment as the company names it in 10-K. (3) For each top segment, one-sentence growth dynamic with YoY direction. (4) Explicit moat classification: pick from {{Network Effect, Switching Cost, Scale, IP / Patents, Brand, Regulatory, Cost Advantage, Distribution}} and quantify the evidence (e.g. 'TSMC capacity exclusivity'). (5) Customer or segment concentration with the exact figure from the description or 10-K (e.g. 'top 3 customers = 38% of revenue'). (6) Geographic exposure from sec_segments input when available — name actual countries / regions, not generic 'international'. (7) Strategic rationale for each major geography — why does that market matter (regulation, supply, demand). (8) Recent M&A, divestitures, product launches in the past 24 months with the dollar impact. (9) Historical inflection points using the full 4-year historical_financials series: revenue CAGR, margin trajectory, an explicit before-and-after framing. (10) Competitive positioning vs the named peers in peer_comparison — who's gaining share, who's losing. Target 420-520 words.","revenue_segments":[{{"name":"Segment name AS THE COMPANY NAMES IT","pct":50,"description":"what it covers and its YoY growth dynamic"}}],"geographic_exposure":[{{"region":"Region name","pct":45,"note":"strategic rationale + main risk/opportunity"}}],"moat":{{"type":"Network Effect|Switching Cost|Scale|IP/Patents|Brand|Regulatory|Cost Advantage|Distribution","strength_0_5":4,"evidence":"1-2 sentence quantified evidence"}},"invalidation":[{{"trigger":"≤25 words concrete and falsifiable on moat or segment dynamics","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}}}}"""
-
-def prompt_b(lang='en'):
-    lt = _lang_tag(lang)
-    return f"""You are the lead equity analyst at FINscope Research. You write INFORMATIONAL REPORTS for portfolio managers and credit analysts (never investment advice). Return ONLY valid JSON. No markdown, no text outside the JSON. Output covers Performance (§3), Financial Quality (§4), and SEC Filings (§11).
-
-{lt}
-
-NON-NEGOTIABLE STANDARDS:
-- Every sentence must include a specific figure from the input
-- Use the technicals input (RSI, SMA50/200, returns table) for the Performance section
-- Use the health_flags input to anchor the Financial Quality intro
-- Use the recent_filings input to ground SEC Filings discussion
-- NEVER say "we recommend"; use neutral institutional framing
-- Cite specific YoY pp deltas from historical_financials
-
-REQUIRED JSON SCHEMA. Each section ends with `invalidation` — falsifiable conditions with metric + operator + value + horizon.
-
-{{"performance":{{"text":"14-18 sentences. (1) Open with the returns table: 1Y, 3Y, 5Y, YTD with EXACT numbers from technicals.returns. (2) Outperformance/underperformance vs S&P 500 if context allows. (3) Distance from 52W high/low with %. (4) Technical position: RSI {{rsi14}} (overbought >70, oversold <30), price vs SMA50 and SMA200, golden/death cross status from technicals.cross_status. (5) 30-day annualised volatility figure with interpretation. (6) Full revenue trajectory across all years in historical_financials with CAGR. (7) Operating margin evolution in exact pp expansion or compression — frame as 'margin walk'. (8) Net income trajectory with FCF/NI quality lens. (9) EPS growth context — call out any one-off items if visible. (10) Beta interpretation in plain language (defensive < 1.0, market = 1.0, offensive > 1.0). (11) Named catalysts in the past 12 months (earnings beats/misses, product launches, M&A). (12) Capital return: buybacks reducing share count, dividend changes, total shareholder yield. Target 360-460 words.","returns_summary":"4-6 sentence summary of the returns table emphasising the strongest period and the weakest.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"financial_quality":{{"text":"18-22 sentences forming a deep balance-sheet AND income-statement audit. (1) Open by referencing the health_flags input: list the 5 flags and their status (green/red) with the underlying figure. (2) Then deep dive — gross margin level with multi-year pp trend. (3) Operating leverage computed in the input (use operating_leverage value), framed as: 'each 1pp of revenue growth translates to X pp of op income growth'. (4) FCF with absolute figure and FCF/Net Income conversion ratio (>100% = high earnings quality, <70% = potential aggressive accruals). (5) ROIC level and the ROIC-WACC spread context (positive spread = economic profit creation). (6) Net Debt / EBITDA from net_debt_ebitda input. (7) Working capital efficiency from current ratio and quick ratio. (8) Asset turnover from latest historical_financials. Then EXPLICITLY EXPLAIN Altman Z-Score: '5 factors. X1 = Working Capital / Total Assets (short-term liquidity buffer); X2 = Retained Earnings / TA (cumulative historical profitability); X3 = EBIT / TA (asset productivity); X4 = Market Cap / Total Liabilities (market-implied solvency cushion); X5 = Sales / TA (asset turnover). Z = 1.2·X1 + 1.4·X2 + 3.3·X3 + 0.6·X4 + X5. Bands: Z > 2.99 safe, 1.81-2.99 grey, < 1.81 distress. Not applicable to banks or asset-light tech firms.' This company's Z is X.XX → interpret. Then EXPLAIN Piotroski F-Score: '9 binary signals across Profitability (ROA+, FCF+, ROA rising YoY, FCF > NI), Leverage (D/E falling YoY, Current Ratio rising, no dilution), Efficiency (Gross Margin rising, Asset Turnover rising). 7-9 = improving; 4-6 = moderate; 0-3 = deteriorating.' This company is X/9 → interpret which sub-pillar drives it. Identify any accounting red flags (FCF/NI gap, capitalised costs, working capital ballooning, stock-based compensation inflation) or explicitly state none found. Target 500-600 words.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"sec_filings":{{"text":"14-16 sentences mining the recent_filings list and the company description. (1) List the most recent 10-K and 10-Q filings with their dates from recent_filings input. (2) Revenue recognition policy and any recent segment reclassifications with figures. (3) Management guidance from the most recent quarterly call with exact dollar figure. (4) Material risk factors disclosed in the 10-K — quantify each (e.g. 'customer concentration: top 5 customers = 42% of revenue'). (5) Segment MD&A highlights — what management emphasised in their commentary. (6) Related-party transactions or material legal proceedings if disclosed. (7) Recent insider transaction patterns over the last quarter (Forms 4) — net buying or selling. (8) Critical accounting estimates (impairment tests, deferred tax, stock-based compensation) that meaningfully shape reported earnings. (9) Any restatements, going-concern language, auditor changes — flag explicitly; otherwise say 'no material flags identified in the reviewed filings'. Target 300-360 words.","key_disclosures":["5-7 specific findings each anchored to a 10-K / 10-Q line item with exact figure or %"],"filing_summaries":[{{"form":"10-K|10-Q|8-K|DEF 14A","date":"YYYY-MM-DD","one_line_summary":"≤30 words describing what THIS specific filing contains and its material content"}}]}}}}"""
-
-
-def prompt_c(lang='en'):
-    lt = _lang_tag(lang)
-    return f"""You are the lead equity analyst at FINscope Research. You write INFORMATIONAL REPORTS for portfolio managers and credit analysts (never investment advice). Return ONLY valid JSON. No markdown, no text outside the JSON. Output covers Macro Context (§5), Risk Analysis (§6), Ownership (§7), Valuation (§8), Competitors (§9) and Scenarios (§10).
-
-{lt}
-
-NON-NEGOTIABLE STANDARDS:
-- Every sentence carries at least one specific figure from the input
-- Neutral institutional tone — never "we recommend / investors should"
-- For competitors.table: COPY EXACTLY the peer_comparison numbers provided. Do NOT invent or round-trip. Preserve nulls as null.
-- For ownership.top_holders: USE THE NAMES AND % FROM real_top_holders input (real Form 13F data). Do not invent holders.
-- For valuation: reference the EXACT fair values from valuation_methods input (P/E relative, EV/EBITDA relative, DCF). State each method's fair value and reconcile them.
-- MINIMUM 12 substantive sentences per text field — verbose where it adds insight
-- Use the macro and economic_calendar fields when discussing rate, currency, or geopolitical exposure
-- For valuation, build the WACC bottom-up using the provided risk-free rate + sector benchmark, and explicitly show: Ke = Rf + β×ERP
-
-SECTOR WACC BENCHMARKS (use as anchor; adjust +0.5-1.0pp if risk_free_rate >4.5%):
-UTILITIES 5.0-6.5% | REITS 5.5-7.0% | STAPLES 6.0-7.5% | TELECOM 6.5-8.5% | HEALTHCARE 7.5-9.5% | INDUSTRIALS 7.5-9.5% | RETAIL 8.5-11.0% | TRAVEL 9.5-13.0% | BANKS (use ROE vs CoE ~10-13%, Z-Score invalid) | INSURANCE 8.0-10.5% | FINTECH 9.0-12.0% | ENERGY MAJORS 8.0-10.0% | ENERGY E&P 10.0-14.0% | RENEWABLES 7.5-10.0% | MATERIALS 9.0-12.0% | PHARMA 8.0-9.0% | BIOTECH 12.0-18.0% | SEMIS 10.0-12.0% | SOFTWARE 9.0-12.0% | HARDWARE 10.0-13.0% | INTERNET 9.5-12.0%
-
-REQUIRED JSON SCHEMA (fill ALL fields, no placeholders). Each section ends with `invalidation` — falsifiable conditions.
-
-{{"macro_context":{{"text":"13-16 sentences SPECIFIC to this company. (1) Open with company's geographic revenue breakdown (% by region) using description as anchor — never use generic 60/20/20. (2) For each major region, discuss the live macro variable that matters most: US (10Y yield at X.XX%, Fed Funds at X.XX%, CPI at X.X% YoY, ISM PMI), Europe (ECB depo rate, energy price impact, EUR/USD), China (PBoC stance, property sector, US chip sanctions), EMs (USD strength, commodity terms-of-trade). (3) Sector-specific macro: tech (capex cycle, semis cycle phase, AI demand), banks (NIM trajectory, credit-loss provisioning), energy (Brent forward curve, OPEC+), consumer (real wages, savings rate, credit card delinquencies), pharma (FDA backlog, IRA pricing impact). (4) Geopolitical risks tied to THIS company: Taiwan exposure for semis, EU AI Act for Big Tech, GLP-1 obesity drug cycle for pharma, etc. (5) Translate the 10Y yield environment into impact on this company's WACC and refinancing cost. Reference at least 2 items from the economic_calendar input. Target 320-400 words.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"macro variable","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"risk_analysis":{{"text":"13-15 sentences. Cover ALL eight risk types in order, each anchored to a quantified data point: (i) Valuation risk vs sector multiple, (ii) Operational risk (execution, supply chain, key talent), (iii) Financial risk (D/E, interest coverage, refinancing wall), (iv) Regulatory risk specific to industry/region, (v) Competitive risk citing the named peers from peer_comparison, (vi) Macro risk linked to live indicators, (vii) Technology/disruption risk, (viii) Concentration risk (customer, geography, single product). Target 280-340 words.","risks":["7-9 risks, each 1-2 sentences with a quantified data point. Use distinct categories — no duplicates."],"technical_takeaway":"3-4 sentences interpreting the technicals input (RSI, SMA cross, MACD, volatility) in plain language and flagging any divergence with the fundamental story.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"ownership":{{"text":"13-15 sentences. (1) EXPLAIN the principal-agent problem in one sentence with concrete framing for THIS company. (2) Institutional ownership % and what it implies: high (>70%) = price stability but herd risk on outflows; low = retail-driven volatility. (3) Reference the real top institutional holders from real_top_holders input by name with their exact stake. (4) Insider ownership level + alignment quality. (5) Insider MSPR — quantify: positive = net buying, negative = net selling. (6) Executive compensation structure (RSU/PSU mix, alignment with TSR). (7) Board independence and any recent governance friction. (8) Capital-return policy — buyback yield + dividend yield combined = total shareholder yield. (9) Free float and implied liquidity. Target 280-340 words.","top_holders":[{{"name":"Real institution name from real_top_holders input","stake_pct":8.5}}],"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"insider MSPR or institutional change","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}},"valuation":{{"text":"16-18 sentences forming a CFA-level valuation walk-through. (1) EXPLAIN each multiple in one sentence: P/E TTM, P/E Forward, EV/EBITDA (capital-structure neutral), P/B, P/S, FCF Yield, PEG. (2) Quote each multiple for the company AND the sector median using peer_comparison. (3) BUILD the WACC bottom-up: Ke = Rf + β × ERP. State Rf = current 10Y yield from macro input, β = company beta, ERP = 4.5-5.5% for US large-caps; show the arithmetic. After-tax cost of debt Kd × (1-t) using ~21% US tax rate. WACC = Ke·(E/V) + Kd(1-t)·(D/V). (4) ROIC vs WACC spread. (5) DCF framework: 5-year FCF projection, terminal value at g=2.5-3.0%, discount at WACC. Terminal value typically 60-80% of EV — sensitivity severe (±1pp on g moves fair value ~15-25%). (6) State fair-value range with WACC assumption used. Reference the valuation_methods input — quote each method's fair value (P/E relative, EV/EBITDA relative, DCF) and reconcile. (7) Compare to current price → margin of safety %. Target 440-540 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5,"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"P/E or fair value driver","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"competitors":{{"text":"13-15 sentences positioning the company within its peer group using ONLY the peer_comparison data. State margin leadership rank, revenue growth rank, P/E premium/discount vs peer median, EV/EBITDA premium/discount, ROE rank — all with exact %. Then 1-2 sentences per top peer contextualising it. Conclude on whether premium is justified by quality or vulnerable to multiple compression. Target 300-360 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"market_cap_m":2000000,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"market_cap_m":500000,"is_subject":false}}],"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"peer relative multiple","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}},"scenarios":{{"text":"5-6 sentences framing the scenario range. State the current price as anchor. Compute the probability-weighted expected return = Σ(prob × Δ%) and quote it.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"6-8 sentences with REQUIRED structure: (1) Named catalyst with exact timeline (e.g. 'Q3 2026 earnings beat on Data Center segment'). (2) Revenue assumption with exact YoY %. (3) Operating margin assumption with exact pp. (4) Implied forward P/E or EV/EBITDA at the target. (5) What investors must observe to validate (specific metric thresholds). (6) Key risk that would invalidate THIS bull case.","assumptions":{{"revenue_growth_yoy_pct":15,"operating_margin_pct":35,"implied_pe":28,"catalyst":"named catalyst with date"}},"triggers_to_monitor":["specific data point that confirms","another data point that confirms"]}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"6-8 sentences with same structure: catalyst (or absence of catalyst), revenue/margin assumptions, implied multiple, validation criteria.","assumptions":{{"revenue_growth_yoy_pct":8,"operating_margin_pct":30,"implied_pe":24,"catalyst":"steady-state with no surprises"}},"triggers_to_monitor":["specific","specific"]}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"6-8 sentences: downside catalyst with quantified impact, multiple compression to specific figure, trigger threshold.","assumptions":{{"revenue_growth_yoy_pct":-5,"operating_margin_pct":22,"implied_pe":18,"catalyst":"named downside catalyst"}},"triggers_to_monitor":["specific","specific"]}}}}}}"""
-
-def _repair_json(text):
-    text = text.strip()
-    if not text: return None
-    text = text.replace('```json','').replace('```','').strip()
-    try: return json.loads(text)
-    except: pass
-    opens=0; open_sq=0; in_str=False; escape=False
-    for c in text:
-        if escape: escape=False; continue
-        if c=='\\': escape=True; continue
-        if c=='"' and not escape: in_str=not in_str; continue
-        if in_str: continue
-        if c=='{': opens+=1
-        elif c=='}': opens-=1
-        elif c=='[': open_sq+=1
-        elif c==']': open_sq-=1
-    if in_str: text+='"'
-    text+=']'*max(0,open_sq)
-    text+='}'*max(0,opens)
-    try: return json.loads(text)
-    except: return None
-
-def call_openai(system_prompt, user_data, max_tokens=4500):
-    try:
-        payload = json.dumps({
-            'model':'gpt-4o-mini', 'max_tokens':max_tokens,
-            'messages':[
-                {'role':'system','content':system_prompt},
-                {'role':'user','content':json.dumps(user_data)}
-            ]
-        }).encode()
-        req = urllib.request.Request('https://api.openai.com/v1/chat/completions', data=payload,
-            headers={'Content-Type':'application/json','Authorization':f'Bearer {OPENAI}'})
-        with urllib.request.urlopen(req, timeout=48) as r:
-            data = json.loads(r.read())
-            text = data['choices'][0]['message']['content']
-            result = _repair_json(text)
-            if result: return result
-            return {'_error':'JSON parse failed after repair attempt'}
-    except Exception as e:
-        return {'_error':str(e)}
-
-def _fallback_a(name, sc, fs, lang='en'):
-    if lang=='es':
-        return {
-            'executive_summary':{'verdict':f'Puntuación {sc["total"]}/100','verdict_sub':'Síntesis de IA no disponible — consulta las métricas cuantitativas del panel lateral.','verdict_color':'amber','verdict_icon':'neutral','text':f'Síntesis completa de la IA no disponible en este intento. Puntuación compuesta {sc["total"]}/100. Las métricas cuantitativas y los ratios calculados sí están disponibles en las demás secciones — reintenta el análisis en unos minutos.','key_takeaways':[]},
-            'business_model':{'text':f'{name}: síntesis de IA no disponible. Consulta la descripción de la empresa y los datos cuantitativos.','revenue_segments':[],'geographic_exposure':[],'moat':{}},
-        }
-    return {
-        'executive_summary':{'verdict':f'Score {sc["total"]}/100','verdict_sub':'AI synthesis unavailable for this run — review quantitative metrics in the sidebar.','verdict_color':'amber','verdict_icon':'neutral','text':f'Full AI synthesis unavailable for this run. Composite score {sc["total"]}/100. Quantitative metrics and computed ratios remain available in the other sections — retry the analysis in a couple of minutes.','key_takeaways':[]},
-        'business_model':{'text':f'{name} AI synthesis unavailable. Refer to the company description and quantitative data below.','revenue_segments':[],'geographic_exposure':[],'moat':{}},
-    }
-
-def _fallback_b(name, fs, lang='en'):
-    msg_es = 'Síntesis de IA no disponible — los datos cuantitativos siguen disponibles abajo.'
-    msg_en = 'AI synthesis unavailable — quantitative data remains available below.'
-    msg = msg_es if lang=='es' else msg_en
-    return {
-        'performance':{'text':msg,'returns_summary':''},
-        'financial_quality':{'text':f'{msg} Piotroski F-Score: {fs}/9.'},
-        'sec_filings':{'text':msg,'key_disclosures':[]},
-    }
-
-def _fallback_c(lang='en'):
-    msg = 'Síntesis de IA no disponible.' if lang=='es' else 'AI synthesis unavailable.'
-    return {
-        'macro_context':{'text':msg},
-        'risk_analysis':{'text':msg,'risks':[]},
-        'ownership':{'text':msg,'top_holders':[]},
-        'valuation':{'text':msg,'fair_value_low':0,'fair_value_high':0,'wacc_used':0},
-        'competitors':{'text':msg,'table':[]},
-        'scenarios':{'text':msg,
-            'bull':{'label':'Bull','price_target':0,'upside_pct':0,'probability_pct':33,'thesis':msg},
-            'base':{'label':'Base','price_target':0,'upside_pct':0,'probability_pct':34,'thesis':msg},
-            'bear':{'label':'Bear','price_target':0,'downside_pct':0,'probability_pct':33,'thesis':msg}}
-    }
-
-# ─── Main analysis ─────────────────────────────────────────────────────────────
-
-def analyse(ticker, lang='en'):
-    now_ts    = int(time.time())
-    from_date = time.strftime('%Y-%m-%d', time.gmtime(now_ts - 30*24*3600))
-    to_date   = time.strftime('%Y-%m-%d', time.gmtime(now_ts))
-    peers_list = PEERS_MAP.get(ticker, ['SPY','QQQ','IWM','GLD'])[:4]
-
-    # ── Parallel fetch: 15 core + 4 peer snapshots ──
-    with ThreadPoolExecutor(max_workers=24) as ex:
-        futs = {
-            'profile':    ex.submit(fh,'stock/profile2',{'symbol':ticker}),
-            'quote':      ex.submit(fh,'quote',{'symbol':ticker}),
-            'metrics':    ex.submit(fh,'stock/metric',{'symbol':ticker,'metric':'all'}),
-            'recs':       ex.submit(fh,'stock/recommendation-trends',{'symbol':ticker}),
-            'target':     ex.submit(fh,'stock/price-target',{'symbol':ticker}),
-            'earnings':   ex.submit(fh,'stock/earnings',{'symbol':ticker}),
-            'news':       ex.submit(fh,'company-news',{'symbol':ticker,'from':from_date,'to':to_date}),
-            'insider':    ex.submit(fh,'stock/insider-sentiment',{'symbol':ticker,'from':from_date,'to':to_date}),
-            'macro':      ex.submit(get_macro),
-            'av':         ex.submit(get_av_data, ticker),
-            'yf':         ex.submit(get_yf_data, ticker),
-            'fh_fin':     ex.submit(fh,'stock/financials-reported',{'symbol':ticker,'freq':'annual'},14),
-            'filings':    ex.submit(fh,'stock/filings',{'symbol':ticker},10),
-            'technicals': ex.submit(get_candles_and_technicals, ticker),
-            'spy_tech':   ex.submit(get_candles_and_technicals, 'SPY'),
-            'ownership':  ex.submit(get_finnhub_ownership, ticker),
-            **{f'peer_{p}': ex.submit(get_peer_snapshot, p) for p in peers_list}
-        }
-        res = {}
-        for k, fut in futs.items():
-            try:    res[k] = fut.result(timeout=25)
-            except: res[k] = {}
-
-    profile     = res.get('profile') or {}
-    if not profile.get('name'):
-        raise Exception(f'Ticker "{ticker}" not found. Try AAPL, NVDA, MSFT, JPM.')
-
-    # ── Unpack parallel results FIRST (fixes prior NameError on av/yf) ──
-    quote       = res.get('quote') or {}
-    m_fh        = (res.get('metrics') or {}).get('metric') or {}
-    recs_raw    = res.get('recs') or {}
-    recs        = recs_raw if isinstance(recs_raw,list) else []
-    target_raw  = res.get('target') or {}
-    target      = target_raw if isinstance(target_raw,dict) else {}
-    earnings_raw= res.get('earnings') or {}
-    earnings    = earnings_raw if isinstance(earnings_raw,list) else []
-    news_list   = res.get('news') or {}
-    news_list   = news_list if isinstance(news_list,list) else []
-    insider_raw = res.get('insider') or {}
-    macro       = res.get('macro') or {}
-    av          = res.get('av') or {}
-    yf          = res.get('yf') or {}
-    fh_fin_raw  = res.get('fh_fin') or {}
-    technicals  = res.get('technicals') or {}
-    spy_tech    = res.get('spy_tech') or {}
-    fh_own      = res.get('ownership') or {}
-    filings_raw = res.get('filings') or []
-    filings_raw = filings_raw if isinstance(filings_raw, list) else []
-
-    # ── SEC EDGAR — fetch FCF, segments, and SBC for tech firms ──
-    sec_data = {}
-    sec_segments = {}
-    sec_sbc = None
-    try:
-        cik = profile.get('cik') or profile.get('CIK')
-        if cik:
-            already_has_fcf = bool(av.get('fcf_raw') or yf.get('fcf_raw'))
-            already_has_segments = bool(av.get('historical_financials'))
-            tasks = []
-            if not already_has_fcf: tasks.append(('edgar', cik))
-            if not already_has_segments: tasks.append(('segments', cik))
-            tasks.append(('sbc', cik))
-            if tasks:
-                with ThreadPoolExecutor(max_workers=3) as _ex2:
-                    futs = {}
-                    for (kind, c) in tasks:
-                        if kind == 'edgar':    futs['e'] = _ex2.submit(get_sec_edgar, c)
-                        elif kind == 'segments': futs['s'] = _ex2.submit(get_sec_segments, c)
-                        elif kind == 'sbc':    futs['b'] = _ex2.submit(get_sec_sbc, c)
-                    if 'e' in futs:
-                        try: sec_data = futs['e'].result(timeout=8) or {}
-                        except: sec_data = {}
-                    if 's' in futs:
-                        try: sec_segments = futs['s'].result(timeout=8) or {}
-                        except: sec_segments = {}
-                    if 'b' in futs:
-                        try: sec_sbc = futs['b'].result(timeout=8)
-                        except: sec_sbc = None
-    except: pass
-
-    # ── Real SEC filings: 10-K, 10-Q, 8-K with links ──
-    sec_filings_list = []
-    for fl in filings_raw[:12]:
-        form = (fl.get('form') or '').strip()
-        if form not in ('10-K', '10-Q', '8-K', '20-F', '6-K', 'DEF 14A', 'S-1'):
-            continue
-        sec_filings_list.append({
-            'form':         form,
-            'filed_date':   fl.get('filedDate', '')[:10],
-            'accepted':     fl.get('acceptedDate', '')[:10],
-            'period':       fl.get('reportDate', '')[:10] if fl.get('reportDate') else '',
-            'url':          fl.get('reportUrl') or fl.get('filingUrl') or '',
-            'accession':    fl.get('accessNumber', ''),
-        })
-        if len(sec_filings_list) >= 8:
-            break
-
-    # ── Real peer comparison (Finnhub data, not AI-fabricated) ──
-    peer_comparison = []
-    for p in peers_list:
-        pd = res.get(f'peer_{p}') or {}
-        if pd and any(pd.get(k) for k in ('pe','ev_ebitda','net_margin','roe')):
-            peer_comparison.append(pd)
-
-    # ── Curated news: only headlines mentioning the ticker, the company name or its brand ──
-    seen_urls=set(); news=[]
-    company_name = profile.get('name','') or ''
-    rel_keys = {ticker.upper()}
-    if company_name:
-        first = company_name.split()[0].upper()
-        if len(first) >= 3: rel_keys.add(first)
-    BLACKLIST = ('TOP 3 STOCKS','MAGNIFICENT 7','BEST DIVIDEND','PENNY STOCKS','ZACKS RANK')
-    for a in news_list[:50]:
-        hl=(a.get('headline') or '').strip(); url=a.get('url','')
-        if not hl or url in seen_urls or len(hl)<15: continue
-        hl_up = hl.upper()
-        if not any(k in hl_up or k in url.upper() for k in rel_keys): continue
-        if any(b in hl_up for b in BLACKLIST): continue
-        seen_urls.add(url)
-        news.append({'headline':hl[:220],'source':a.get('source','') or '','url':url,'datetime':a.get('datetime',0)})
-        if len(news)>=8: break
-
-    insider_data = (insider_raw or {}).get('data') or []
-    insider_net  = sum((d.get('change',0) or 0) for d in insider_data[-3:])
-    insider_mspr = sum((d.get('mspr',0) or 0) for d in insider_data[-3:])
-
-    price  = quote.get('c'); change = quote.get('d'); chg_pct = quote.get('dp')
-    rec_fh = recs[0] if recs else {}
-    sb=rec_fh.get('strongBuy',0) or 0; b=rec_fh.get('buy',0) or 0
-    h=rec_fh.get('hold',0) or 0;      se=rec_fh.get('sell',0) or 0
-    ss=rec_fh.get('strongSell',0) or 0
-    tp = target.get('targetMean') or av.get('target_price') or yf.get('target_price')
-    upside = round((tp-price)/price*100,1) if tp and price and price>0 else None
-
-    # ── 3-source waterfall: Finnhub → Alpha Vantage → Yahoo Finance ──
-    pe_ttm    = resolve(gm(m_fh,'peBasicExclExtraTTM','peAnnual'), av.get('pe_ttm'))
-    pe_fwd    = av.get('pe_forward') or yf.get('pe_forward')
-    pb        = resolve(gm(m_fh,'pbAnnual'), av.get('pb')) or yf.get('pb')
-    ev_ebitda = resolve(gm(m_fh,'evToEbitdaAnnual','evToEbitdaTTM'), av.get('ev_ebitda')) or yf.get('ev_ebitda')
-    net_margin= resolve(gm(m_fh,'netMarginAnnual','netMarginTTM','netProfitMarginAnnual'), av.get('net_margin')) or yf.get('net_margin')
-    op_margin = resolve(gm(m_fh,'operatingMarginAnnual','operatingMarginTTM'), av.get('op_margin')) or yf.get('op_margin')
-    gross_m   = resolve(gm(m_fh,'grossMarginAnnual','grossMarginTTM'), av.get('gross_margin')) or yf.get('gross_margin')
-    roe       = resolve(gm(m_fh,'roeAnnual','roeTTM'), av.get('roe')) or yf.get('roe')
-    roa       = resolve(gm(m_fh,'roaAnnual','roaTTM'), av.get('roa')) or yf.get('roa')
-    roic      = gm(m_fh,'roicAnnual','roiAnnual','roicTTM')
-    rev_growth= resolve(get_rev_growth_fh(m_fh), av.get('rev_growth')) or yf.get('rev_growth')
-    eps_growth= resolve(get_eps_growth_fh(m_fh), av.get('eps_growth')) or yf.get('eps_growth')
-    eps_ttm   = resolve(gm(m_fh,'epsTTM','epsAnnual'), av.get('eps_ttm'))
-    de        = resolve(get_de_fh(m_fh), av.get('de')) or yf.get('de')
-    cr        = gm(m_fh,'currentRatioAnnual','currentRatioQuarterly') or yf.get('current_ratio')
-    qr        = gm(m_fh,'quickRatioAnnual')
-    div_yield = resolve(gm(m_fh,'dividendYieldIndicatedAnnual','currentDividendYieldTTM'), av.get('div_yield')) or yf.get('div_yield')
-    fcf_raw   = av.get('fcf_raw') or yf.get('fcf_raw') or gm(m_fh,'freeCashFlowAnnual','freeCashFlowTTM')
-    fcf_str   = av.get('fcf_str') or yf.get('fcf_str')
-    fcf_margin= av.get('fcf_margin') or yf.get('fcf_margin')
-    beta      = resolve(gm(m_fh,'beta'), av.get('beta')) or yf.get('beta')
-    w52h      = resolve(gm(m_fh,'52WeekHigh'), av.get('week52_high')) or yf.get('week52_high')
-    w52l      = resolve(gm(m_fh,'52WeekLow'), av.get('week52_low')) or yf.get('week52_low')
-    market_cap= gm(m_fh,'marketCapitalization') or av.get('market_cap') or yf.get('market_cap')
-    peg_ratio = yf.get('peg_ratio')
-    price_sales=yf.get('price_to_sales')
-    short_pct = yf.get('short_pct')
-
-    # ── Short Interest: Finnhub metric fallback if Yahoo blocked ──
-    if short_pct is None:
-        si_fh = gm(m_fh, 'shortInterestQuarterly', 'shortInterestAnnual')
-        if si_fh is not None and si_fh > 0:
-            # Finnhub returns absolute short interest; estimate % of float using shares outstanding
-            _shrs = gm(m_fh, 'sharesOutstanding') or (av.get('shares_out') if av else None)
-            if _shrs and _shrs > 0:
-                try:
-                    short_pct = round(float(si_fh)/float(_shrs)*100, 2)
-                except: pass
-        # Last resort: Finnhub also exposes a direct short ratio
-        if short_pct is None:
-            _sr = gm(m_fh, 'shortRatio', 'shortFloatPercent')
-            if _sr is not None:
-                short_pct = round(float(_sr), 2)
-
-    # ── Historical financials (AV primary → Finnhub SEC fallback) ──
-    hist_fin = av.get('historical_financials', [])
-    if not hist_fin and fh_fin_raw:
-        hist_fin = _parse_fh_financials(fh_fin_raw)
-
-    # ── FCF fallback chain: AV → YF → hist_fin[0] → SEC EDGAR → estimation ──
-    if fcf_raw is None and hist_fin:
-        latest_fcf = hist_fin[0].get('fcf_m')
-        if latest_fcf is not None:
-            fcf_raw = latest_fcf * 1e6
-            if not fcf_str:
-                fcf_str = f"${latest_fcf/1000:.1f}B" if abs(latest_fcf)>=1000 else f"${latest_fcf:.0f}M"
-    # SEC EDGAR fallback (most reliable when others fail — official 10-K XBRL)
-    if fcf_raw is None and sec_data.get('fcf') is not None:
-        fcf_raw = float(sec_data['fcf'])
-        if not fcf_str:
-            v = fcf_raw
-            fcf_str = f"${v/1e9:.1f}B" if abs(v)>=1e9 else f"${v/1e6:.0f}M"
-    # Last resort: estimate from operating income in hist_fin
-    if fcf_raw is None and hist_fin and hist_fin[0].get('operating_income_m'):
-        try:
-            _oi = float(hist_fin[0]['operating_income_m']) * 1e6
-            _rev = (hist_fin[0].get('revenue_m') or 0) * 1e6
-            # Rough: FCF ≈ Op Inc × (1 - tax_rate) - CapEx; assume CapEx≈4% of revenue, tax≈21%
-            _est = _oi * 0.79 - _rev * 0.04
-            if _est > 0:
-                fcf_raw = _est
-                if not fcf_str:
-                    fcf_str = f"${_est/1e9:.1f}B*" if abs(_est)>=1e9 else f"${_est/1e6:.0f}M*"
-        except: pass
-
-    # ── Mathematical fallbacks for key multiples ──
-    if pe_fwd is None and eps_ttm and price and float(price)>0 and float(eps_ttm)>0:
-        try:
-            _fwd_eps = float(eps_ttm)*(1+min(max(float(eps_growth or 0),-50),150)/100)
-            if _fwd_eps>0: pe_fwd = round(float(price)/_fwd_eps, 1)
-        except: pass
-
-    if ev_ebitda is None and pe_ttm and net_margin and op_margin and market_cap:
-        try:
-            if float(pe_ttm)>0 and float(net_margin)>0 and float(op_margin)>0:
-                _mc  = float(market_cap)*1e6
-                _rev = _mc/float(pe_ttm)/(float(net_margin)/100)
-                _ebi = _rev*float(op_margin)/100*1.3
-                _ev  = _mc + _mc*(float(de) if de else 0)*0.25
-                if _ebi>0: ev_ebitda = round(_ev/_ebi, 1)
-        except: pass
-
-    if fcf_margin is None and fcf_raw is not None:
-        # 1) SEC EDGAR revenue (most reliable)
-        try:
-            if sec_data.get('revenue') and sec_data['revenue'] > 0:
-                fcf_margin = round(float(fcf_raw)/float(sec_data['revenue'])*100, 1)
-        except: pass
-        # 2) hist_fin latest revenue
-        if fcf_margin is None and hist_fin and hist_fin[0].get('revenue_m'):
-            try:
-                _rev = float(hist_fin[0]['revenue_m'])*1e6
-                if _rev > 0: fcf_margin = round(float(fcf_raw)/_rev*100, 1)
-            except: pass
-        # 3) revenuePerShareTTM × shares (Finnhub)
-        if fcf_margin is None:
-            try:
-                _rps = gm(m_fh,'revenuePerShareTTM','revenuePerShareAnnual')
-                if _rps and market_cap and price and float(price)>0:
-                    _rev = float(_rps)*float(market_cap)*1e6/float(price)
-                    if _rev>0: fcf_margin = round(float(fcf_raw)/_rev*100, 1)
-            except: pass
-        # 4) Math derivation from PE + net margin + market cap
-        if fcf_margin is None:
-            try:
-                if pe_ttm and net_margin and market_cap and float(pe_ttm)>0 and float(net_margin)>0:
-                    _rev = float(market_cap)*1e6/float(pe_ttm)/(float(net_margin)/100)
-                    if _rev>0: fcf_margin = round(float(fcf_raw)/_rev*100, 1)
-            except: pass
-        # 5) Last resort: ~80% of operating margin
-        if fcf_margin is None and hist_fin:
-            latest_om = hist_fin[0].get('operating_margin_pct')
-            if latest_om and latest_om > 0: fcf_margin = round(latest_om * 0.80, 1)
-
-    if fcf_raw and not fcf_str:
-        v = float(fcf_raw)
-        fcf_str = f"${v/1e9:.1f}B" if abs(v)>=1e9 else f"${v/1e6:.0f}M"
-
-    # ── Reconcile FCF into hist_fin so the historical table never shows N/A when we have data ──
-    if fcf_raw is not None and hist_fin:
-        try:
-            if hist_fin[0].get('fcf_m') is None:
-                hist_fin[0]['fcf_m'] = round(float(fcf_raw)/1e6)
-        except: pass
-
-    # ── P/S (Price / Sales) — derive from Market Cap and Revenue if Yahoo blocked ──
-    if price_sales is None:
-        try:
-            _rev = av.get('rev_ttm') or yf.get('rev_ttm')
-            if not _rev and pe_ttm and net_margin and market_cap and float(pe_ttm)>0 and float(net_margin)>0:
-                _rev = float(market_cap)*1e6/float(pe_ttm)/(float(net_margin)/100)
-            if not _rev and hist_fin:
-                latest_rev = hist_fin[0].get('revenue_m')
-                if latest_rev: _rev = float(latest_rev)*1e6
-            if _rev and market_cap and float(_rev)>0:
-                price_sales = round(float(market_cap)*1e6/float(_rev), 2)
-        except: pass
-
-    # ── PEG (P/E / EPS growth) — derive from existing data ──
-    if peg_ratio is None and pe_ttm and eps_growth:
-        try:
-            _g = float(eps_growth)
-            _pe = float(pe_ttm)
-            if _g > 0 and _pe > 0:
-                # Cap absurd values: PEG > 10 usually indicates noise
-                _peg = round(_pe/_g, 2)
-                if 0 < _peg < 20:
-                    peg_ratio = _peg
-        except: pass
-    # Final PEG fallback using rev_growth as proxy when EPS growth missing
-    if peg_ratio is None and pe_ttm and rev_growth and float(rev_growth) > 0:
-        try:
-            _peg = round(float(pe_ttm)/float(rev_growth), 2)
-            if 0 < _peg < 20:
-                peg_ratio = _peg
-        except: pass
-
-    # ── Advanced ratio derivations (for score input + frontend display) ──
-    # FCF / Net Income conversion ratio (earnings quality indicator)
-    fcf_ni_ratio = None
-    try:
-        if fcf_raw and net_margin and pe_ttm and price and market_cap:
-            _ni_est = float(market_cap)*1e6/float(pe_ttm) if float(pe_ttm)>0 else None
-            if _ni_est and _ni_est > 0:
-                fcf_ni_ratio = round(float(fcf_raw)/_ni_est, 3)
-        elif fcf_raw and hist_fin and hist_fin[0].get('net_income_m'):
-            _ni = float(hist_fin[0]['net_income_m'])*1e6
-            if _ni and _ni > 0:
-                fcf_ni_ratio = round(float(fcf_raw)/_ni, 3)
-    except: pass
-
-    # Operating leverage from historical financials (last 2 years)
-    op_leverage = None
-    try:
-        if hist_fin and len(hist_fin) >= 2:
-            r0, r1 = hist_fin[0].get('revenue_m'), hist_fin[1].get('revenue_m')
-            o0, o1 = hist_fin[0].get('operating_income_m'), hist_fin[1].get('operating_income_m')
-            if r0 and r1 and o0 and o1 and r1 > 0 and o1 != 0:
-                rev_chg = (r0-r1)/r1
-                op_chg  = (o0-o1)/o1
-                if abs(rev_chg) > 0.01:
-                    op_leverage = round(op_chg/rev_chg, 2)
-    except: pass
-
-    # Net Debt / EBITDA proxy (uses D/E + market cap + EBITDA proxy)
-    net_debt_ebitda = None
-    try:
-        if de is not None and market_cap and op_margin and pe_ttm:
-            _equity_m = float(market_cap)
-            _debt_m = _equity_m * float(de)
-            _rev_m = _equity_m / float(pe_ttm) / (float(net_margin)/100) if (net_margin and float(net_margin)>0 and float(pe_ttm)>0) else None
-            if _rev_m:
-                _ebitda_m = _rev_m * float(op_margin)/100 * 1.25  # approx EBITDA = OpInc × 1.25
-                if _ebitda_m > 0:
-                    net_debt_ebitda = round(_debt_m / _ebitda_m, 2)
-    except: pass
-
-    # ── Derived scores (with full breakdown for transparency) ──
-    sc = compute_score(
-        net_margin, op_margin, roe, roa, roic, rev_growth, de, cr, qr,
-        fcf_raw, fcf_margin, fcf_ni_ratio,
-        sb, b, h, se, ss, tp, price,
-        beta, macro.get('vix'), macro.get('credit_spread_hy'),
-        lang
-    )
-    z   = calc_altman(m_fh, av)
-    fs  = calc_piotroski(m_fh, av)
-
-    # ── Financial health semáforo (5 flags) ──
-    health_flags = compute_health_flags(
-        net_margin, op_margin, gross_m, roe, roic, de, cr, qr,
-        fcf_raw, fcf_margin, fcf_ni_ratio, rev_growth, hist_fin, lang
-    )
-
-    # ── Multi-method valuation ──
-    valuation_methods = compute_multi_method_valuation(
-        eps_ttm, eps_growth, ev_ebitda, net_margin, op_margin, rev_growth,
-        fcf_raw, de, beta, macro.get('risk_free_rate'),
-        peer_comparison, market_cap, price, hist_fin
-    )
-
-    # ── Reverse DCF (implied growth at current price) ──
-    reverse_dcf = compute_reverse_dcf(price, market_cap, fcf_raw, beta, de, macro.get('risk_free_rate'))
-
-    # ── DCF sensitivity matrix (WACC × terminal g grid) ──
-    dcf_sensitivity = compute_dcf_sensitivity(fcf_raw, beta, de, macro.get('risk_free_rate'), rev_growth, market_cap, price)
-
-    # ── Beat / miss history ──
-    beat_miss = compute_beat_miss_history(earnings)
-
-    # ── Quality of earnings (Sloan accruals, partial Beneish) ──
-    ocf_latest = float(fcf_raw) if fcf_raw else None
-    total_assets_latest = float(market_cap)*1e6 * (1 + (float(de) if de else 0.5)) * 1.5 if market_cap else None
-    ni_latest = (hist_fin[0].get('net_income_m')*1e6) if (hist_fin and hist_fin[0].get('net_income_m')) else None
-    qoe = compute_quality_of_earnings(hist_fin, ni_latest, ocf_latest, total_assets_latest)
-
-    # ── SBC analysis (critical for tech FCF quality) ──
-    sbc_analysis = None
-    if sec_sbc is not None and sec_sbc > 0:
-        rev_latest_usd = (hist_fin[0].get('revenue_m')*1e6) if (hist_fin and hist_fin[0].get('revenue_m')) else None
-        sbc_rev_pct = round(sec_sbc/rev_latest_usd*100, 1) if (rev_latest_usd and rev_latest_usd>0) else None
-        sbc_fcf_pct = round(sec_sbc/float(fcf_raw)*100, 1) if (fcf_raw and float(fcf_raw)>0) else None
-        fcf_ex_sbc = float(fcf_raw) - sec_sbc if fcf_raw else None
-        fcf_ex_sbc_margin = round(fcf_ex_sbc/rev_latest_usd*100, 1) if (fcf_ex_sbc and rev_latest_usd and rev_latest_usd>0) else None
-        sbc_analysis = {
-            'sbc_usd':        sec_sbc,
-            'sbc_str':        f"${sec_sbc/1e9:.1f}B" if abs(sec_sbc)>=1e9 else f"${sec_sbc/1e6:.0f}M",
-            'sbc_rev_pct':    sbc_rev_pct,
-            'sbc_fcf_pct':    sbc_fcf_pct,
-            'fcf_ex_sbc_usd': fcf_ex_sbc,
-            'fcf_ex_sbc_margin_pct': fcf_ex_sbc_margin,
-            'note': 'SBC is a real economic cost. FCF ex-SBC is the cleaner cash measure for tech compounders.',
-        }
-    name        = profile.get('name', ticker)
-    fh_industry = profile.get('finnhubIndustry','')
-    industry    = av.get('industry','') or fh_industry or 'N/A'
-    sector      = av.get('sector','') or fh_industry or ''
-    peers       = peers_list
-
-    # Employees fallback: AV → Finnhub profile → blank
-    employees = av.get('employees','') or profile.get('employeeTotal','') or ''
-
-    # Source tracking dict — which source provided each visible metric (for UI badges)
-    def _src(*pairs):
-        """pairs are (value, source_label). Returns the first source whose value is not None."""
-        for v, s in pairs:
-            if v is not None: return s
-        return None
-    metrics_sources = {
-        'pe':           _src((gm(m_fh,'peBasicExclExtraTTM','peAnnual'),'FH'), (av.get('pe_ttm'),'AV')),
-        'pe_forward':   _src((av.get('pe_forward'),'AV'), (yf.get('pe_forward'),'YF')),
-        'pb':           _src((gm(m_fh,'pbAnnual'),'FH'), (av.get('pb'),'AV'), (yf.get('pb'),'YF')),
-        'ev_ebitda':    _src((gm(m_fh,'evToEbitdaAnnual','evToEbitdaTTM'),'FH'), (av.get('ev_ebitda'),'AV'), (yf.get('ev_ebitda'),'YF')),
-        'peg':          _src((yf.get('peg_ratio'),'YF')) or ('CALC' if peg_ratio is not None else None),
-        'ps':           _src((yf.get('price_to_sales'),'YF')) or ('CALC' if price_sales is not None else None),
-        'net_margin':   _src((gm(m_fh,'netMarginAnnual','netMarginTTM'),'FH'), (av.get('net_margin'),'AV'), (yf.get('net_margin'),'YF')),
-        'op_margin':    _src((gm(m_fh,'operatingMarginAnnual','operatingMarginTTM'),'FH'), (av.get('op_margin'),'AV'), (yf.get('op_margin'),'YF')),
-        'gross_margin': _src((gm(m_fh,'grossMarginAnnual','grossMarginTTM'),'FH'), (av.get('gross_margin'),'AV'), (yf.get('gross_margin'),'YF')),
-        'fcf':          _src((av.get('fcf_raw'),'AV'), (yf.get('fcf_raw'),'YF'), (sec_data.get('fcf'),'SEC')),
-        'fcf_margin':   _src((av.get('fcf_margin'),'AV'), (yf.get('fcf_margin'),'YF')) or ('CALC' if fcf_margin is not None else None),
-        'roe':          _src((gm(m_fh,'roeAnnual','roeTTM'),'FH'), (av.get('roe'),'AV'), (yf.get('roe'),'YF')),
-        'roa':          _src((gm(m_fh,'roaAnnual','roaTTM'),'FH'), (av.get('roa'),'AV'), (yf.get('roa'),'YF')),
-        'roic':         _src((gm(m_fh,'roicAnnual','roiAnnual','roicTTM'),'FH')),
-        'rev_growth':   _src((get_rev_growth_fh(m_fh),'FH'), (av.get('rev_growth'),'AV'), (yf.get('rev_growth'),'YF')),
-        'eps_growth':   _src((get_eps_growth_fh(m_fh),'FH'), (av.get('eps_growth'),'AV'), (yf.get('eps_growth'),'YF')),
-        'eps':          _src((gm(m_fh,'epsTTM','epsAnnual'),'FH'), (av.get('eps_ttm'),'AV')),
-        'de':           _src((get_de_fh(m_fh),'FH'), (av.get('de'),'AV'), (yf.get('de'),'YF')),
-        'current_ratio':_src((gm(m_fh,'currentRatioAnnual','currentRatioQuarterly'),'FH'), (yf.get('current_ratio'),'YF')),
-        'div_yield':    _src((gm(m_fh,'dividendYieldIndicatedAnnual','currentDividendYieldTTM'),'FH'), (av.get('div_yield'),'AV'), (yf.get('div_yield'),'YF')),
-        'beta':         _src((gm(m_fh,'beta'),'FH'), (av.get('beta'),'AV'), (yf.get('beta'),'YF')),
-        'market_cap':   _src((gm(m_fh,'marketCapitalization'),'FH'), (av.get('market_cap'),'AV'), (yf.get('market_cap'),'YF')),
-        'short_pct':    _src((yf.get('short_pct'),'YF'), (gm(m_fh,'shortInterestQuarterly','shortInterestAnnual'),'FH')),
-    }
-
-    # ── Ownership ──
-    pct_inst = av.get('pct_institutions') or yf.get('pct_institutions')
-    pct_insi = av.get('pct_insiders') or yf.get('pct_insiders')
-
-    # ── Upcoming earnings ──
-    upcoming_earnings = None
-    try:
-        earn_cal = fh('stock/earnings-calendar',{'symbol':ticker,'from':to_date,'to':time.strftime('%Y-%m-%d',time.gmtime(now_ts+90*24*3600))},timeout=6)
-        if earn_cal.get('earningsCalendar'):
-            upcoming_earnings = earn_cal['earningsCalendar'][0].get('date')
-    except: pass
-    if not upcoming_earnings:
-        upcoming_earnings = yf.get('upcoming_earnings')
-
-    # ── Economic calendar ──
-    econ_events = []
-    try:
-        econ_cal = fh('calendar/economic',{'from':to_date,'to':time.strftime('%Y-%m-%d',time.gmtime(now_ts+14*24*3600))},timeout=6)
-        for ev in (econ_cal.get('economicCalendar') or [])[:8]:
-            if ev.get('impact') in ('high','medium'):
-                econ_events.append({'event':ev.get('event',''),'date':ev.get('time','')[:10],'impact':ev.get('impact',''),'country':ev.get('country','')})
-    except: econ_events=[]
-
-    # ── Build peer comparison table with subject as first row ──
-    peer_table_for_ai = [{'ticker':ticker,'name':name,'pe':pe_ttm,'ev_ebitda':ev_ebitda,
-        'net_margin_pct':net_margin,'gross_margin_pct':gross_m,'roe_pct':roe,
-        'rev_growth_pct':rev_growth,'market_cap_m':market_cap,'is_subject':True}]
-    for pd in peer_comparison:
-        peer_table_for_ai.append({
-            'ticker':pd['ticker'],'name':pd.get('name',pd['ticker']),
-            'pe':pd.get('pe'),'ev_ebitda':pd.get('ev_ebitda'),
-            'net_margin_pct':pd.get('net_margin'),'gross_margin_pct':pd.get('gross_margin'),
-            'roe_pct':pd.get('roe'),'rev_growth_pct':pd.get('rev_growth'),
-            'market_cap_m':pd.get('market_cap'),'is_subject':False
-        })
-
-    # ── AI input payload (rich data feed) ──
-    user_data_for_ai = {
-        'company':{
-            'ticker':ticker,'name':name,'sector':sector,'industry':industry,
-            'country':av.get('country',''),'employees':av.get('employees',''),
-            'description':(av.get('description','') or '')[:600],
-            'price':price,'change_pct':chg_pct,'market_cap_m':market_cap,
-            'composite_score':sc['total'],'score_fund':sc['fundamental'],
-            'score_accounting':sc['accounting'],'score_analyst':sc['analyst'],
-            'altman_z':z,'altman_zone':altman_zone(z,lang),'piotroski_f':fs,
-            'pe_ttm':pe_ttm,'pe_forward':pe_fwd,'pb':pb,'ev_ebitda':ev_ebitda,
-            'peg_ratio':peg_ratio,'price_to_sales':price_sales,
-            'gross_margin':gross_m,'op_margin':op_margin,'net_margin':net_margin,
-            'roe':roe,'roa':roa,'roic':roic,
-            'rev_growth':rev_growth,'eps_growth':eps_growth,'eps_ttm':eps_ttm,
-            'fcf':fcf_str,'fcf_margin':fcf_margin,
-            'fcf_raw_bn':round(float(fcf_raw)/1e9,1) if fcf_raw else None,
-            'fcf_ni_conversion':fcf_ni_ratio,
-            'operating_leverage':op_leverage,
-            'net_debt_ebitda':net_debt_ebitda,
-            'de':de,'current_ratio':cr,'quick_ratio':qr,'div_yield':div_yield,'beta':beta,
-            'short_pct':short_pct,
-            'week52_high':w52h,'week52_low':w52l,
-            'pct_institutions':pct_inst,'pct_insiders':pct_insi,
-            'insider_net_change':insider_net,'insider_mspr':round(insider_mspr,2),
-            'analyst_strong_buy':sb,'analyst_buy':b,'analyst_hold':h,
-            'analyst_sell':se,'analyst_strong_sell':ss,
-            'consensus_target':tp,'consensus_upside':upside,
-            'historical_financials':hist_fin[:4],
-            'upcoming_earnings':upcoming_earnings,'peers':peers,
-        },
-        'macro':macro,
-        'peer_comparison':peer_table_for_ai,
-        'recent_news':[{'headline':n['headline'],'source':n['source']} for n in news[:6]],
-        'economic_calendar':econ_events[:6],
-        'recent_filings':[{'form':f['form'],'filed_date':f['filed_date'],'period':f['period']} for f in sec_filings_list[:6]],
-        'sec_segments':sec_segments,
-        'technicals':technicals,
-        'spy_returns':(spy_tech.get('returns') if spy_tech else {}),
-        'real_top_holders':[h for h in fh_own.get('top_holders', [])[:8]],
-        'recent_insider_txns':[t for t in fh_own.get('insider_transactions', [])[:6]],
-        'health_flags':health_flags,
-        'valuation_methods':valuation_methods,
-    }
-
-    # ── 3 parallel AI calls (4500 tokens each — balance depth vs Vercel 60s hard cap) ──
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        fa = ex.submit(call_openai, prompt_a(lang), user_data_for_ai, 4500)
-        fb = ex.submit(call_openai, prompt_b(lang), user_data_for_ai, 4500)
-        fc = ex.submit(call_openai, prompt_c(lang), user_data_for_ai, 8000)
-        try: ai_a = fa.result(timeout=48)
-        except: ai_a = {'_error':'timeout'}
-        try: ai_b = fb.result(timeout=48)
-        except: ai_b = {'_error':'timeout'}
-        try: ai_c = fc.result(timeout=48)
-        except: ai_c = {'_error':'timeout'}
-
-    ai_a_failed = bool(ai_a.get('_error'))
-    ai_b_failed = bool(ai_b.get('_error'))
-    ai_c_failed = bool(ai_c.get('_error'))
-    if ai_a_failed: ai_a = _fallback_a(name, sc, fs, lang)
-    if ai_b_failed: ai_b = _fallback_b(name, fs, lang)
-    if ai_c_failed: ai_c = _fallback_c(lang)
-    ai = {**ai_a, **ai_b, **ai_c}
-    ai['_section_status'] = {
-        'a_executive_business': 'fallback' if ai_a_failed else 'ok',
-        'b_performance_quality_filings': 'fallback' if ai_b_failed else 'ok',
-        'c_macro_risk_owner_val_comp_scen': 'fallback' if ai_c_failed else 'ok',
-    }
-
-    # Expected return + Kelly fraction (based on AI scenarios)
-    expected_ret = compute_expected_return_and_kelly(ai.get('scenarios'), price) if not ai_c_failed else None
-
-    # ── Competitor table: AI output backed by real data, fallback to raw peer data ──
-    ai_comp_table = (ai.get('competitors') or {}).get('table') or []
-    if not ai_comp_table and peer_table_for_ai:
-        if 'competitors' not in ai: ai['competitors'] = {}
-        ai['competitors']['table'] = peer_table_for_ai
-
-    return {
-        'ticker':ticker,'name':name,'news':news,
-        'exchange':profile.get('exchange',''),'industry':industry,'sector':sector,
-        'logo':profile.get('logo',''),'country':av.get('country','') or profile.get('country',''),
-        'employees':employees,'description':(av.get('description','') or '')[:400],
-        'price':price,'change':change,'change_pct':chg_pct,
-        'score':sc,'altman':z,'altman_zone':altman_zone(z,lang),
-        'piotroski':fs,'piotroski_label':piotroski_label(fs,lang),
-        'macro':macro,'historical_financials':hist_fin,
-        'economic_calendar':econ_events,'upcoming_earnings':upcoming_earnings,
-        'sec_filings_list':sec_filings_list,
-        'peer_comparison':peer_comparison,
-        'metrics':{
-            'pe':pe_ttm,'pe_forward':pe_fwd,'pb':pb,'ev_ebitda':ev_ebitda,
-            'peg':peg_ratio,'ps':price_sales,
-            'net_margin':net_margin,'op_margin':op_margin,'gross_margin':gross_m,
-            'fcf_margin':fcf_margin,'roe':roe,'roa':roa,'roic':roic,
-            'rev_growth':rev_growth,'eps_growth':eps_growth,'eps':eps_ttm,
-            'de':de,'current_ratio':cr,'quick_ratio':qr,'div_yield':div_yield,
-            'fcf':fcf_str,'week52_high':w52h,'week52_low':w52l,'beta':beta,
-            'short_pct':short_pct,'market_cap_m':market_cap,
-        },
-        'advanced_ratios':{
-            'fcf_ni_conversion': fcf_ni_ratio,
-            'operating_leverage': op_leverage,
-            'net_debt_ebitda':   net_debt_ebitda,
-        },
-        'metrics_sources':    metrics_sources,
-        'health_flags':       health_flags,
-        'valuation_methods':  valuation_methods,
-        'reverse_dcf':        reverse_dcf,
-        'dcf_sensitivity':    dcf_sensitivity,
-        'beat_miss_history':  beat_miss,
-        'quality_of_earnings':qoe,
-        'sbc_analysis':       sbc_analysis,
-        'expected_return':    expected_ret,
-        'data_freshness': {
-            'computed_at_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            'macro_source': 'FRED (10Y, FedFunds, VIX); CPI/PMI/HY-Spread static',
-            'fundamentals_sources': 'Finnhub primary; Alpha Vantage + Yahoo Finance + SEC EDGAR fallbacks',
-        },
-        'methodology_disclaimer': {
-            'composite_score': 'Heuristic 4-pillar score (40+30+20+10). NOT a back-tested alpha signal. Full methodology in README.',
-            'fair_value': 'Multi-method (P/E peer-median, EV/EBITDA peer-median, 2-stage DCF). Reverse-DCF shows implied growth.',
-            'sloan_accruals': 'Sloan (1996): NI-CFO over avg assets. |Sloan|>0.10 = potential accruals manipulation. Estimated from proxies; production should use audited 10-K assets.',
-            'kelly': 'Quarter-Kelly is the institutional convention; full-Kelly maximises log-growth but accepts ruinous variance.',
-            'informational_only': 'This output is informational research, NOT investment advice.',
-        },
-        'technicals':         technicals,
-        'spy_returns':        (spy_tech.get('returns') if spy_tech else {}),
-        'sec_segments':       sec_segments,
-        'real_top_holders':   fh_own.get('top_holders', []),
-        'recent_insider_txns':fh_own.get('insider_transactions', []),
-        'ownership':{
-            'pct_institutions':pct_inst,'pct_insiders':pct_insi,
-            'insider_net_change':insider_net,'insider_mspr':round(insider_mspr,2),
-        },
-        'analyst':{
-            'strong_buy':sb,'buy':b,'hold':h,'sell':se,'strong_sell':ss,
-            'total':sb+b+h+se+ss,'target_price':tp,'upside':upside,
-        },
-        'earnings':[{'period':e.get('period'),'actual':e.get('actual'),'estimate':e.get('estimate'),
-                     'surprise':e.get('surprisePercent')} for e in earnings[:8]],
-        'ai':ai,'lang':lang,
-    }
-
-import math as _math
-
-def _clean_for_json(obj):
-    """Recursively replace NaN, Infinity, -Infinity (invalid in JSON) with None."""
-    if isinstance(obj, dict):
-        return {k: _clean_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_clean_for_json(x) for x in obj]
-    if isinstance(obj, tuple):
-        return tuple(_clean_for_json(x) for x in obj)
-    if isinstance(obj, float):
-        if _math.isnan(obj) or _math.isinf(obj):
-            return None
-    return obj
-
-class handler(BaseHTTPRequestHandler):
-    def do_OPTIONS(self):
-        self.send_response(200); self.send_header('Access-Control-Allow-Origin','*'); self.end_headers()
-    def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path); qs = urllib.parse.parse_qs(parsed.query)
-        ticker = (qs.get('ticker',[''])[0]).upper().strip()
-        lang   = (qs.get('lang',['en'])[0]).lower().strip()
-        if lang not in ('en','es'): lang = 'en'
-        # Send headers IMMEDIATELY so if Vercel kills us by timeout, client still gets a JSON-typed response (truncated, not HTML 500)
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        try:
-            if not ticker:
-                self.wfile.write(json.dumps({'error':'Provide ?ticker=AAPL'}).encode())
-                return
-            result = analyse(ticker, lang)
-            result = _clean_for_json(result)
-            self.wfile.write(json.dumps(result, allow_nan=False, default=str).encode())
-        except Exception as e:
-            try:
-                self.wfile.write(json.dumps({'error': str(e)[:300]}).encode())
-            except: pass
-    def log_message(self, *a): pass
-
+  } catch(err){
+    msg.className = 'port-msg err'; msg.textContent = tr.wl_err;
+  }
+  btn.disabled = false; btn.textContent = tr.wl_subscribe;
+}
+
+document.getElementById('addInp').addEventListener('keydown', e=>{ if(e.key==='Enter') addTicker(); });
+
+// ═══ Init ═══
+applyI18n();
+renderWatchlist();
+</script>
+</body>
+</html>
