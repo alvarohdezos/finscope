@@ -853,7 +853,7 @@ function renderReport(d){
     {l:LANG==='es'?'País sede':'Headquarters',  v: esc(d.country||'—')},
     {l:LANG==='es'?'Sector':'Sector',           v: esc(d.sector||d.industry||'—')},
     {l:LANG==='es'?'Industria':'Industry',      v: esc(d.industry||'—')},
-    {l:LANG==='es'?'Empleados':'Employees',     v: d.employees ? Number(d.employees).toLocaleString() : '—'},
+    {l:LANG==='es'?'Empleados':'Employees',     v: d.employees ? fmtShares(d.employees) : '—'},
     {l:LANG==='es'?'Capitalización':'Market cap', v: fmtMcapShort(m.market_cap_m)},
     {l:LANG==='es'?'Beta':'Beta',               v: m.beta!=null ? Number(m.beta).toFixed(2) : '—'},
     {l:LANG==='es'?'P/E (TTM)':'P/E (TTM)',     v: m.pe!=null ? Number(m.pe).toFixed(1)+'x' : '—'},
@@ -874,7 +874,7 @@ function renderReport(d){
   const takeaways = aiTakeaways.length ? aiTakeaways : flagTakeaways;
   const takeawayHTML = takeaways.length ? `
     <div style="margin-bottom:14px">
-      <div class="albl" style="margin-top:0">${LANG==='es'?'Aspectos clave':'Key takeaways'} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'señales binarias derivadas del semáforo de salud y de la lectura de la IA':'binary signals from the health semáforo + AI read'}</span></div>
+      <div class="albl" style="margin-top:0">${LANG==='es'?'Aspectos clave':'Key takeaways'} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'señales binarias derivadas del semáforo de salud y de la lectura de la IA':'binary signals from health checks + AI synthesis'}</span></div>
       <div style="display:flex;flex-direction:column;gap:6px">
         ${takeaways.slice(0,6).map(t=>{
           const st = (t.status||'').toLowerCase();
@@ -899,7 +899,7 @@ function renderReport(d){
       ${d.upcoming_earnings?`
         <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:linear-gradient(135deg,rgba(15,45,107,.06),rgba(37,99,235,.03));border-radius:6px;border-left:3px solid var(--blue2)">
           <span style="font-size:10px;font-weight:800;color:var(--blue2);min-width:64px">${LANG==='es'?'RESULTADOS':'EARNINGS'}</span>
-          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink)">${LANG==='es'?'Próxima presentación de resultados':'Next earnings release'}</div></div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink)">${LANG==='es'?'Próxima presentación de resultados':'Next earnings release'}</div>${(()=>{try{const t=new Date(d.upcoming_earnings+'T00:00:00Z').getTime();const dd=Math.round((t-Date.now())/86400000);if(!isFinite(dd))return'';return `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums">${dd>=0?(LANG==='es'?'En ':'In ')+dd+(LANG==='es'?' días':' days'):(LANG==='es'?'Hace ':'')+Math.abs(dd)+(LANG==='es'?' días':' days ago')}</div>`}catch(e){return''}})()}</div>
           <span style="font-size:13px;font-weight:800;color:var(--blue2);font-variant-numeric:tabular-nums">${esc(d.upcoming_earnings)}</span>
         </div>`:''}
       ${econEv.map(ev=>`
@@ -1087,6 +1087,34 @@ function renderReport(d){
       </tbody>
     </table>` : '';
 
+  // ── Beat / miss history (computed from earnings list) ──
+  const bmHist = d.beat_miss_history||null;
+  const beatMissHTML = bmHist && bmHist.history && bmHist.history.length ? `
+    <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Historial de sorpresas · últimos 8 trimestres':'Earnings surprise history · last 8 quarters'}</div>
+        <div style="display:flex;gap:14px;font-size:11px">
+          <div><span style="color:var(--muted)">${LANG==='es'?'Beat rate':'Beat rate'}: </span><strong style="color:${bmHist.beat_rate_pct>=75?'var(--green)':bmHist.beat_rate_pct>=50?'var(--amber)':'var(--red)'};font-variant-numeric:tabular-nums">${bmHist.beat_rate_pct}%</strong></div>
+          <div><span style="color:var(--muted)">${LANG==='es'?'Sorpresa media':'Avg surprise'}: </span><strong style="color:${bmHist.avg_surprise_pct>=0?'var(--green)':'var(--red)'};font-variant-numeric:tabular-nums">${bmHist.avg_surprise_pct>=0?'+':''}${bmHist.avg_surprise_pct}%</strong></div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Trimestre':'Period'}</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Real':'Actual'}</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Estimado':'Estimate'}</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'Sorpresa':'Surprise'}</th>
+        </tr></thead>
+        <tbody>
+        ${bmHist.history.map(h=>`<tr>
+          <td style="padding:6px 8px;color:var(--ink);font-weight:600">${esc(h.period||'—')}</td>
+          <td style="padding:6px 8px;text-align:right">${h.actual!=null?h.actual.toFixed(2):'—'}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--muted)">${h.estimate!=null?h.estimate.toFixed(2):'—'}</td>
+          <td style="padding:6px 8px;text-align:right;color:${h.surprise_pct>=0?'var(--green)':'var(--red)'};font-weight:700">${h.surprise_pct>=0?'+':''}${h.surprise_pct}%</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`:'';
   const s03 = `
     <div class="atxt">${para(perf.text||'')}</div>
     ${returnsTableHTML}
@@ -1102,7 +1130,7 @@ function renderReport(d){
       <div class="chart-lbl">${tr.earnings_hist}</div>
       <div class="ch-wrap"><canvas id="earnsChart"></canvas></div>
     </div>
-    ${invalidationBox(perf.invalidation)}`;
+    ${invalidationBox(perf.invalidation)}${beatMissHTML}`;
 
   // ── Section 04: Financial Quality ──
   const fq = ai.financial_quality||{};
@@ -1224,7 +1252,7 @@ function renderReport(d){
     </div>` : '';
   const s05 = `
     <div class="atxt">${para(mc_ai.text||'')}</div>
-    <div class="albl">${tr.macro_live}</div>
+    <div class="albl">${tr.macro_live} <span style="font-size:10px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">— ${LANG==='es'?'10Y/FedFunds/VIX vía FRED en tiempo real; CPI/PMI/HY-Spread estáticos · actualizado':'10Y/FedFunds/VIX live via FRED; CPI/PMI/HY-Spread static · refreshed'} ${(d.data_freshness&&d.data_freshness.computed_at_utc)?esc(d.data_freshness.computed_at_utc.slice(0,16)+' UTC'):''}</span></div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
       ${[
         {l:tr.macro_10y, v:`${(mac.risk_free_rate||0).toFixed(2)}%`},
@@ -1310,7 +1338,7 @@ function renderReport(d){
       <div class="chart-lbl">${tr.own_metrics}</div>
       <div class="own-metric"><span>${tr.own_institutional}</span><span class="v">${ownData.pct_institutions!=null?Number(ownData.pct_institutions).toFixed(1)+'%':'N/A'}</span></div>
       <div class="own-metric"><span>${tr.own_insiders}</span><span class="v">${ownData.pct_insiders!=null?Number(ownData.pct_insiders).toFixed(1)+'%':'N/A'}</span></div>
-      <div class="own-metric"><span>${tr.own_insider_net}</span><span class="v" style="color:${(ownData.insider_net_change||0)>0?'var(--green)':(ownData.insider_net_change||0)<0?'var(--red)':'var(--ink)'}">${(ownData.insider_net_change||0)>0?'+':''}${Number(ownData.insider_net_change||0).toLocaleString()}</span></div>
+      <div class="own-metric"><span>${tr.own_insider_net}</span><span class="v" style="color:${(ownData.insider_net_change||0)>0?'var(--green)':(ownData.insider_net_change||0)<0?'var(--red)':'var(--ink)'}">${fmtSignedShares(ownData.insider_net_change||0)}</span></div>
       <div class="own-metric"><span>${tr.own_mspr}</span><span class="v">${ownData.insider_mspr!=null?Number(ownData.insider_mspr).toFixed(2):'N/A'}</span></div>
     </div>`;
 
@@ -1338,8 +1366,8 @@ function renderReport(d){
           return `<tr>
             <td><strong>${esc(h.name)}</strong></td>
             <td style="text-align:right;font-variant-numeric:tabular-nums;color:${pctCol};font-weight:700">${pctOfCo!=null?pctOfCo.toFixed(2)+'%':'—'}</td>
-            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)">${h.share?Number(h.share).toLocaleString():'—'}</td>
-            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${h.change?chgSign+Number(h.change).toLocaleString():'—'}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)">${h.share?fmtShares(h.share):'—'}</td>
+            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${h.change?chgSign+fmtShares(Math.abs(h.change)):'—'}</td>
             <td style="text-align:right;font-variant-numeric:tabular-nums">${h.portfolio_pct!=null?Number(h.portfolio_pct).toFixed(2)+'%':'—'}</td>
             <td style="text-align:right;color:var(--muted)">${esc(h.filing_date||'—')}</td>
           </tr>`;
@@ -1366,7 +1394,7 @@ function renderReport(d){
           const chgSign = t.change>0?'+':'';
           return `<tr>
             <td><strong>${esc(t.name)}</strong></td>
-            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${t.change?chgSign+Number(t.change).toLocaleString():'—'}</td>
+            <td style="text-align:right;color:${chgCol};font-variant-numeric:tabular-nums">${t.change?chgSign+fmtShares(Math.abs(t.change)):'—'}</td>
             <td style="text-align:right;font-variant-numeric:tabular-nums">${t.transaction_price?'$'+Number(t.transaction_price).toFixed(2):'—'}</td>
             <td style="text-align:center;font-size:11px;font-weight:700">${esc(t.transaction_code||'')}</td>
             <td style="text-align:right;color:var(--muted)">${esc(t.transaction_date||'—')}</td>
@@ -1374,7 +1402,7 @@ function renderReport(d){
         }).join('')}
       </tbody>
     </table>
-    <div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'Códigos comunes: P = compra, S = venta, A = adjudicación, M = ejercicio opción, F = retención fiscal':'Common codes: P = Purchase, S = Sale, A = Award/grant, M = Option exercise, F = Tax withholding'}</div>` : '';
+    ${insTxns.some(t=>t.transaction_code)?`<div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-style:italic">${LANG==='es'?'Códigos comunes: P = compra, S = venta, A = adjudicación, M = ejercicio opción, F = retención fiscal':'Common codes: P = Purchase, S = Sale, A = Award/grant, M = Option exercise, F = Tax withholding'}</div>`:''}` : '';
 
   const s07 = `
     <div class="atxt">${para(ow.text||'')}</div>
@@ -1468,7 +1496,61 @@ function renderReport(d){
       ${dcfM.tv_pct_of_ev?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'VT % del EV':'TV as % of EV'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.tv_pct_of_ev}%</div></div>`:''}
     </div>` : '';
 
-  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}${invalidationBox(val.invalidation)}`;
+  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}${invalidationBox(val.invalidation)}${s08_extras}`;
+
+  // ── Advanced valuation overlays: Reverse DCF + WACC×g sensitivity (computed server-side) ──
+  const rdcf = d.reverse_dcf||null;
+  const sens = d.dcf_sensitivity||null;
+  const sbc  = d.sbc_analysis||null;
+  const qoe  = d.quality_of_earnings||null;
+  const reverseDcfHTML = rdcf ? `
+    <div style="margin-top:14px;padding:14px 16px;background:linear-gradient(135deg,rgba(15,45,107,.05),rgba(37,99,235,.02));border-radius:8px;border-left:3px solid var(--blue)">
+      <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'DCF inverso · crecimiento implícito':'Reverse DCF · implied growth'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'WACC usado':'WACC used'}</div><div style="font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${rdcf.wacc}%</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Crecimiento FCF implícito (5a)':'Implied 5y FCF growth'}</div><div style="font-size:18px;font-weight:800;color:var(--blue2);font-variant-numeric:tabular-nums">${rdcf.implied_growth_pct}%</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Crecimiento terminal':'Terminal g'}</div><div style="font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${rdcf.terminal_g}%</div></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic;line-height:1.4">${LANG==='es'?'El precio actual exige este crecimiento de FCF durante 5 años para justificar la capitalización.':'The current market cap implicitly requires this FCF growth rate over the next 5 years.'} ${esc(rdcf.method||'')}</div>
+    </div>`:'';
+  const sensTableHTML = sens && sens.matrix_fair_value ? `
+    <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px">
+      <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">${LANG==='es'?'Sensibilidad DCF · valor razonable por celda':'DCF sensitivity · fair value per cell'}</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700">${LANG==='es'?'WACC ↓ / g →':'WACC ↓ / g →'}</th>
+          ${sens.g_axis.map(g=>`<th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">${g}%</th>`).join('')}
+        </tr></thead>
+        <tbody>
+        ${sens.matrix_fair_value.map((row,i)=>`<tr>
+          <td style="padding:6px 8px;font-weight:700;color:var(--ink)">${sens.wacc_axis[i]}%</td>
+          ${row.map(v=>{ if(v===null) return '<td style="padding:6px 8px;text-align:right;color:var(--muted)">—</td>'; const cur=sens.current_price||0; const c = v>cur*1.1?'var(--green)':v<cur*0.9?'var(--red)':'var(--ink)'; return `<td style="padding:6px 8px;text-align:right;color:${c};font-weight:600">$${v.toFixed(0)}</td>`; }).join('')}
+        </tr>`).join('')}
+        </tbody>
+      </table></div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:8px;font-style:italic">${LANG==='es'?`Precio actual $${sens.current_price}. Verde = fair value > precio actual +10%; rojo = < precio actual −10%.`:`Current price $${sens.current_price}. Green = fair value > current price +10%; red = < current price −10%.`}</div>
+    </div>`:'';
+  const sbcHTML = sbc ? `
+    <div style="margin-top:14px;padding:14px 16px;background:rgba(245,158,11,.05);border-left:3px solid var(--amber);border-radius:8px">
+      <div style="font-size:10px;font-weight:800;color:#a06300;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'Compensación con acciones · calidad de FCF':'Stock-based compensation · FCF quality'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">SBC (anual)</div><div style="font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${esc(sbc.sbc_str||'—')}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">SBC / Revenue</div><div style="font-size:16px;font-weight:800;color:${sbc.sbc_rev_pct>10?'var(--red)':sbc.sbc_rev_pct>5?'var(--amber)':'var(--green)'};font-variant-numeric:tabular-nums">${sbc.sbc_rev_pct!=null?sbc.sbc_rev_pct+'%':'—'}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">SBC / FCF</div><div style="font-size:16px;font-weight:800;color:${sbc.sbc_fcf_pct>30?'var(--red)':sbc.sbc_fcf_pct>15?'var(--amber)':'var(--green)'};font-variant-numeric:tabular-nums">${sbc.sbc_fcf_pct!=null?sbc.sbc_fcf_pct+'%':'—'}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Margen FCF ex-SBC':'FCF margin ex-SBC'}</div><div style="font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${sbc.fcf_ex_sbc_margin_pct!=null?sbc.fcf_ex_sbc_margin_pct+'%':'—'}</div></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic">${esc(sbc.note||'')}</div>
+    </div>`:'';
+  const qoeHTML = qoe && qoe.sloan != null ? `
+    <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px">
+      <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'Calidad de beneficios · Sloan accruals':'Quality of earnings · Sloan accruals'}</div>
+      <div style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">Sloan ratio</div><div style="font-size:20px;font-weight:800;color:${qoe.flag==='aggressive_accruals'?'var(--red)':qoe.flag==='conservative_accruals'?'var(--amber)':'var(--green)'};font-variant-numeric:tabular-nums">${qoe.sloan}</div></div>
+        <div style="font-size:11.5px;color:#3d4f70;line-height:1.5;max-width:560px">${LANG==='es'?'Sloan = (BN − FCO) / Activos medios. Banda saludable: |Sloan| < 0.10. > 0.10 sugiere acumulaciones agresivas (calidad débil). < −0.10 conservador.':'Sloan = (NI − CFO) / Avg Assets. Healthy band: |Sloan| < 0.10. > 0.10 = aggressive accruals (weak quality). < −0.10 = conservative.'}</div>
+      </div>
+    </div>`:'';
+  // Combine and inject at end of section 8 — these naturally extend the Valuation/Quality analysis
+  const s08_extras = reverseDcfHTML + sensTableHTML + sbcHTML + qoeHTML;
 
   // ── Section 09: Competitors ──
   const comp = ai.competitors||{};
@@ -1557,9 +1639,27 @@ function renderReport(d){
       ${trigsHTML}
     </div>`;
   };
-  const s10 = `
-    <div class="atxt">${para(sc_ai.text||'')}</div>
-    <div class="sc-grid">${mkSc(sc_ai.bull,'bull')}${mkSc(sc_ai.base,'base')}${mkSc(sc_ai.bear,'bear')}</div>`;
+  // Hide scenarios entirely when AI section C failed (avoids three N/A cards with stale 33/34/33 probabilities)
+  const aiStatus = (ai._section_status||{});
+  const scenariosFailed = aiStatus.c_macro_risk_owner_val_comp_scen === 'fallback';
+  // Also hide when all three cards lack a real price target (AI returned without filling)
+  const allTargetsMissing = !((sc_ai.bull||{}).price_target) && !((sc_ai.base||{}).price_target) && !((sc_ai.bear||{}).price_target);
+  // Expected return + Kelly card (computed server-side)
+  const er = d.expected_return||null;
+  const expectedReturnHTML = er ? `
+    <div style="margin-top:14px;padding:14px 16px;background:linear-gradient(135deg,rgba(15,45,107,.04),rgba(37,99,235,.02));border-radius:8px;border-left:3px solid var(--blue2)">
+      <div style="font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${LANG==='es'?'Retorno esperado y dimensionamiento':'Expected return & sizing'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;font-size:12px">
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Retorno esperado (ponderado)':'Probability-weighted return'}</div><div style="font-size:18px;font-weight:800;color:${er.expected_return_pct>=0?'var(--green)':'var(--red)'};font-variant-numeric:tabular-nums">${er.expected_return_pct>=0?'+':''}${er.expected_return_pct}%</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Asimetría (alza/baja)':'Asymmetry (up/down)'}</div><div style="font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${er.upside_to_downside!=null?er.upside_to_downside.toFixed(2)+'x':'—'}</div></div>
+        <div><div style="color:var(--muted);font-size:10.5px;font-weight:600">${LANG==='es'?'Kelly trimestral (sugerido)':'Quarter-Kelly (suggested)'}</div><div style="font-size:18px;font-weight:800;color:var(--blue2);font-variant-numeric:tabular-nums">${er.kelly_quarter_pct!=null?er.kelly_quarter_pct+'%':'—'}</div></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic;line-height:1.4">${esc(er.note||'')}</div>
+    </div>`:'';
+  const s10 = (scenariosFailed||allTargetsMissing) ?
+    `<div style="padding:18px;background:rgba(245,158,11,.06);border-left:3px solid var(--amber);border-radius:6px;font-size:12.5px;color:#5b4a13;line-height:1.55">${LANG==='es'?'<strong>Sección no disponible en esta consulta.</strong> El módulo de escenarios bull/base/bear requiere síntesis IA completa y datos de mercado válidos. Reintenta el análisis o consulta las métricas cuantitativas del resto del informe.':'<strong>Section unavailable for this run.</strong> The bull/base/bear scenario module requires full AI synthesis and valid market inputs. Retry the analysis or consult the quantitative metrics in the other sections.'}</div>${expectedReturnHTML}` :
+    `<div class="atxt">${para(sc_ai.text||'')}</div>
+    <div class="sc-grid">${mkSc(sc_ai.bull,'bull')}${mkSc(sc_ai.base,'base')}${mkSc(sc_ai.bear,'bear')}</div>${expectedReturnHTML}`;
 
   // ── Section 11: SEC Filings ──
   const sec = ai.sec_filings||{};
