@@ -1962,18 +1962,13 @@ def analyse(ticker, lang='en'):
         'recent_insider_txns':[t for t in fh_own.get('insider_transactions', [])[:6]],
         'health_flags':health_flags,
         'valuation_methods':valuation_methods,
-        'reverse_dcf':reverse_dcf,
-        'dcf_sensitivity':dcf_sensitivity,
-        'beat_miss_history':beat_miss,
-        'quality_of_earnings':qoe,
-        'sbc_analysis':sbc_analysis,
     }
 
     # ── 3 parallel AI calls (4500 tokens each — balance depth vs Vercel 60s hard cap) ──
     with ThreadPoolExecutor(max_workers=3) as ex:
         fa = ex.submit(call_openai, prompt_a(lang), user_data_for_ai, 4500)
         fb = ex.submit(call_openai, prompt_b(lang), user_data_for_ai, 4500)
-        fc = ex.submit(call_openai, prompt_c(lang), user_data_for_ai, 4500)
+        fc = ex.submit(call_openai, prompt_c(lang), user_data_for_ai, 8000)
         try: ai_a = fa.result(timeout=48)
         except: ai_a = {'_error':'timeout'}
         try: ai_b = fb.result(timeout=48)
@@ -2109,3 +2104,4 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e)[:300]}).encode())
             except: pass
     def log_message(self, *a): pass
+
