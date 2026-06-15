@@ -2087,4 +2087,26 @@ def _clean_for_json(obj):
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
-        self.se
+        self.send_response(200); self.send_header('Access-Control-Allow-Origin','*'); self.end_headers()
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path); qs = urllib.parse.parse_qs(parsed.query)
+        ticker = (qs.get('ticker',[''])[0]).upper().strip()
+        lang   = (qs.get('lang',['en'])[0]).lower().strip()
+        if lang not in ('en','es'): lang = 'en'
+        # Send headers IMMEDIATELY so if Vercel kills us by timeout, client still gets a JSON-typed response (truncated, not HTML 500)
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        try:
+            if not ticker:
+                self.wfile.write(json.dumps({'error':'Provide ?ticker=AAPL'}).encode())
+                return
+            result = analyse(ticker, lang)
+            result = _clean_for_json(result)
+            self.wfile.write(json.dumps(result, allow_nan=False, default=str).encode())
+        except Exception as e:
+            try:
+                self.wfile.write(json.dumps({'error': str(e)[:300]}).encode())
+            except: pass
+    def log_message(self, *a): pass
