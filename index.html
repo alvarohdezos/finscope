@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+"en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1509,8 +1509,6 @@ function renderReport(d){
       ${dcfM.tv_pct_of_ev?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">${LANG==='es'?'VT % del EV':'TV as % of EV'}</div><div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${dcfM.tv_pct_of_ev}%</div></div>`:''}
     </div>` : '';
 
-  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}${invalidationBox(val.invalidation)}${s08_extras}`;
-
   // ── Advanced valuation overlays: Reverse DCF + WACC×g sensitivity (computed server-side) ──
   const rdcf = d.reverse_dcf||null;
   const sens = d.dcf_sensitivity||null;
@@ -1564,6 +1562,8 @@ function renderReport(d){
     </div>`:'';
   // Combine and inject at end of section 8 — these naturally extend the Valuation/Quality analysis
   const s08_extras = reverseDcfHTML + sensTableHTML + sbcHTML + qoeHTML;
+  const s08 = `<div class="atxt">${para(val.text||'')}</div>${fvBarHTML}${multiValHTML}${dcfDetailsHTML}${invalidationBox(val.invalidation)}${s08_extras}`;
+
 
   // ── Section 09: Competitors ──
   const comp = ai.competitors||{};
