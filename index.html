@@ -986,19 +986,19 @@ function renderReport(d){
 
   const s02 = `
     <div class="atxt">${para(bm.text||'')}</div>
-    <div class="chart-row">
-      <div class="chart-box">
+    ${(segs.length||geos.length)?`<div class="chart-row">
+      ${segs.length?`<div class="chart-box">
         <div class="chart-lbl">${tr.rev_segs}</div>
         <div class="ch-wrap ch-pie"><canvas id="segChart"></canvas></div>
-        ${segItems?`<div style="margin-top:10px">${segItems}</div>`:''}
-      </div>
-      <div class="chart-box">
+        <div style="margin-top:10px">${segItems}</div>
+      </div>`:`<div class="chart-box"><div class="chart-lbl">${tr.rev_segs}</div><div style="padding:18px 8px;color:var(--muted);font-size:11.5px;font-style:italic;text-align:center;line-height:1.5">${LANG==='es'?'Desglose por segmento no detallado en los filings disponibles.':'Segment breakdown not disclosed in available filings.'}</div></div>`}
+      ${geos.length?`<div class="chart-box">
         <div class="chart-lbl">${tr.geo_exp}</div>
         <div class="ch-wrap ch-pie"><canvas id="geoChart"></canvas></div>
-        ${geoItems?`<div style="margin-top:10px">${geoItems}</div>`:''}
-      </div>
+        <div style="margin-top:10px">${geoItems}</div>
+      </div>`:`<div class="chart-box"><div class="chart-lbl">${tr.geo_exp}</div><div style="padding:18px 8px;color:var(--muted);font-size:11.5px;font-style:italic;text-align:center;line-height:1.5">${LANG==='es'?'Desglose geográfico no detallado en los filings disponibles.':'Geographic breakdown not disclosed in available filings.'}</div></div>`}
     </div>
-    <div class="chart-note">${secSourceNote}</div>
+    <div class="chart-note">${secSourceNote}</div>`:''}
     ${moatHTML}
     ${invalidationBox(bm.invalidation)}`;
 
@@ -1228,10 +1228,10 @@ function renderReport(d){
     <div class="atxt">${para(fq.text||'')}</div>
     ${advRatiosHTML}
     <div class="albl">${tr.hist_fin}</div>
-    <div class="chart-box-full">
+    ${hist.length?`<div class="chart-box-full">
       <div class="chart-lbl">${tr.hist_chart}</div>
       <div class="ch-wrap ch-tall"><canvas id="histChart"></canvas></div>
-    </div>
+    </div>`:''}
     <table class="data-tbl" style="margin-top:14px">
       <thead><tr><th>Year</th><th>Revenue</th><th>Op. Inc</th><th>Net Inc</th><th>FCF</th><th>Gross M</th><th>Net M</th></tr></thead>
       <tbody>${histTableRows}</tbody>
