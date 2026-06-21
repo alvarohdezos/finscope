@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 FINNHUB = os.environ.get('FINNHUB_KEY', '')
 OPENAI  = os.environ.get('OPENAI_KEY', '')
 AV_KEY  = os.environ.get('AV_KEY', '')
+MODEL   = 'gpt-4o'   # synthesis model — revert to 'gpt-4o-mini' here if latency causes timeouts
 
 PEERS_MAP = {
     'AAPL':['MSFT','GOOGL','META','AMZN'],   'MSFT':['AAPL','GOOGL','CRM','ORCL'],
@@ -847,50 +848,68 @@ def get_finnhub_ownership(ticker):
 
 
 def compute_health_flags(net_margin, op_margin, gross_margin, roe, roic, de, cr, qr,
-                        fcf_raw, fcf_margin, fcf_ni_ratio, rev_growth, hist_fin, lang='en'):
-    """Compute 5-binary health semáforo with reasons."""
+                        fcf_raw, fcf_margin, fcf_ni_ratio, rev_growth, hist_fin, lang='en', is_financial=False):
+    """5-flag health semaforo. Flag COLOUR always matches its text. Metrics that do not apply
+    to financials (liquidity ratios, FCF, FCF/NI) are marked 'na' (amber) rather than red/green."""
     flags = []
-    def _f(name_en, name_es, ok, reason_en, reason_es):
-        flags.append({
-            'label': name_es if lang=='es' else name_en,
-            'status': 'green' if ok else 'red',
-            'reason': reason_es if lang=='es' else reason_en,
-        })
+    def _f(name_en, name_es, status, reason_en, reason_es):
+        flags.append({'label': name_es if lang=='es' else name_en, 'status': status,
+                      'reason': reason_es if lang=='es' else reason_en})
 
-    # 1) Liquidez
-    _liq_ok = (cr is not None and cr >= 1.2) or (qr is not None and qr >= 1.0)
-    _f('Liquidity', 'Liquidez',
-       _liq_ok,
-       f'Current ratio {cr}, quick ratio {qr}' if cr or qr else 'Insufficient liquidity data',
-       f'Ratio de liquidez {cr}, test ácido {qr}' if cr or qr else 'Datos de liquidez insuficientes')
+    # 1) Liquidity
+    if is_financial:
+        _f('Liquidity','Liquidez','na','Current/quick ratio not meaningful for a bank balance sheet','Ratios de liquidez no significativos en banca')
+    elif cr is not None or qr is not None:
+        ok=(cr is not None and cr>=1.2) or (qr is not None and qr>=1.0)
+        _f('Liquidity','Liquidez','green' if ok else 'red',
+           (f'Current ratio {cr}, quick ratio {qr} - adequate' if ok else f'Current ratio {cr}, quick ratio {qr} - below comfort'),
+           (f'Liquidez {cr}, test acido {qr} - adecuado' if ok else f'Liquidez {cr}, test acido {qr} - ajustado'))
+    else:
+        _f('Liquidity','Liquidez','na','Liquidity ratios not disclosed','Ratios de liquidez no disponibles')
 
-    # 2) Apalancamiento controlado
-    _lev_ok = de is not None and de < 1.5
-    _f('Leverage', 'Apalancamiento',
-       _lev_ok,
-       f'D/E {de:.2f} — within prudent range' if de is not None else 'D/E unknown',
-       f'Deuda/Capital {de:.2f} — dentro del rango prudente' if de is not None else 'Apalancamiento desconocido')
+    # 2) Leverage
+    if is_financial:
+        _f('Leverage','Apalancamiento','na',
+           (f'D/E {de:.2f} - structural for a financial; assessed via capital ratios, not industrial D/E' if de is not None else 'Assessed on a banking basis'),
+           (f'D/E {de:.2f} - estructural en banca; se evalua por ratios de capital' if de is not None else 'Evaluado en base bancaria'))
+    elif de is not None:
+        ok=de<1.5
+        _f('Leverage','Apalancamiento','green' if ok else 'red',
+           (f'D/E {de:.2f} - within prudent range' if ok else f'D/E {de:.2f} - elevated leverage'),
+           (f'Deuda/Capital {de:.2f} - rango prudente' if ok else f'Deuda/Capital {de:.2f} - apalancamiento elevado'))
+    else:
+        _f('Leverage','Apalancamiento','na','D/E unknown','Apalancamiento desconocido')
 
-    # 3) FCF positivo y saludable
-    _fcf_ok = fcf_raw is not None and float(fcf_raw) > 0 and (fcf_margin is None or fcf_margin > 5)
-    _f('FCF', 'Flujo de caja libre',
-       _fcf_ok,
-       f'FCF generation positive ({fcf_margin}% margin)' if fcf_margin else 'FCF positive',
-       f'Generación de FCL positiva (margen {fcf_margin}%)' if fcf_margin else 'FCL positivo')
+    # 3) FCF
+    if is_financial:
+        _f('FCF','Flujo de caja libre','na','Free cash flow is not a standard measure for banks','El flujo de caja libre no es estandar en banca')
+    elif fcf_raw is not None:
+        ok=float(fcf_raw)>0 and (fcf_margin is None or fcf_margin>5)
+        _f('FCF','Flujo de caja libre','green' if ok else 'red',
+           (f'FCF positive ({fcf_margin}% margin)' if (ok and fcf_margin) else ('FCF positive' if ok else 'FCF weak or negative')),
+           (f'FCL positivo (margen {fcf_margin}%)' if (ok and fcf_margin) else ('FCL positivo' if ok else 'FCL debil o negativo')))
+    else:
+        _f('FCF','Flujo de caja libre','na','FCF not disclosed','FCL no disponible')
 
-    # 4) Márgenes estables/expansivos
-    _margin_ok = (net_margin is not None and net_margin > 5) and (op_margin is not None and op_margin > 8)
-    _f('Margins', 'Márgenes',
-       _margin_ok,
-       f'Net margin {net_margin}%, op margin {op_margin}%',
-       f'Margen neto {net_margin}%, operativo {op_margin}%')
+    # 4) Margins
+    if net_margin is not None and op_margin is not None:
+        ok=net_margin>5 and op_margin>8
+        _f('Margins','Margenes','green' if ok else 'red',
+           (f'Net margin {net_margin}%, op margin {op_margin}% - healthy' if ok else f'Net margin {net_margin}%, op margin {op_margin}% - thin'),
+           (f'Margen neto {net_margin}%, operativo {op_margin}% - saludable' if ok else f'Margen neto {net_margin}%, operativo {op_margin}% - ajustado'))
+    else:
+        _f('Margins','Margenes','na','Margin data incomplete','Datos de margenes incompletos')
 
-    # 5) Calidad de beneficios (FCF/NI conversion)
-    _eq_ok = fcf_ni_ratio is None or fcf_ni_ratio > 0.70
-    _f('Earnings quality', 'Calidad de beneficios',
-       _eq_ok,
-       f'FCF/Net Income conversion {round(fcf_ni_ratio*100)}%' if fcf_ni_ratio else 'Conversion ratio unavailable',
-       f'Conversión FCL/Beneficio Neto {round(fcf_ni_ratio*100)}%' if fcf_ni_ratio else 'Ratio de conversión no disponible')
+    # 5) Earnings quality (FCF/NI conversion)
+    if is_financial:
+        _f('Earnings quality','Calidad de beneficios','na','FCF/Net-Income conversion not applicable to banks','Conversion FCL/Beneficio no aplicable a banca')
+    elif fcf_ni_ratio is not None:
+        ok=fcf_ni_ratio>0.70
+        _f('Earnings quality','Calidad de beneficios','green' if ok else 'red',
+           (f'FCF/Net Income conversion {round(fcf_ni_ratio*100)}%' if ok else f'FCF/Net Income conversion {round(fcf_ni_ratio*100)}% - below 70% (watch accruals)'),
+           (f'Conversion FCL/Beneficio {round(fcf_ni_ratio*100)}%' if ok else f'Conversion FCL/Beneficio {round(fcf_ni_ratio*100)}% - bajo 70% (vigilar devengos)'))
+    else:
+        _f('Earnings quality','Calidad de beneficios','na','Conversion ratio unavailable','Ratio de conversion no disponible')
 
     return flags
 
@@ -1037,7 +1056,7 @@ def _t(en, es, lang):
     return es if lang=='es' else en
 
 def compute_score(pm, om, roe, roa, roic, rg, de, cr, qr, fcf_raw, fcf_margin, fcf_ni_ratio,
-                  sb, bu, hd, se, ss, tp, price, beta, vix, hy_spread, lang='en'):
+                  sb, bu, hd, se, ss, tp, price, beta, vix, hy_spread, lang='en', is_financial=False):
     """
     Returns dict with the four pillar scores AND a breakdown of each rule that fired.
     Tighter thresholds — 40/40 fundamental requires elite quality across multiple axes.
@@ -1151,9 +1170,24 @@ def compute_score(pm, om, roe, roa, roic, rg, de, cr, qr, fcf_raw, fcf_margin, f
     # ── ACCOUNTING / SOLVENCY (base 8, max 20) ─────────────────────────────────
     acc = 8
     bd['accounting'].append({'pts':8, 'reason':_t('Base score','Puntuación base', lang)})
+    if is_financial:
+        if roe is not None:
+            if roe > 15:
+                acc += 6; bd['accounting'].append({'pts':+6, 'reason':_t(f'ROE {roe:.1f}% — strong for a financial', f'ROE {roe:.1f}% — sólido para una financiera', lang)})
+            elif roe > 10:
+                acc += 4; bd['accounting'].append({'pts':+4, 'reason':_t(f'ROE {roe:.1f}% — healthy', f'ROE {roe:.1f}% — saludable', lang)})
+            elif roe > 0:
+                acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'ROE {roe:.1f}% — modest', f'ROE {roe:.1f}% — modesto', lang)})
+            else:
+                acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t(f'ROE {roe:.1f}% — negative', f'ROE {roe:.1f}% — negativo', lang)})
+        if roa is not None and roa > 1.2:
+            acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'ROA {roa:.1f}% — strong asset efficiency for a bank', f'ROA {roa:.1f}% — fuerte eficiencia de activos en banca', lang)})
+        elif roa is not None and roa > 0.6:
+            acc += 1; bd['accounting'].append({'pts':+1, 'reason':_t(f'ROA {roa:.1f}% — adequate', f'ROA {roa:.1f}% — adecuado', lang)})
+        bd['accounting'].append({'pts':0, 'reason':_t('D/E, current ratio and FCF assessed on a banking basis (not industrial)', 'D/E, liquidez y FCL evaluados en base bancaria (no industrial)', lang)})
 
-    # Debt / Equity
-    if de is not None:
+    # Debt / Equity (industrial leverage — skipped for financials)
+    if de is not None and not is_financial:
         if de < 0.25:
             acc += 5; bd['accounting'].append({'pts':+5, 'reason':_t(f'D/E {de:.2f} — minimal leverage', f'Deuda/Capital {de:.2f} — apalancamiento mínimo', lang)})
         elif de < 0.75:
@@ -1174,8 +1208,8 @@ def compute_score(pm, om, roe, roa, roic, rg, de, cr, qr, fcf_raw, fcf_margin, f
         elif 0 < cr < 1:
             acc -= 3; bd['accounting'].append({'pts':-3, 'reason':_t(f'Current ratio {cr:.2f} below 1 — short-term liquidity stress', f'Ratio liquidez {cr:.2f} < 1 — tensión de tesorería', lang)})
 
-    # FCF generation (sign + magnitude vs revenue)
-    if fcf_raw is not None:
+    # FCF generation (skipped for financials)
+    if fcf_raw is not None and not is_financial:
         if float(fcf_raw) > 0 and fcf_margin and fcf_margin > 15:
             acc += 3; bd['accounting'].append({'pts':+3, 'reason':_t(f'FCF margin {fcf_margin:.1f}% — high cash generation', f'Margen FCL {fcf_margin:.1f}% — alta generación de caja', lang)})
         elif float(fcf_raw) > 0:
@@ -1304,7 +1338,7 @@ NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
-- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing.
+- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
 - A LOW forward P/E or a LOW PEG is favourable (cheap relative to growth), not a risk. Never describe a low multiple as 'elevated', 'high', or 'alarming'.
 - Distance from the 52-week high equals (high minus price) divided by high, phrased as 'X% below the 52-week high'. Never write 'X% off the high'.
 - Do not confuse the market-wide VIX with the stock's own annualised volatility; they are separate inputs.
@@ -1334,7 +1368,7 @@ NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
-- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing.
+- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
 - A LOW forward P/E or a LOW PEG is favourable (cheap relative to growth), not a risk. Never describe a low multiple as 'elevated', 'high', or 'alarming'.
 - Distance from the 52-week high equals (high minus price) divided by high, phrased as 'X% below the 52-week high'. Never write 'X% off the high'.
 - Do not confuse the market-wide VIX with the stock's own annualised volatility; they are separate inputs.
@@ -1362,7 +1396,7 @@ NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
-- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing.
+- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
 - A LOW forward P/E or a LOW PEG is favourable (cheap relative to growth), not a risk. Never describe a low multiple as 'elevated', 'high', or 'alarming'.
 - Distance from the 52-week high equals (high minus price) divided by high, phrased as 'X% below the 52-week high'. Never write 'X% off the high'.
 - Do not confuse the market-wide VIX with the stock's own annualised volatility; they are separate inputs.
@@ -1396,7 +1430,7 @@ NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
-- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing.
+- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
 - A LOW forward P/E or a LOW PEG is favourable (cheap relative to growth), not a risk. Never describe a low multiple as 'elevated', 'high', or 'alarming'.
 - Distance from the 52-week high equals (high minus price) divided by high, phrased as 'X% below the 52-week high'. Never write 'X% off the high'.
 - Do not confuse the market-wide VIX with the stock's own annualised volatility; they are separate inputs.
@@ -1423,7 +1457,7 @@ NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
-- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing.
+- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
 - A LOW forward P/E or a LOW PEG is favourable (cheap relative to growth), not a risk. Never describe a low multiple as 'elevated', 'high', or 'alarming'.
 - Distance from the 52-week high equals (high minus price) divided by high, phrased as 'X% below the 52-week high'. Never write 'X% off the high'.
 - Do not confuse the market-wide VIX with the stock's own annualised volatility; they are separate inputs.
@@ -1468,7 +1502,7 @@ def _repair_json(text):
 def call_openai(system_prompt, user_data, max_tokens=4500):
     try:
         payload = json.dumps({
-            'model':'gpt-4o-mini', 'max_tokens':max_tokens,
+            'model':MODEL, 'max_tokens':max_tokens,
             'messages':[
                 {'role':'system','content':system_prompt},
                 {'role':'user','content':json.dumps(user_data)}
@@ -1880,6 +1914,8 @@ def analyse(ticker, lang='en'):
     except: pass
 
     # Net Debt / EBITDA proxy (uses D/E + market cap + EBITDA proxy)
+    _secstr = (str(av.get('sector','')) + ' ' + str(av.get('industry','')) + ' ' + str(profile.get('finnhubIndustry',''))).lower()
+    is_financial = any(k in _secstr for k in ('financ','bank','insurance','capital market','asset manage','credit service','mortgage'))
     net_debt_ebitda = None
     try:
         if de is not None and market_cap and op_margin and pe_ttm and pb and float(pb) > 0:
@@ -1898,15 +1934,15 @@ def analyse(ticker, lang='en'):
         fcf_raw, fcf_margin, fcf_ni_ratio,
         sb, b, h, se, ss, tp, price,
         beta, macro.get('vix'), macro.get('credit_spread_hy'),
-        lang
+        lang, is_financial
     )
-    z   = calc_altman(m_fh, av)
+    z   = None if is_financial else calc_altman(m_fh, av)
     fs  = calc_piotroski(m_fh, av)
 
     # ── Financial health semáforo (5 flags) ──
     health_flags = compute_health_flags(
         net_margin, op_margin, gross_m, roe, roic, de, cr, qr,
-        fcf_raw, fcf_margin, fcf_ni_ratio, rev_growth, hist_fin, lang
+        fcf_raw, fcf_margin, fcf_ni_ratio, rev_growth, hist_fin, lang, is_financial
     )
 
     # ── Multi-method valuation ──
@@ -1952,6 +1988,8 @@ def analyse(ticker, lang='en'):
     fh_industry = profile.get('finnhubIndustry','')
     industry    = av.get('industry','') or fh_industry or 'N/A'
     sector      = av.get('sector','') or fh_industry or ''
+    if is_financial:
+        gross_m = None; ev_ebitda = None; roic = None; net_debt_ebitda = None
     peers       = peers_list
 
     # Employees fallback: AV → Finnhub profile → blank
@@ -2026,6 +2064,19 @@ def analyse(ticker, lang='en'):
         })
 
     # ── AI input payload (rich data feed) ──
+    # Deterministic P/E vs peer-median (discount/premium) so the AI states the direction correctly
+    _pe_vs_peer = None
+    try:
+        _ppes = sorted([pp.get('pe') for pp in peer_table_for_ai if (not pp.get('is_subject')) and pp.get('pe') and pp.get('pe')>0])
+        if _ppes and pe_ttm and pe_ttm>0:
+            _n=len(_ppes); _med=_ppes[_n//2] if _n%2 else (_ppes[_n//2-1]+_ppes[_n//2])/2
+            if _med>0:
+                _d=(pe_ttm/_med-1)*100
+                _pe_vs_peer={'company_pe':round(pe_ttm,1),'peer_median_pe':round(_med,1),
+                             'direction':'discount' if _d<0 else 'premium','pct':round(abs(_d),1)}
+    except Exception:
+        _pe_vs_peer=None
+
     user_data_for_ai = {
         'company':{
             'ticker':ticker,'name':name,'sector':sector,'industry':industry,
@@ -2055,6 +2106,7 @@ def analyse(ticker, lang='en'):
             'consensus_target':tp,'consensus_upside':upside,
             'historical_financials':hist_fin[:4],
             'upcoming_earnings':upcoming_earnings,'peers':peers,
+            'pe_vs_peer_median':_pe_vs_peer,
         },
         'macro':macro,
         'peer_comparison':peer_table_for_ai,
