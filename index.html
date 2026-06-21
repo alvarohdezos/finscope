@@ -1848,6 +1848,9 @@ function invalidationBox(invs){
     if(!t || t.length < 12) return false;
     if(/^REPLACE\b/i.test(t)) return false;
     if(/≤\s*25 words/i.test(t)) return false;
+    if(/<\=?\s*25 words/i.test(t)) return false;
+    if(/\bfalsifiable\b/i.test(t)) return false;
+    if(/concrete and falsifiable/i.test(t)) return false;
     if(/concrete falsifiable/i.test(t)) return false;
     if(/^(specific|name of metric|specific numeric|specific figure)/i.test(t)) return false;
     if(/falsifiable statement$/i.test(t)) return false;
