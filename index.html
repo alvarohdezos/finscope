@@ -581,7 +581,9 @@ const fmtC = (v,d=2) => v==null?'N/A':`$${Number(v).toFixed(d)}`;
 const scCol = sc => sc>=70?'var(--green)':sc>=50?'var(--amber)':'var(--red)';
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const para = s => {
-  const raw = (s||'').toString().trim();
+  if(s==null) return '';
+  if(typeof s!=='string') s = (typeof s==='number') ? String(s) : '';
+  const raw = s.trim();
   // Hide AI-fallback boilerplate so quantitative content carries the section
   if(/^AI synthesis unavailable\.?$/i.test(raw)) return '';
   if(/^Síntesis de IA no disponible\.?$/i.test(raw)) return '';
@@ -1469,7 +1471,7 @@ function renderReport(d){
   _vrow('ev_ebitda_relative',   'EV/EBITDA relative');
   _vrow('dcf',                   'DCF (2-stage)');
   // Add AI fair value range as 4th method
-  if(val.fair_value_low && val.fair_value_high){
+  if(val.fair_value_low && val.fair_value_high && val.fair_value_low !== val.fair_value_high){
     const mid = (val.fair_value_low + val.fair_value_high)/2;
     const upside = cur>0 ? ((mid - cur)/cur*100) : 0;
     const upCol = upside>0?'var(--green)':'var(--red)';
