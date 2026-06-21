@@ -2194,6 +2194,30 @@ def analyse(ticker, lang='en'):
     except Exception:
         pass
 
+    # Deterministic technical readout (the model kept mis-citing RSI and using the VIX as volatility)
+    try:
+        _t = technicals or {}
+        _rsi = _t.get('rsi14'); _vol = _t.get('vol_30d_annualised')
+        _s50 = _t.get('sma50'); _s200 = _t.get('sma200'); _cx = _t.get('cross_status')
+        if _rsi is not None and isinstance(ai.get('risk_analysis'), dict):
+            if lang=='es':
+                _zone = 'sobrecompra' if _rsi>70 else 'sobreventa' if _rsi<30 else 'zona neutral'
+                _txt = f"RSI(14) en {_rsi} ({_zone}; sobrecompra >70, sobreventa <30). "
+                if _vol is not None: _txt += f"Volatilidad anualizada a 30 dias: {_vol}%. "
+                if _s50 and _s200:
+                    _rel = 'por encima de' if _s50>_s200 else 'por debajo de'
+                    _txt += f"La SMA50 (${_s50}) esta {_rel} la SMA200 (${_s200})" + (f" - {_cx}." if _cx else ".")
+            else:
+                _zone = 'overbought' if _rsi>70 else 'oversold' if _rsi<30 else 'neutral territory'
+                _txt = f"RSI(14) at {_rsi} ({_zone}; overbought >70, oversold <30). "
+                if _vol is not None: _txt += f"30-day annualised volatility: {_vol}%. "
+                if _s50 and _s200:
+                    _rel = 'above' if _s50>_s200 else 'below'
+                    _txt += f"The 50-day SMA (${_s50}) is {_rel} the 200-day SMA (${_s200})" + (f" - {_cx}." if _cx else ".")
+            ai['risk_analysis']['technical_takeaway'] = _txt.strip()
+    except Exception:
+        pass
+
     return {
         'ticker':ticker,'name':name,'news':news,
         'exchange':profile.get('exchange',''),'industry':industry,'sector':sector,
