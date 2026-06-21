@@ -972,7 +972,7 @@ function renderReport(d){
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div>
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Tipo de moat':'Moat type'}</div>
-          <div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${esc(moat.type)}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--blue2);margin-top:2px">${esc((moat.type||'').replace(/\s*\|\s*/g,' / '))}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${LANG==='es'?'Fuerza (0-5)':'Strength (0-5)'}</div>
