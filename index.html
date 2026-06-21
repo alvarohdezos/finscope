@@ -1859,13 +1859,16 @@ function invalidationBox(invs){
     : 'This thesis would be invalidated if:';
   const items = invs.slice(0,4).map(iv=>{
     const op = iv.operator==='<'?'<':iv.operator==='>'?'>':iv.operator==='='?'=':iv.operator||'';
+    const opClean = /^[<>=]$/.test(op) ? op : '';
+    const valStr = (iv.value==null?'':String(iv.value)).trim();
+    const subOk = !!iv.metric && !!opClean && valStr.length>0 && !valStr.includes('|') && !/^(specific|name)/i.test(valStr);
     const horizonMap = {'P1Q':LANG==='es'?'próximo trimestre':'next quarter','P2Q':LANG==='es'?'próximos 2 trimestres':'next 2 quarters','P1Y':LANG==='es'?'próximos 12 meses':'next 12 months'};
     const horizon = horizonMap[iv.horizon] || iv.horizon || '';
     return `<div style="display:flex;gap:10px;padding:8px 12px;background:rgba(217,119,6,.04);border-radius:6px;border-left:3px solid var(--amber)">
       <span style="color:var(--amber);font-size:14px;line-height:1.2;font-weight:700">⚠</span>
       <div style="flex:1;font-size:12.5px;color:#3d4f70;line-height:1.55">
         <strong style="color:var(--ink)">${esc(iv.trigger||'')}</strong>
-        ${iv.metric?`<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums">${esc(iv.metric)} ${op} ${esc(String(iv.value||''))}${horizon?' · '+horizon:''}</div>`:''}
+        ${subOk?`<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums">${esc(iv.metric)} ${opClean} ${esc(valStr)}${horizon?' · '+horizon:''}</div>`:''}
       </div>
     </div>`;
   }).join('');
