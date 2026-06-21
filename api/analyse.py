@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 FINNHUB = os.environ.get('FINNHUB_KEY', '')
 OPENAI  = os.environ.get('OPENAI_KEY', '')
 AV_KEY  = os.environ.get('AV_KEY', '')
-MODEL   = 'gpt-4o'   # synthesis model — revert to 'gpt-4o-mini' here if latency causes timeouts
+MODEL   = 'gpt-4o-mini'   # fast + reliable within Vercel's 60s cap. 'gpt-4o' is higher quality but timed out the heavy sections; needs section-splitting first.
 
 PEERS_MAP = {
     'AAPL':['MSFT','GOOGL','META','AMZN'],   'MSFT':['AAPL','GOOGL','CRM','ORCL'],
@@ -1990,6 +1990,9 @@ def analyse(ticker, lang='en'):
     sector      = av.get('sector','') or fh_industry or ''
     if is_financial:
         gross_m = None; ev_ebitda = None; roic = None; net_debt_ebitda = None
+        fcf_str = None; fcf_margin = None; fcf_ni_ratio = None
+        reverse_dcf = None; dcf_sensitivity = None
+        valuation_methods = [vm for vm in (valuation_methods or []) if 'DCF' not in (vm.get('method') or '')]
     peers       = peers_list
 
     # Employees fallback: AV → Finnhub profile → blank
