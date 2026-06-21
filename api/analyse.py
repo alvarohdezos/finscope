@@ -2184,6 +2184,16 @@ def analyse(ticker, lang='en'):
     except Exception:
         pass
 
+    # Fair-value range: trust the computed multi-method numbers, not the AI's fair_value_low/high
+    # (the model tends to echo the schema placeholders 100/150). Build the band from real methods.
+    try:
+        _fvs = sorted([vm.get('fair_value') for vm in (valuation_methods or []) if vm.get('fair_value') and float(vm.get('fair_value'))>0])
+        if _fvs and isinstance(ai.get('valuation'), dict):
+            ai['valuation']['fair_value_low']  = round(_fvs[0], 2)
+            ai['valuation']['fair_value_high'] = round(_fvs[-1], 2)
+    except Exception:
+        pass
+
     return {
         'ticker':ticker,'name':name,'news':news,
         'exchange':profile.get('exchange',''),'industry':industry,'sector':sector,
