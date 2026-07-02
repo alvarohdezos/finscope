@@ -54,7 +54,10 @@ def fh(path, params, timeout=10):
     try:
         req = urllib.request.Request(url, headers={'Accept':'application/json','User-Agent':'FINscope/4.0'})
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read())
+            data = json.loads(r.read())
+            # Finnhub occasionally returns a bare JSON string (rate-limit / "no access" on premium
+            # endpoints). Coerce anything that isn't a dict/list to {} so callers never do str.get().
+            return data if isinstance(data, (dict, list)) else {}
     except:
         return {}
 
@@ -926,17 +929,23 @@ def compute_multi_method_valuation(eps_ttm, eps_growth, ev_ebitda, net_margin, o
     # ── 1. P/E relative valuation ──
     if eps_ttm and eps_ttm > 0:
         try:
-            peer_pes = [p.get('pe') for p in (peer_comparison or []) if p.get('pe') and 0 < p['pe'] < 100]
+            peer_pes = sorted(p.get('pe') for p in (peer_comparison or []) if p.get('pe') and 0 < p['pe'] < 100)
             if peer_pes:
-                median_pe = sorted(peer_pes)[len(peer_pes)//2]
+                n = len(peer_pes)
+                median_pe = peer_pes[n//2] if n % 2 else (peer_pes[n//2-1] + peer_pes[n//2]) / 2  # true median (avg of middle two for even n)
                 eps_fwd = float(eps_ttm) * (1 + min(max(float(eps_growth or 0), -30), 80)/100) if eps_growth else float(eps_ttm)
-                result['pe_relative'] = {
-                    'method':           'P/E vs peer median',
-                    'peer_median_pe':   round(median_pe, 1),
-                    'eps_used':         round(eps_fwd, 2),
-                    'fair_value':       round(median_pe * eps_fwd, 2),
-                    'note':             'Uses peer median P/E applied to forward EPS estimate',
-                }
+                fair_pe_val = round(median_pe * eps_fwd, 2)
+                # Only surface if the implied value is sane vs price. When peers span very different
+                # growth regimes (e.g. a mature staple sitting next to hyper-growth names) the median
+                # is unreliable and can imply absurd fair values (KO -> $190 off a 47x peer). Hide those.
+                if price and 0.6*float(price) <= fair_pe_val <= 1.6*float(price):
+                    result['pe_relative'] = {
+                        'method':           'P/E vs peer median',
+                        'peer_median_pe':   round(median_pe, 1),
+                        'eps_used':         round(eps_fwd, 2),
+                        'fair_value':       fair_pe_val,
+                        'note':             'Uses peer median P/E applied to forward EPS estimate',
+                    }
         except: pass
 
     # ── 2. EV/EBITDA relative valuation ──
@@ -1725,31 +1734,31 @@ def analyse(ticker, lang='en'):
             try:    res[k] = fut.result(timeout=25)
             except: res[k] = {}
 
-    profile     = res.get('profile') or {}
+    # _D/_L coerce any stray non-dict/non-list (e.g. a JSON string from a rate-limited API)
+    # to the expected empty type so downstream .get()/iteration can never crash the whole run.
+    def _D(x): return x if isinstance(x, dict) else {}
+    def _L(x): return x if isinstance(x, list) else []
+    profile     = _D(res.get('profile'))
     if not profile.get('name'):
         raise Exception(f'Ticker "{ticker}" not found. Try AAPL, NVDA, MSFT, JPM.')
 
     # ── Unpack parallel results FIRST (fixes prior NameError on av/yf) ──
-    quote       = res.get('quote') or {}
-    m_fh        = (res.get('metrics') or {}).get('metric') or {}
-    recs_raw    = res.get('recs') or {}
-    recs        = recs_raw if isinstance(recs_raw,list) else []
-    target_raw  = res.get('target') or {}
-    target      = target_raw if isinstance(target_raw,dict) else {}
-    earnings_raw= res.get('earnings') or {}
-    earnings    = earnings_raw if isinstance(earnings_raw,list) else []
-    news_list   = res.get('news') or {}
-    news_list   = news_list if isinstance(news_list,list) else []
-    insider_raw = res.get('insider') or {}
-    macro       = res.get('macro') or {}
-    av          = res.get('av') or {}
-    yf          = res.get('yf') or {}
-    fh_fin_raw  = res.get('fh_fin') or {}
-    technicals  = res.get('technicals') or {}
-    spy_tech    = res.get('spy_tech') or {}
-    fh_own      = res.get('ownership') or {}
-    filings_raw = res.get('filings') or []
-    filings_raw = filings_raw if isinstance(filings_raw, list) else []
+    quote       = _D(res.get('quote'))
+    _metrics    = _D(res.get('metrics'))
+    m_fh        = _D(_metrics.get('metric'))
+    recs        = _L(res.get('recs'))
+    target      = _D(res.get('target'))
+    earnings    = _L(res.get('earnings'))
+    news_list   = _L(res.get('news'))
+    insider_raw = _D(res.get('insider'))
+    macro       = _D(res.get('macro'))
+    av          = _D(res.get('av'))
+    yf          = _D(res.get('yf'))
+    fh_fin_raw  = _D(res.get('fh_fin'))
+    technicals  = _D(res.get('technicals'))
+    spy_tech    = _D(res.get('spy_tech'))
+    fh_own      = _D(res.get('ownership'))
+    filings_raw = _L(res.get('filings'))
 
     # ── SEC EDGAR — fetch FCF, segments, and SBC for tech firms ──
     sec_data = {}
@@ -2205,8 +2214,8 @@ def analyse(ticker, lang='en'):
     # Deterministic P/E vs peer-median (discount/premium) so the AI states the direction correctly
     _pe_vs_peer = None
     try:
-        _ppes = sorted([pp.get('pe') for pp in peer_table_for_ai if (not pp.get('is_subject')) and pp.get('pe') and pp.get('pe')>0])
-        if _ppes and pe_ttm and pe_ttm>0:
+        _ppes = sorted([pp.get('pe') for pp in peer_table_for_ai if (not pp.get('is_subject')) and pp.get('pe') and 0 < pp.get('pe') < 100])
+        if len(_ppes)>=2 and pe_ttm and pe_ttm>0:
             _n=len(_ppes); _med=_ppes[_n//2] if _n%2 else (_ppes[_n//2-1]+_ppes[_n//2])/2
             if _med>0:
                 _d=(pe_ttm/_med-1)*100
@@ -2333,6 +2342,11 @@ def analyse(ticker, lang='en'):
         if _fvs and isinstance(ai.get('valuation'), dict):
             ai['valuation']['fair_value_low']  = round(_fvs[0], 2)
             ai['valuation']['fair_value_high'] = round(_fvs[-1], 2)
+        # Keep the header WACC consistent with the deterministic DCF WACC (the model defaults to 9.5
+        # from the schema, which contradicted the DCF box e.g. KO 5.5 / CCL 8.5).
+        _dcf_wacc = next((vm.get('wacc_used') for vm in (valuation_methods or []) if vm.get('wacc_used')), None)
+        if _dcf_wacc is not None and isinstance(ai.get('valuation'), dict):
+            ai['valuation']['wacc_used'] = _dcf_wacc
     except Exception:
         pass
 
