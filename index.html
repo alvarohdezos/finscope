@@ -447,7 +447,7 @@ const I18N = {
     key_risks:'Key risks', tech_note:'Technical analysis is shown via the interactive TradingView chart above. Click and drag to zoom, switch timeframes or add indicators.',
     own_breakdown:'Ownership breakdown (% of shares outstanding)', own_metrics:'Insider activity',
     own_institutional:'Institutional', own_insiders:'Insiders', own_retail:'Retail & other',
-    own_insider_net:'Net insider change (3m)', own_mspr:'Monthly Share Purchase Ratio',
+    own_insider_net:'Net insider change (recent Form 4)', own_mspr:'Monthly Share Purchase Ratio',
     analyst_consensus:'Analyst consensus', analyst_target:'Consensus target', analyst_na:'Analyst consensus data not available.',
     fair_value_range:'DCF implied fair value range', wacc_note:'WACC used:', fv_below:'below fair value', fv_in:'within fair value range', fv_above:'above fair value',
     key_disc:'Key disclosures',
@@ -516,7 +516,7 @@ const I18N = {
     key_risks:'Riesgos principales', tech_note:'El análisis técnico se muestra mediante el gráfico interactivo de TradingView. Haz clic y arrastra para ampliar, cambia el intervalo temporal o añade indicadores técnicos.',
     own_breakdown:'Estructura del accionariado (% del capital en circulación)', own_metrics:'Actividad de directivos',
     own_institutional:'Inversores institucionales', own_insiders:'Directivos y accionistas de control', own_retail:'Minoristas y otros',
-    own_insider_net:'Variación neta directivos (3m)', own_mspr:'MSPR (ratio mensual de compra)',
+    own_insider_net:'Variación neta directivos (Form 4 reciente)', own_mspr:'MSPR (ratio mensual de compra)',
     analyst_consensus:'Consenso de analistas', analyst_target:'Precio objetivo consenso', analyst_na:'Datos de consenso de analistas no disponibles.',
     fair_value_range:'Rango de valor razonable implícito (DCF)', wacc_note:'Tasa de descuento utilizada:', fv_below:'por debajo del valor razonable', fv_in:'dentro del rango de valor razonable', fv_above:'por encima del valor razonable',
     key_disc:'Divulgaciones clave',
@@ -585,9 +585,9 @@ const para = s => {
   if(typeof s!=='string') s = (typeof s==='number') ? String(s) : '';
   const raw = s.trim();
   // Hide AI-fallback boilerplate so quantitative content carries the section
-  if(/^AI synthesis unavailable\.?$/i.test(raw)) return '';
-  if(/^Síntesis de IA no disponible\.?$/i.test(raw)) return '';
-  if(raw.length < 30 && /unavailable|no disponible/i.test(raw)) return '';
+  if(/^(full )?ai synthesis unavailable/i.test(raw)) return '';
+  if(/^s[ií]ntesis (completa )?de ia no disponible/i.test(raw)) return '';
+  if(raw.length < 45 && /unavailable|no disponible/i.test(raw)) return '';
   const escaped = esc(raw);
   return escaped.split(/\n\n+/).filter(Boolean).map(p=>`<p>${p}</p>`).join('') || `<p>${escaped}</p>`;
 };
@@ -1359,7 +1359,6 @@ function renderReport(d){
       <div class="own-metric"><span>${tr.own_institutional}</span><span class="v">${ownData.pct_institutions!=null?Number(ownData.pct_institutions).toFixed(1)+'%':'N/A'}</span></div>
       <div class="own-metric"><span>${tr.own_insiders}</span><span class="v">${ownData.pct_insiders!=null?Number(ownData.pct_insiders).toFixed(1)+'%':'N/A'}</span></div>
       <div class="own-metric"><span>${tr.own_insider_net}</span><span class="v" style="color:${(ownData.insider_net_change||0)>0?'var(--green)':(ownData.insider_net_change||0)<0?'var(--red)':'var(--ink)'}">${fmtSignedShares(ownData.insider_net_change||0)}</span></div>
-      <div class="own-metric"><span>${tr.own_mspr}</span><span class="v">${ownData.insider_mspr!=null?Number(ownData.insider_mspr).toFixed(2):'N/A'}</span></div>
     </div>`;
 
   // Real top institutional holders from Finnhub — display as % of company
