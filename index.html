@@ -1665,6 +1665,9 @@ function renderReport(d){
   const scenariosFailed = aiStatus.c_macro_risk_owner_val_comp_scen === 'fallback';
   // Also hide when all three cards lack a real price target (AI returned without filling)
   const allTargetsMissing = !((sc_ai.bull||{}).price_target) && !((sc_ai.base||{}).price_target) && !((sc_ai.bear||{}).price_target);
+  // Detect mis-anchored / copied scenarios: the schema placeholder set (180/145/90) or a bull target at/below the current price (always invalid).
+  const _bT=(sc_ai.bull||{}).price_target, _baT=(sc_ai.base||{}).price_target, _beT=(sc_ai.bear||{}).price_target, _curP=d.price||0;
+  const isBadScen = (_bT===180 && _baT===145 && _beT===90) || (_bT && _curP && _bT <= _curP);
   // Expected return + Kelly card (computed server-side)
   const er = d.expected_return||null;
   const expectedReturnHTML = er ? `
@@ -1677,7 +1680,7 @@ function renderReport(d){
       </div>
       <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic;line-height:1.4">${esc(er.note||'')}</div>
     </div>`:'';
-  const s10 = (scenariosFailed||allTargetsMissing) ?
+  const s10 = isBadScen ? '' : (scenariosFailed||allTargetsMissing) ?
     expectedReturnHTML :
     `<div class="atxt">${para(sc_ai.text||'')}</div>
     <div class="sc-grid">${mkSc(sc_ai.bull,'bull')}${mkSc(sc_ai.base,'base')}${mkSc(sc_ai.bear,'bear')}</div>${expectedReturnHTML}`;
