@@ -1438,7 +1438,7 @@ function renderReport(d){
   const fvHigh = val.fair_value_high||0;
   const fvCur = d.price||0;
   let fvBarHTML = '';
-  if(fvLow>0 && fvHigh>0 && fvHigh>fvLow){
+  if(fvLow>0 && fvHigh>0 && fvHigh>fvLow && !(fvLow===100 && fvHigh===150) && fvCur>0 && fvLow < fvCur*5 && fvHigh > fvCur*0.2){
     const pinPct = Math.max(0, Math.min(100, ((fvCur-fvLow)/(fvHigh-fvLow)*100)||0));
     const positionLabel = fvCur<fvLow ? tr.fv_below : fvCur>fvHigh ? tr.fv_above : tr.fv_in;
     fvBarHTML = `
@@ -1457,6 +1457,7 @@ function renderReport(d){
   const _vrow = (key, methodName) => {
     const v = vMethods[key];
     if(!v || !v.fair_value) return;
+    if(cur>0 && (v.fair_value > cur*4 || v.fair_value < cur*0.25)) return;  // hide artifact fair values (cyclical peak EPS / outlier peer multiple)
     const upside = cur>0 ? ((v.fair_value - cur)/cur*100) : 0;
     const upCol = upside>0?'var(--green)':'var(--red)';
     const upSign = upside>=0?'+':'';
@@ -1470,7 +1471,7 @@ function renderReport(d){
   _vrow('ev_ebitda_relative',   'EV/EBITDA relative');
   _vrow('dcf',                   'DCF (2-stage)');
   // Add AI fair value range as 4th method
-  if(val.fair_value_low && val.fair_value_high && val.fair_value_low !== val.fair_value_high){
+  if(val.fair_value_low && val.fair_value_high && val.fair_value_low !== val.fair_value_high && !(val.fair_value_low===100 && val.fair_value_high===150) && cur>0 && val.fair_value_low < cur*5 && val.fair_value_high > cur*0.2){
     const mid = (val.fair_value_low + val.fair_value_high)/2;
     const upside = cur>0 ? ((mid - cur)/cur*100) : 0;
     const upCol = upside>0?'var(--green)':'var(--red)';
