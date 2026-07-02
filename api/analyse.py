@@ -130,9 +130,11 @@ def get_de_fh(m):
     return float(raw)/100 if float(raw) > 10 else float(raw)
 
 def get_rev_growth_fh(m):
-    v = gm(m,'revenueGrowthTTMYoy','revenueGrowthQuarterlyYoy','revenueGrowth3Y')
+    v = gm(m,'revenueGrowthTTMYoy','revenueGrowthQuarterlyYoy')  # NOT revenueGrowth3Y (that is a 3-year figure, not YoY)
     if v is None: return None
-    return float(v)*100 if abs(float(v)) < 3 else float(v)
+    v = float(v); g = v*100 if abs(v) < 3 else v
+    if abs(g) > 150: return None   # >150% YoY on an established name is a base-effect/metric artifact — omit rather than mislead
+    return round(g, 1)
 
 def get_eps_growth_fh(m):
     v = gm(m,'epsGrowthTTMYoy','epsGrowthQuarterlyYoy','epsGrowth3Y')
@@ -1383,7 +1385,7 @@ DATA INTEGRITY — these rules override everything below:
 
 REQUIRED JSON SCHEMA. Each section ends with `invalidation` — falsifiable conditions with metric + operator + value + horizon.
 
-{{"performance":{{"text":"14-18 sentences. (1) Open with the returns table: 1Y, 3Y, 5Y, YTD with EXACT numbers from technicals.returns. (2) Outperformance/underperformance vs S&P 500 if context allows. (3) Distance from 52W high/low with %. (4) Technical position: RSI {{rsi14}} (overbought >70, oversold <30), price vs SMA50 and SMA200, golden/death cross status from technicals.cross_status. (5) 30-day annualised volatility figure with interpretation. (6) Full revenue trajectory across all years in historical_financials with CAGR. (7) Operating margin evolution in exact pp expansion or compression — frame as 'margin walk'. (8) Net income trajectory with FCF/NI quality lens. (9) EPS growth context — call out any one-off items if visible. (10) Beta interpretation in plain language (defensive < 1.0, market = 1.0, offensive > 1.0). (11) Named catalysts in the past 12 months (earnings beats/misses, product launches, M&A). (12) Capital return: buybacks reducing share count, dividend changes, total shareholder yield. Target 360-460 words.","returns_summary":"4-6 sentence summary of the returns table emphasising the strongest period and the weakest.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"financial_quality":{{"text":"18-22 sentences forming a deep balance-sheet AND income-statement audit. (1) Open by referencing the health_flags input: list the 5 flags and their status (green/red) with the underlying figure. (2) Then deep dive — gross margin level with multi-year pp trend. (3) Operating leverage computed in the input (use operating_leverage value), framed as: 'each 1pp of revenue growth translates to X pp of op income growth'. (4) FCF with absolute figure and FCF/Net Income conversion ratio (>100% = high earnings quality, <70% = potential aggressive accruals). (5) ROIC level and the ROIC-WACC spread context (positive spread = economic profit creation). (6) Net Debt / EBITDA from net_debt_ebitda input. (7) Working capital efficiency from current ratio and quick ratio. (8) Asset turnover from latest historical_financials. Then EXPLICITLY EXPLAIN Altman Z-Score: '5 factors. X1 = Working Capital / Total Assets (short-term liquidity buffer); X2 = Retained Earnings / TA (cumulative historical profitability); X3 = EBIT / TA (asset productivity); X4 = Market Cap / Total Liabilities (market-implied solvency cushion); X5 = Sales / TA (asset turnover). Z = 1.2·X1 + 1.4·X2 + 3.3·X3 + 0.6·X4 + X5. Bands: Z > 2.99 safe, 1.81-2.99 grey, < 1.81 distress. Not applicable to banks or asset-light tech firms.' This company's Z is X.XX → interpret. Then EXPLAIN Piotroski F-Score: '9 binary signals across Profitability (ROA+, FCF+, ROA rising YoY, FCF > NI), Leverage (D/E falling YoY, Current Ratio rising, no dilution), Efficiency (Gross Margin rising, Asset Turnover rising). 7-9 = improving; 4-6 = moderate; 0-3 = deteriorating.' This company is X/9 → interpret which sub-pillar drives it. Identify any accounting red flags (FCF/NI gap, capitalised costs, working capital ballooning, stock-based compensation inflation) or explicitly state none found. Target 500-600 words.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"sec_filings":{{"text":"14-16 sentences mining the recent_filings list and the company description. (1) List the most recent 10-K and 10-Q filings with their dates from recent_filings input. (2) Revenue recognition policy and any recent segment reclassifications with figures. (3) Management guidance from the most recent quarterly call with exact dollar figure. (4) Material risk factors disclosed in the 10-K — quantify each (e.g. 'customer concentration: top 5 customers = 42% of revenue'). (5) Segment MD&A highlights — what management emphasised in their commentary. (6) Related-party transactions or material legal proceedings if disclosed. (7) Recent insider transaction patterns over the last quarter (Forms 4) — net buying or selling. (8) Critical accounting estimates (impairment tests, deferred tax, stock-based compensation) that meaningfully shape reported earnings. (9) Any restatements, going-concern language, auditor changes — flag explicitly; otherwise say 'no material flags identified in the reviewed filings'. Target 300-360 words.","key_disclosures":["5-7 specific findings each anchored to a 10-K / 10-Q line item with exact figure or %"],"filing_summaries":[{{"form":"10-K|10-Q|8-K|DEF 14A","date":"YYYY-MM-DD","one_line_summary":"≤30 words describing what THIS specific filing contains and its material content"}}]}}}}"""
+{{"performance":{{"text":"14-18 sentences. (1) Open with the returns table: 1Y, 3Y, 5Y, YTD with EXACT numbers from technicals.returns. (2) Outperformance/underperformance vs S&P 500 if context allows. (3) Distance from 52W high/low with %. (4) Technical position: RSI {{rsi14}} (overbought >70, oversold <30), price vs SMA50 and SMA200, golden/death cross status from technicals.cross_status. (5) 30-day annualised volatility figure with interpretation. (6) Full revenue trajectory across all years in historical_financials with CAGR. (7) Operating margin evolution in exact pp expansion or compression — frame as 'margin walk'. (8) Net income trajectory with FCF/NI quality lens. (9) EPS growth context — call out any one-off items if visible. (10) Beta interpretation in plain language (defensive < 1.0, market = 1.0, offensive > 1.0). (11) Named catalysts in the past 12 months (earnings beats/misses, product launches, M&A). (12) Capital return: buybacks reducing share count, dividend changes, total shareholder yield. Target 360-460 words.","returns_summary":"4-6 sentence summary of the returns table emphasising the strongest period and the weakest.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"financial_quality":{{"text":"18-22 sentences forming a deep balance-sheet AND income-statement audit. (1) Open by referencing the health_flags input: list the 5 flags and their status (green/red) with the underlying figure. (2) Then deep dive — gross margin level with multi-year pp trend. (2b) COST STRUCTURE: from the margins infer COGS intensity (100% minus gross margin), the operating-cost load (gross margin minus operating margin = SG&A plus R&D as a share of revenue), and how each evolved across the 4-year series; state whether the business is scaling costs sub-linearly (positive operating leverage) or facing cost inflation, and quantify the operating cost base in dollars when revenue is available. (3) Operating leverage computed in the input (use operating_leverage value), framed as: 'each 1pp of revenue growth translates to X pp of op income growth'. (4) FCF with absolute figure and FCF/Net Income conversion ratio (>100% = high earnings quality, <70% = potential aggressive accruals). (5) ROIC level and the ROIC-WACC spread context (positive spread = economic profit creation). (6) Net Debt / EBITDA from net_debt_ebitda input. (7) Working capital efficiency from current ratio and quick ratio. (8) Asset turnover from latest historical_financials. Then EXPLICITLY EXPLAIN Altman Z-Score: '5 factors. X1 = Working Capital / Total Assets (short-term liquidity buffer); X2 = Retained Earnings / TA (cumulative historical profitability); X3 = EBIT / TA (asset productivity); X4 = Market Cap / Total Liabilities (market-implied solvency cushion); X5 = Sales / TA (asset turnover). Z = 1.2·X1 + 1.4·X2 + 3.3·X3 + 0.6·X4 + X5. Bands: Z > 2.99 safe, 1.81-2.99 grey, < 1.81 distress. Not applicable to banks or asset-light tech firms.' This company's Z is X.XX → interpret. Then EXPLAIN Piotroski F-Score: '9 binary signals across Profitability (ROA+, FCF+, ROA rising YoY, FCF > NI), Leverage (D/E falling YoY, Current Ratio rising, no dilution), Efficiency (Gross Margin rising, Asset Turnover rising). 7-9 = improving; 4-6 = moderate; 0-3 = deteriorating.' This company is X/9 → interpret which sub-pillar drives it. Identify any accounting red flags (FCF/NI gap, capitalised costs, working capital ballooning, stock-based compensation inflation) or explicitly state none found. Target 500-600 words.","invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"name","operator":"<|>|=|crosses","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"sec_filings":{{"text":"14-16 sentences mining the recent_filings list and the company description. (1) List the most recent 10-K and 10-Q filings with their dates from recent_filings input. (2) Revenue recognition policy and any recent segment reclassifications with figures. (3) Management guidance from the most recent quarterly call with exact dollar figure. (4) Material risk factors disclosed in the 10-K — quantify each (e.g. 'customer concentration: top 5 customers = 42% of revenue'). (5) Segment MD&A highlights — what management emphasised in their commentary. (6) Related-party transactions or material legal proceedings if disclosed. (7) Recent insider transaction patterns over the last quarter (Forms 4) — net buying or selling. (8) Critical accounting estimates (impairment tests, deferred tax, stock-based compensation) that meaningfully shape reported earnings. (9) Any restatements, going-concern language, auditor changes — flag explicitly; otherwise say 'no material flags identified in the reviewed filings'. Target 300-360 words.","key_disclosures":["5-7 specific findings each anchored to a 10-K / 10-Q line item with exact figure or %"],"filing_summaries":[{{"form":"10-K|10-Q|8-K|DEF 14A","date":"YYYY-MM-DD","one_line_summary":"≤30 words describing what THIS specific filing contains and its material content"}}]}}}}"""
 
 
 def prompt_c(lang='en'):
@@ -1579,7 +1581,15 @@ def analyse(ticker, lang='en'):
     now_ts    = int(time.time())
     from_date = time.strftime('%Y-%m-%d', time.gmtime(now_ts - 30*24*3600))
     to_date   = time.strftime('%Y-%m-%d', time.gmtime(now_ts))
-    peers_list = PEERS_MAP.get(ticker, ['SPY','QQQ','IWM','GLD'])[:4]
+    # Peers: curated map first; otherwise Finnhub's dynamic peers (covers the ENTIRE US universe, not just ~50 names)
+    peers_list = PEERS_MAP.get(ticker)
+    if not peers_list:
+        _fp = fh('stock/peers', {'symbol': ticker}, 6)
+        if isinstance(_fp, list) and _fp:
+            peers_list = [x for x in _fp if x and isinstance(x, str) and x.upper() != ticker.upper()][:4]
+    if not peers_list:
+        peers_list = ['SPY', 'QQQ', 'IWM', 'GLD']   # last-resort so the comparator still renders
+    peers_list = peers_list[:4]
 
     # ── Parallel fetch: 15 core + 4 peer snapshots ──
     with ThreadPoolExecutor(max_workers=24) as ex:
@@ -1707,7 +1717,7 @@ def analyse(ticker, lang='en'):
         if len(news)>=8: break
 
     insider_data = (insider_raw or {}).get('data') or []
-    insider_net  = sum((d.get('change',0) or 0) for d in insider_data[-3:])
+    insider_net  = sum((t.get('change') or 0) for t in (fh_own.get('insider_transactions') or []))  # reconciles with the Form-4 table shown to the user
     insider_mspr = sum((d.get('mspr',0) or 0) for d in insider_data[-3:])
 
     price  = quote.get('c'); change = quote.get('d'); chg_pct = quote.get('dp')
@@ -1937,6 +1947,10 @@ def analyse(ticker, lang='en'):
         lang, is_financial
     )
     z   = None if is_financial else calc_altman(m_fh, av)
+    # The Altman proxy under-weights retained earnings, giving false 'distress' to healthy mega-caps (e.g. Merck).
+    # Suppress rather than mislabel a profitable large cap as a bankruptcy risk.
+    if z is not None and z < 1.81 and (net_margin or 0) > 3 and (roe or 0) > 5 and (market_cap or 0) > 3000:
+        z = None
     fs  = calc_piotroski(m_fh, av)
 
     # ── Financial health semáforo (5 flags) ──
@@ -1988,6 +2002,15 @@ def analyse(ticker, lang='en'):
     fh_industry = profile.get('finnhubIndustry','')
     industry    = av.get('industry','') or fh_industry or 'N/A'
     sector      = av.get('sector','') or fh_industry or ''
+    # Headquarters/domicile: Alpha Vantage often returns the LISTING country (e.g. 'USA' for a foreign
+    # ADR like Ferrari). Prefer Finnhub's domicile when it clearly disagrees. No-op for US companies.
+    _isoc = {'US':'United States','IT':'Italy','NL':'Netherlands','GB':'United Kingdom','DE':'Germany','FR':'France','CH':'Switzerland','JP':'Japan','CN':'China','CA':'Canada','IE':'Ireland','KR':'South Korea','TW':'Taiwan','BR':'Brazil','IN':'India','ES':'Spain','SE':'Sweden','DK':'Denmark','MX':'Mexico','AU':'Australia'}
+    _avc = (av.get('country') or '').strip(); _fhc = (profile.get('country') or '').strip()
+    _fhname = _isoc.get(_fhc.upper(), _fhc)
+    if _fhc and _fhc.upper() not in ('US','USA') and _avc.upper() in ('US','USA','UNITED STATES'):
+        hq_country = _fhname
+    else:
+        hq_country = _avc or _fhname
     if is_financial:
         gross_m = None; ev_ebitda = None; roic = None; net_debt_ebitda = None
         fcf_str = None; fcf_margin = None; fcf_ni_ratio = None
@@ -2103,7 +2126,7 @@ def analyse(ticker, lang='en'):
             'short_pct':short_pct,
             'week52_high':w52h,'week52_low':w52l,
             'pct_institutions':pct_inst,'pct_insiders':pct_insi,
-            'insider_net_change':insider_net,'insider_mspr':round(insider_mspr,2),
+            'insider_net_change':insider_net,
             'analyst_strong_buy':sb,'analyst_buy':b,'analyst_hold':h,
             'analyst_sell':se,'analyst_strong_sell':ss,
             'consensus_target':tp,'consensus_upside':upside,
@@ -2221,7 +2244,7 @@ def analyse(ticker, lang='en'):
     return {
         'ticker':ticker,'name':name,'news':news,
         'exchange':profile.get('exchange',''),'industry':industry,'sector':sector,
-        'logo':profile.get('logo',''),'country':av.get('country','') or profile.get('country',''),
+        'logo':profile.get('logo',''),'country':hq_country,
         'employees':employees,'description':(av.get('description','') or '')[:400],
         'price':price,'change':change,'change_pct':chg_pct,
         'score':sc,'altman':z,'altman_zone':altman_zone(z,lang),
@@ -2273,7 +2296,7 @@ def analyse(ticker, lang='en'):
         'recent_insider_txns':fh_own.get('insider_transactions', []),
         'ownership':{
             'pct_institutions':pct_inst,'pct_insiders':pct_insi,
-            'insider_net_change':insider_net,'insider_mspr':round(insider_mspr,2),
+            'insider_net_change':insider_net,
         },
         'analyst':{
             'strong_buy':sb,'buy':b,'hold':h,'sell':se,'strong_sell':ss,
