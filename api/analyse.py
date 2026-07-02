@@ -2264,11 +2264,11 @@ def analyse(ticker, lang='en'):
     #    (valuation/competitors/scenarios) so each call's output is ~half size and finishes
     #    well inside the 48s timeout, instead of one 6-section call that kept timing out. ──
     with ThreadPoolExecutor(max_workers=5) as ex:
-        fa   = ex.submit(call_openai, prompt_a(lang),   user_data_for_ai, 4500, 'gpt-4o')
-        fb   = ex.submit(call_openai, prompt_b(lang),   user_data_for_ai, 4500)            # heaviest section -> fast mini to avoid timeout
-        fc1  = ex.submit(call_openai, prompt_c1(lang),  user_data_for_ai, 5000, 'gpt-4o')
-        fc2a = ex.submit(call_openai, prompt_c2a(lang), user_data_for_ai, 4000, 'gpt-4o')
-        fc2b = ex.submit(call_openai, prompt_c2b(lang), user_data_for_ai, 3500, 'gpt-4o')
+        fa   = ex.submit(call_openai, prompt_a(lang),   user_data_for_ai, 4500)
+        fb   = ex.submit(call_openai, prompt_b(lang),   user_data_for_ai, 4500)
+        fc1  = ex.submit(call_openai, prompt_c1(lang),  user_data_for_ai, 5000)
+        fc2a = ex.submit(call_openai, prompt_c2a(lang), user_data_for_ai, 4000)
+        fc2b = ex.submit(call_openai, prompt_c2b(lang), user_data_for_ai, 3500)
         try: ai_a = fa.result(timeout=48)
         except: ai_a = {'_error':'timeout'}
         try: ai_b = fb.result(timeout=48)
@@ -2303,11 +2303,12 @@ def analyse(ticker, lang='en'):
     # Expected return + Kelly fraction (based on AI scenarios, which come from C2b)
     expected_ret = compute_expected_return_and_kelly(ai.get('scenarios'), price) if not ai_c2b_failed else None
 
-    # ── Competitor table: AI output backed by real data, fallback to raw peer data ──
-    ai_comp_table = (ai.get('competitors') or {}).get('table') or []
-    if not ai_comp_table and peer_table_for_ai:
-        if 'competitors' not in ai: ai['competitors'] = {}
+    # ── Competitor table: ALWAYS use real backend peer data (the model sometimes copies the 'P1 Peer 1' schema placeholder) ──
+    if 'competitors' not in ai: ai['competitors'] = {}
+    if peer_table_for_ai and len(peer_table_for_ai) > 1:
         ai['competitors']['table'] = peer_table_for_ai
+    elif not (ai['competitors'].get('table')):
+        ai['competitors']['table'] = peer_table_for_ai or []
 
     # ── Scenario %: recompute upside/downside from the LIVE price so the displayed
     #    figure always matches target-vs-current-price (never a stale AI anchor). ──
