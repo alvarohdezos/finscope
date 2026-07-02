@@ -93,9 +93,10 @@ def _av(function, extra_params, timeout=10):
         req = urllib.request.Request(url, headers={'User-Agent':'FINscope/4.0'})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.loads(r.read())
-            if isinstance(data,dict) and ('Information' in data or 'Note' in data):
+            if isinstance(data,dict) and ('Information' in data or 'Note' in data or 'Error Message' in data):
                 return {}
-            return data
+            # AV occasionally returns a bare JSON string / list on throttle — coerce so callers never str.get()
+            return data if isinstance(data, (dict, list)) else {}
     except:
         return {}
 
@@ -392,9 +393,12 @@ def get_av_data(ticker):
         f_cf  = ex.submit(_av, 'CASH_FLOW', {'symbol':ticker}, 12)
         try:    ov      = f_ov.result(timeout=11) or {}
         except: ov      = {}
-        try:    inc_rep = (f_inc.result(timeout=13) or {}).get('annualReports') or []
+        if not isinstance(ov, dict): ov = {}
+        try:
+            _inc = f_inc.result(timeout=13); inc_rep = (_inc.get('annualReports') if isinstance(_inc, dict) else []) or []
         except: inc_rep = []
-        try:    cf_rep  = (f_cf.result(timeout=13) or {}).get('annualReports') or []
+        try:
+            _cf = f_cf.result(timeout=13);  cf_rep  = (_cf.get('annualReports') if isinstance(_cf, dict) else []) or []
         except: cf_rep  = []
     inc_rep = inc_rep[:4]; cf_rep = cf_rep[:4]
 
