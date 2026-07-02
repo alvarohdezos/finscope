@@ -1505,6 +1505,76 @@ REQUIRED JSON SCHEMA (fill ALL fields, no placeholders). Each section ends with 
 
 {{"valuation":{{"text":"16-18 sentences forming a CFA-level valuation walk-through. (1) EXPLAIN each multiple in one sentence: P/E TTM, P/E Forward, EV/EBITDA (capital-structure neutral), P/B, P/S, FCF Yield, PEG. (2) Quote each multiple for the company AND the sector median using peer_comparison. (3) BUILD the WACC bottom-up: Ke = Rf + β × ERP. State Rf = current 10Y yield from macro input, β = company beta, ERP = 4.5-5.5% for US large-caps; show the arithmetic. After-tax cost of debt Kd × (1-t) using ~21% US tax rate. WACC = Ke·(E/V) + Kd(1-t)·(D/V). (4) ROIC vs WACC spread. (5) DCF framework: 5-year FCF projection, terminal value at g=2.5-3.0%, discount at WACC. Terminal value typically 60-80% of EV — sensitivity severe (±1pp on g moves fair value ~15-25%). (6) State fair-value range with WACC assumption used. Reference the valuation_methods input — quote each method's fair value (P/E relative, EV/EBITDA relative, DCF) and reconcile. (7) Compare to current price → margin of safety %. Target 440-540 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5,"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"P/E or fair value driver","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"competitors":{{"text":"13-15 sentences positioning the company within its peer group using ONLY the peer_comparison data. State margin leadership rank, revenue growth rank, P/E premium/discount vs peer median, EV/EBITDA premium/discount, ROE rank — all with exact %. Then 1-2 sentences per top peer contextualising it. Conclude on whether premium is justified by quality or vulnerable to multiple compression. Target 300-360 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"market_cap_m":2000000,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"market_cap_m":500000,"is_subject":false}}],"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"peer relative multiple","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}},"scenarios":{{"text":"5-6 sentences framing the scenario range. State company.price as the anchor. CRITICAL: the price_target, upside_pct, probability_pct and assumptions numbers shown later in this schema are PLACEHOLDER EXAMPLES — you MUST replace every one with values computed for THIS company from company.price and its real multiples; the bull price_target MUST be above company.price and the bear price_target MUST be below it; never output 180, 145 or 90 as targets unless they genuinely fit company.price. Compute the probability-weighted expected return = Σ(prob × Δ%) and quote it.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"6-8 sentences with REQUIRED structure: (1) Named catalyst with exact timeline (e.g. 'Q3 2026 earnings beat on Data Center segment'). (2) Revenue assumption with exact YoY %. (3) Operating margin assumption with exact pp. (4) Implied forward P/E or EV/EBITDA at the target. (5) What investors must observe to validate (specific metric thresholds). (6) Key risk that would invalidate THIS bull case.","assumptions":{{"revenue_growth_yoy_pct":15,"operating_margin_pct":35,"implied_pe":28,"catalyst":"named catalyst with date"}},"triggers_to_monitor":["specific data point that confirms","another data point that confirms"]}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"6-8 sentences with same structure: catalyst (or absence of catalyst), revenue/margin assumptions, implied multiple, validation criteria.","assumptions":{{"revenue_growth_yoy_pct":8,"operating_margin_pct":30,"implied_pe":24,"catalyst":"steady-state with no surprises"}},"triggers_to_monitor":["specific","specific"]}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"6-8 sentences: downside catalyst with quantified impact, multiple compression to specific figure, trigger threshold.","assumptions":{{"revenue_growth_yoy_pct":-5,"operating_margin_pct":22,"implied_pe":18,"catalyst":"named downside catalyst"}},"triggers_to_monitor":["specific","specific"]}}}}}}"""
 
+def prompt_c2a(lang='en'):
+    lt = _lang_tag(lang)
+    return f"""You are the lead equity analyst at FINscope Research. You write INFORMATIONAL REPORTS for portfolio managers and credit analysts (never investment advice). Return ONLY valid JSON. No markdown, no text outside the JSON. Output covers Valuation (§8) and Competitors (§9).
+
+{lt}
+
+NON-NEGOTIABLE STANDARDS:
+DATA INTEGRITY — these rules override everything below:
+- Never output a literal placeholder token: no 'X', 'X%', '$X', 'X.XX', or phrases like 'target of $X' / 'return of X%'. If a value is missing from the input, omit that clause entirely — do not invent it.
+- Use ONLY the numeric values present in the input JSON. Never confuse the dividend yield with the Fed Funds or risk-free rate; quote div_yield exactly as given (a 0.1% yield is NOT 5%).
+- Money scale: market_cap_m is in MILLIONS. A company with market_cap_m=1190000 is worth $1.19 TRILLION — never describe it as '$1.1 billion'. Keep every magnitude consistent.
+- Margin of safety = (intrinsic fair value minus current price) / current price. If the fair value is BELOW the current price the stock trades at a PREMIUM / is overvalued — never call that a 'margin of safety'.
+- Take ONE clear, number-driven directional stance; never call the same stock both a 'discount' and a 'premium' in the same sentence.
+- Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
+- Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
+- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
+- A LOW forward P/E or a LOW PEG is favourable (cheap relative to growth), not a risk. Never describe a low multiple as 'elevated', 'high', or 'alarming'.
+- Distance from the 52-week high equals (high minus price) divided by high, phrased as 'X% below the 52-week high'. Never write 'X% off the high'.
+- Do not confuse the market-wide VIX with the stock's own annualised volatility; they are separate inputs.
+- Be internally consistent with the health_flags input: if FCF/Net-Income conversion is flagged as a concern, do not also claim there is no FCF/NI gap in the same section.
+- Every scenario price target must be anchored to company.price in the input: the bull target must be ABOVE company.price and the bear target BELOW it. Compute each upside_pct as (target minus company.price) divided by company.price times 100.
+- Every sentence carries at least one specific figure from the input
+- Neutral institutional tone — never "we recommend / investors should"
+- For competitors.table: COPY EXACTLY the peer_comparison numbers provided. Do NOT invent or round-trip. Preserve nulls as null.
+- For valuation: reference the EXACT fair values from valuation_methods input (P/E relative, EV/EBITDA relative, DCF). State each method's fair value and reconcile them.
+- MINIMUM 12 substantive sentences per text field — verbose where it adds insight
+- For valuation, build the WACC bottom-up using the provided risk-free rate + sector benchmark, and explicitly show: Ke = Rf + β×ERP
+
+SECTOR WACC BENCHMARKS (use as anchor; adjust +0.5-1.0pp if risk_free_rate >4.5%):
+UTILITIES 5.0-6.5% | REITS 5.5-7.0% | STAPLES 6.0-7.5% | TELECOM 6.5-8.5% | HEALTHCARE 7.5-9.5% | INDUSTRIALS 7.5-9.5% | RETAIL 8.5-11.0% | TRAVEL 9.5-13.0% | BANKS (use ROE vs CoE ~10-13%, Z-Score invalid) | INSURANCE 8.0-10.5% | FINTECH 9.0-12.0% | ENERGY MAJORS 8.0-10.0% | ENERGY E&P 10.0-14.0% | RENEWABLES 7.5-10.0% | MATERIALS 9.0-12.0% | PHARMA 8.0-9.0% | BIOTECH 12.0-18.0% | SEMIS 10.0-12.0% | SOFTWARE 9.0-12.0% | HARDWARE 10.0-13.0% | INTERNET 9.5-12.0%
+
+REQUIRED JSON SCHEMA (fill ALL fields, no placeholders). Each section ends with `invalidation` — falsifiable conditions.
+
+{{"valuation":{{"text":"16-18 sentences forming a CFA-level valuation walk-through. (1) EXPLAIN each multiple in one sentence: P/E TTM, P/E Forward, EV/EBITDA (capital-structure neutral), P/B, P/S, FCF Yield, PEG. (2) Quote each multiple for the company AND the sector median using peer_comparison. (3) BUILD the WACC bottom-up: Ke = Rf + β × ERP. State Rf = current 10Y yield from macro input, β = company beta, ERP = 4.5-5.5% for US large-caps; show the arithmetic. After-tax cost of debt Kd × (1-t) using ~21% US tax rate. WACC = Ke·(E/V) + Kd(1-t)·(D/V). (4) ROIC vs WACC spread. (5) DCF framework: 5-year FCF projection, terminal value at g=2.5-3.0%, discount at WACC. Terminal value typically 60-80% of EV — sensitivity severe (±1pp on g moves fair value ~15-25%). (6) State fair-value range with WACC assumption used. Reference the valuation_methods input — quote each method's fair value (P/E relative, EV/EBITDA relative, DCF) and reconcile. (7) Compare to current price → margin of safety %. Target 440-540 words.","fair_value_low":100,"fair_value_high":150,"wacc_used":9.5,"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"P/E or fair value driver","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q|P1Y"}}]}},"competitors":{{"text":"13-15 sentences positioning the company within its peer group using ONLY the peer_comparison data. State margin leadership rank, revenue growth rank, P/E premium/discount vs peer median, EV/EBITDA premium/discount, ROE rank — all with exact %. Then 1-2 sentences per top peer contextualising it. Conclude on whether premium is justified by quality or vulnerable to multiple compression. Target 300-360 words.","table":[{{"ticker":"SUBJ","name":"Full Name","pe":35.2,"ev_ebitda":31.1,"rev_growth_pct":15.0,"net_margin_pct":25.0,"gross_margin_pct":60.0,"roe_pct":30.0,"market_cap_m":2000000,"is_subject":true}},{{"ticker":"P1","name":"Peer 1","pe":40.0,"ev_ebitda":25.0,"rev_growth_pct":10.0,"net_margin_pct":15.0,"gross_margin_pct":50.0,"roe_pct":20.0,"market_cap_m":500000,"is_subject":false}}],"invalidation":[{{"trigger":"≤25 words concrete and falsifiable","metric":"peer relative multiple","operator":"<|>|=","value":"specific","horizon":"P1Q|P2Q"}}]}}}}"""
+
+def prompt_c2b(lang='en'):
+    lt = _lang_tag(lang)
+    return f"""You are the lead equity analyst at FINscope Research. You write INFORMATIONAL REPORTS for portfolio managers and credit analysts (never investment advice). Return ONLY valid JSON. No markdown, no text outside the JSON. Output covers Scenarios (§10).
+
+{lt}
+
+NON-NEGOTIABLE STANDARDS:
+DATA INTEGRITY — these rules override everything below:
+- Never output a literal placeholder token: no 'X', 'X%', '$X', 'X.XX', or phrases like 'target of $X' / 'return of X%'. If a value is missing from the input, omit that clause entirely — do not invent it.
+- Use ONLY the numeric values present in the input JSON. Never confuse the dividend yield with the Fed Funds or risk-free rate; quote div_yield exactly as given (a 0.1% yield is NOT 5%).
+- Money scale: market_cap_m is in MILLIONS. A company with market_cap_m=1190000 is worth $1.19 TRILLION — never describe it as '$1.1 billion'. Keep every magnitude consistent.
+- Margin of safety = (intrinsic fair value minus current price) / current price. If the fair value is BELOW the current price the stock trades at a PREMIUM / is overvalued — never call that a 'margin of safety'.
+- Take ONE clear, number-driven directional stance; never call the same stock both a 'discount' and a 'premium' in the same sentence.
+- Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
+- Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
+- P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
+- A LOW forward P/E or a LOW PEG is favourable (cheap relative to growth), not a risk. Never describe a low multiple as 'elevated', 'high', or 'alarming'.
+- Distance from the 52-week high equals (high minus price) divided by high, phrased as 'X% below the 52-week high'. Never write 'X% off the high'.
+- Do not confuse the market-wide VIX with the stock's own annualised volatility; they are separate inputs.
+- Be internally consistent with the health_flags input: if FCF/Net-Income conversion is flagged as a concern, do not also claim there is no FCF/NI gap in the same section.
+- Every scenario price target must be anchored to company.price in the input: the bull target must be ABOVE company.price and the bear target BELOW it. Compute each upside_pct as (target minus company.price) divided by company.price times 100.
+- Every sentence carries at least one specific figure from the input
+- Neutral institutional tone — never "we recommend / investors should"
+- For competitors.table: COPY EXACTLY the peer_comparison numbers provided. Do NOT invent or round-trip. Preserve nulls as null.
+- For valuation: reference the EXACT fair values from valuation_methods input (P/E relative, EV/EBITDA relative, DCF). State each method's fair value and reconcile them.
+- MINIMUM 12 substantive sentences per text field — verbose where it adds insight
+- For valuation, build the WACC bottom-up using the provided risk-free rate + sector benchmark, and explicitly show: Ke = Rf + β×ERP
+
+SECTOR WACC BENCHMARKS (use as anchor; adjust +0.5-1.0pp if risk_free_rate >4.5%):
+UTILITIES 5.0-6.5% | REITS 5.5-7.0% | STAPLES 6.0-7.5% | TELECOM 6.5-8.5% | HEALTHCARE 7.5-9.5% | INDUSTRIALS 7.5-9.5% | RETAIL 8.5-11.0% | TRAVEL 9.5-13.0% | BANKS (use ROE vs CoE ~10-13%, Z-Score invalid) | INSURANCE 8.0-10.5% | FINTECH 9.0-12.0% | ENERGY MAJORS 8.0-10.0% | ENERGY E&P 10.0-14.0% | RENEWABLES 7.5-10.0% | MATERIALS 9.0-12.0% | PHARMA 8.0-9.0% | BIOTECH 12.0-18.0% | SEMIS 10.0-12.0% | SOFTWARE 9.0-12.0% | HARDWARE 10.0-13.0% | INTERNET 9.5-12.0%
+
+REQUIRED JSON SCHEMA (fill ALL fields, no placeholders). Each section ends with `invalidation` — falsifiable conditions.
+
+{{"scenarios":{{"text":"5-6 sentences framing the scenario range. State company.price as the anchor. CRITICAL: the price_target, upside_pct, probability_pct and assumptions numbers shown later in this schema are PLACEHOLDER EXAMPLES — you MUST replace every one with values computed for THIS company from company.price and its real multiples; the bull price_target MUST be above company.price and the bear price_target MUST be below it; never output 180, 145 or 90 as targets unless they genuinely fit company.price. Compute the probability-weighted expected return = Σ(prob × Δ%) and quote it.","bull":{{"label":"Bull Case","price_target":180,"upside_pct":25,"probability_pct":30,"thesis":"6-8 sentences with REQUIRED structure: (1) Named catalyst with exact timeline (e.g. 'Q3 2026 earnings beat on Data Center segment'). (2) Revenue assumption with exact YoY %. (3) Operating margin assumption with exact pp. (4) Implied forward P/E or EV/EBITDA at the target. (5) What investors must observe to validate (specific metric thresholds). (6) Key risk that would invalidate THIS bull case.","assumptions":{{"revenue_growth_yoy_pct":15,"operating_margin_pct":35,"implied_pe":28,"catalyst":"named catalyst with date"}},"triggers_to_monitor":["specific data point that confirms","another data point that confirms"]}},"base":{{"label":"Base Case","price_target":145,"upside_pct":5,"probability_pct":50,"thesis":"6-8 sentences with same structure: catalyst (or absence of catalyst), revenue/margin assumptions, implied multiple, validation criteria.","assumptions":{{"revenue_growth_yoy_pct":8,"operating_margin_pct":30,"implied_pe":24,"catalyst":"steady-state with no surprises"}},"triggers_to_monitor":["specific","specific"]}},"bear":{{"label":"Bear Case","price_target":90,"downside_pct":35,"probability_pct":20,"thesis":"6-8 sentences: downside catalyst with quantified impact, multiple compression to specific figure, trigger threshold.","assumptions":{{"revenue_growth_yoy_pct":-5,"operating_margin_pct":22,"implied_pe":18,"catalyst":"named downside catalyst"}},"triggers_to_monitor":["specific","specific"]}}}}}}"""
+
 def _repair_json(text):
     text = text.strip()
     if not text: return None
@@ -1527,10 +1597,10 @@ def _repair_json(text):
     try: return json.loads(text)
     except: return None
 
-def call_openai(system_prompt, user_data, max_tokens=4500):
+def call_openai(system_prompt, user_data, max_tokens=4500, model=None):
     try:
         payload = json.dumps({
-            'model':MODEL, 'max_tokens':max_tokens, 'temperature':0.2,
+            'model':(model or MODEL), 'max_tokens':max_tokens, 'temperature':0.2,
             'messages':[
                 {'role':'system','content':system_prompt},
                 {'role':'user','content':json.dumps(user_data)}
@@ -1600,6 +1670,18 @@ def _fallback_c2(lang='en'):
             'base':{'label':'Base','price_target':0,'upside_pct':0,'probability_pct':34,'thesis':msg},
             'bear':{'label':'Bear','price_target':0,'downside_pct':0,'probability_pct':33,'thesis':msg}}
     }
+
+def _fallback_c2a(lang='en'):
+    msg = 'Síntesis de IA no disponible.' if lang=='es' else 'AI synthesis unavailable.'
+    return {'valuation':{'text':msg,'fair_value_low':0,'fair_value_high':0,'wacc_used':0},
+            'competitors':{'text':msg,'table':[]}}
+
+def _fallback_c2b(lang='en'):
+    msg = 'Síntesis de IA no disponible.' if lang=='es' else 'AI synthesis unavailable.'
+    return {'scenarios':{'text':msg,
+            'bull':{'label':'Bull','price_target':0,'upside_pct':0,'probability_pct':33,'thesis':msg},
+            'base':{'label':'Base','price_target':0,'upside_pct':0,'probability_pct':34,'thesis':msg},
+            'bear':{'label':'Bear','price_target':0,'downside_pct':0,'probability_pct':33,'thesis':msg}}}
 
 # ─── Main analysis ─────────────────────────────────────────────────────────────
 
@@ -1964,6 +2046,9 @@ def analyse(ticker, lang='en'):
                 if _ebitda_m > 0:
                     net_debt_ebitda = round(_debt_m / _ebitda_m, 2)
     except: pass
+    # Proxy uses GROSS debt (no cash subtraction); for cash-rich / low-leverage names it wildly overstates.
+    if net_debt_ebitda is not None and net_debt_ebitda > 6 and (de is None or float(de) < 2.5):
+        net_debt_ebitda = None
 
     # ── Derived scores (with full breakdown for transparency) ──
     sc = compute_score(
@@ -2178,39 +2263,45 @@ def analyse(ticker, lang='en'):
     # ── 4 parallel AI calls — section C is split into C1 (macro/risk/ownership) and C2
     #    (valuation/competitors/scenarios) so each call's output is ~half size and finishes
     #    well inside the 48s timeout, instead of one 6-section call that kept timing out. ──
-    with ThreadPoolExecutor(max_workers=4) as ex:
-        fa  = ex.submit(call_openai, prompt_a(lang),  user_data_for_ai, 4500)
-        fb  = ex.submit(call_openai, prompt_b(lang),  user_data_for_ai, 4500)
-        fc1 = ex.submit(call_openai, prompt_c1(lang), user_data_for_ai, 5000)
-        fc2 = ex.submit(call_openai, prompt_c2(lang), user_data_for_ai, 5000)
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        fa   = ex.submit(call_openai, prompt_a(lang),   user_data_for_ai, 4500, 'gpt-4o')
+        fb   = ex.submit(call_openai, prompt_b(lang),   user_data_for_ai, 4500)            # heaviest section -> fast mini to avoid timeout
+        fc1  = ex.submit(call_openai, prompt_c1(lang),  user_data_for_ai, 5000, 'gpt-4o')
+        fc2a = ex.submit(call_openai, prompt_c2a(lang), user_data_for_ai, 4000, 'gpt-4o')
+        fc2b = ex.submit(call_openai, prompt_c2b(lang), user_data_for_ai, 3500, 'gpt-4o')
         try: ai_a = fa.result(timeout=48)
         except: ai_a = {'_error':'timeout'}
         try: ai_b = fb.result(timeout=48)
         except: ai_b = {'_error':'timeout'}
         try: ai_c1 = fc1.result(timeout=48)
         except: ai_c1 = {'_error':'timeout'}
-        try: ai_c2 = fc2.result(timeout=48)
-        except: ai_c2 = {'_error':'timeout'}
+        try: ai_c2a = fc2a.result(timeout=48)
+        except: ai_c2a = {'_error':'timeout'}
+        try: ai_c2b = fc2b.result(timeout=48)
+        except: ai_c2b = {'_error':'timeout'}
 
-    ai_a_failed  = bool(ai_a.get('_error'))
-    ai_b_failed  = bool(ai_b.get('_error'))
-    ai_c1_failed = bool(ai_c1.get('_error'))
-    ai_c2_failed = bool(ai_c2.get('_error'))
-    if ai_a_failed:  ai_a  = _fallback_a(name, sc, fs, lang)
-    if ai_b_failed:  ai_b  = _fallback_b(name, fs, lang)
-    if ai_c1_failed: ai_c1 = _fallback_c1(lang)
-    if ai_c2_failed: ai_c2 = _fallback_c2(lang)
-    ai = {**ai_a, **ai_b, **ai_c1, **ai_c2}
+    ai_a_failed   = bool(ai_a.get('_error'))
+    ai_b_failed   = bool(ai_b.get('_error'))
+    ai_c1_failed  = bool(ai_c1.get('_error'))
+    ai_c2a_failed = bool(ai_c2a.get('_error'))
+    ai_c2b_failed = bool(ai_c2b.get('_error'))
+    if ai_a_failed:   ai_a   = _fallback_a(name, sc, fs, lang)
+    if ai_b_failed:   ai_b   = _fallback_b(name, fs, lang)
+    if ai_c1_failed:  ai_c1  = _fallback_c1(lang)
+    if ai_c2a_failed: ai_c2a = _fallback_c2a(lang)
+    if ai_c2b_failed: ai_c2b = _fallback_c2b(lang)
+    ai = {**ai_a, **ai_b, **ai_c1, **ai_c2a, **ai_c2b}
     ai['_section_status'] = {
         'a_executive_business': 'fallback' if ai_a_failed else 'ok',
         'b_performance_quality_filings': 'fallback' if ai_b_failed else 'ok',
         'c1_macro_risk_owner': 'fallback' if ai_c1_failed else 'ok',
-        # frontend gates the scenario cards on this key; scenarios live in C2
-        'c_macro_risk_owner_val_comp_scen': 'fallback' if ai_c2_failed else 'ok',
+        'c2a_valuation_competitors': 'fallback' if ai_c2a_failed else 'ok',
+        # frontend gates the scenario cards on this key; scenarios live in C2b
+        'c_macro_risk_owner_val_comp_scen': 'fallback' if ai_c2b_failed else 'ok',
     }
 
-    # Expected return + Kelly fraction (based on AI scenarios, which come from C2)
-    expected_ret = compute_expected_return_and_kelly(ai.get('scenarios'), price) if not ai_c2_failed else None
+    # Expected return + Kelly fraction (based on AI scenarios, which come from C2b)
+    expected_ret = compute_expected_return_and_kelly(ai.get('scenarios'), price) if not ai_c2b_failed else None
 
     # ── Competitor table: AI output backed by real data, fallback to raw peer data ──
     ai_comp_table = (ai.get('competitors') or {}).get('table') or []
