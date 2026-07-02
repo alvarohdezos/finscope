@@ -1531,7 +1531,8 @@ function renderReport(d){
       </div>
       <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic;line-height:1.4">${LANG==='es'?'El precio actual exige este crecimiento de FCF durante 5 años para justificar la capitalización.':'The current market cap implicitly requires this FCF growth rate over the next 5 years.'} ${esc(rdcf.method||'')}</div>
     </div>`:'';
-  const sensTableHTML = sens && sens.matrix_fair_value ? `
+  const _sensMax = (sens && sens.matrix_fair_value) ? Math.max(0, ...sens.matrix_fair_value.flat().filter(v=>v!=null)) : 0;
+  const sensTableHTML = sens && sens.matrix_fair_value && _sensMax > (sens.current_price||0)*0.4 ? `
     <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px">
       <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">${LANG==='es'?'Sensibilidad DCF · valor razonable por celda':'DCF sensitivity · fair value per cell'}</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums">
@@ -1677,7 +1678,7 @@ function renderReport(d){
       <div style="font-size:10.5px;color:var(--muted);margin-top:10px;font-style:italic;line-height:1.4">${esc(er.note||'')}</div>
     </div>`:'';
   const s10 = (scenariosFailed||allTargetsMissing) ?
-    `<div style="padding:18px;background:rgba(245,158,11,.06);border-left:3px solid var(--amber);border-radius:6px;font-size:12.5px;color:#5b4a13;line-height:1.55">${LANG==='es'?'<strong>Sección no disponible en esta consulta.</strong> El módulo de escenarios bull/base/bear requiere síntesis IA completa y datos de mercado válidos. Reintenta el análisis o consulta las métricas cuantitativas del resto del informe.':'<strong>Section unavailable for this run.</strong> The bull/base/bear scenario module requires full AI synthesis and valid market inputs. Retry the analysis or consult the quantitative metrics in the other sections.'}</div>${expectedReturnHTML}` :
+    expectedReturnHTML :
     `<div class="atxt">${para(sc_ai.text||'')}</div>
     <div class="sc-grid">${mkSc(sc_ai.bull,'bull')}${mkSc(sc_ai.base,'base')}${mkSc(sc_ai.bear,'bear')}</div>${expectedReturnHTML}`;
 
@@ -1802,7 +1803,7 @@ function renderReport(d){
         ${buildSection('07', tr.sec_07, s07)}
         ${buildSection('08', tr.sec_08, s08)}
         ${buildSection('09', tr.sec_09, s09)}
-        ${buildSection('10', tr.sec_10, s10)}
+        ${(s10 && s10.trim()) ? buildSection('10', tr.sec_10, s10) : ''}
         ${buildSection('11', tr.sec_11, s11)}
       </div>
       <div class="rright">
@@ -1979,3 +1980,4 @@ renderWatchlist();
 </script>
 </body>
 </html>
+
