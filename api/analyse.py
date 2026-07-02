@@ -400,6 +400,7 @@ def get_av_data(ticker):
     net_margin = _sfpct(ov.get('ProfitMargin'));  op_margin = _sfpct(ov.get('OperatingMarginTTM'))
     roe        = _sfpct(ov.get('ReturnOnEquityTTM')); roa   = _sfpct(ov.get('ReturnOnAssetsTTM'))
     rev_growth = _sfpct(ov.get('QuarterlyRevenueGrowthYOY'))
+    if rev_growth is not None and abs(rev_growth) > 150: rev_growth = None  # base-effect / metric artifact
     eps_growth = _sfpct(ov.get('QuarterlyEarningsGrowthYOY'))
     eps_ttm    = _sf(ov.get('EPS')) or _sf(ov.get('DilutedEPSTTM'))
     beta       = _sf(ov.get('Beta'))
@@ -1338,6 +1339,11 @@ def prompt_a(lang='en'):
 
 NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
+- Never output a literal placeholder token: no 'X', 'X%', '$X', 'X.XX', or phrases like 'target of $X' / 'return of X%'. If a value is missing from the input, omit that clause entirely — do not invent it.
+- Use ONLY the numeric values present in the input JSON. Never confuse the dividend yield with the Fed Funds or risk-free rate; quote div_yield exactly as given (a 0.1% yield is NOT 5%).
+- Money scale: market_cap_m is in MILLIONS. A company with market_cap_m=1190000 is worth $1.19 TRILLION — never describe it as '$1.1 billion'. Keep every magnitude consistent.
+- Margin of safety = (intrinsic fair value minus current price) / current price. If the fair value is BELOW the current price the stock trades at a PREMIUM / is overvalued — never call that a 'margin of safety'.
+- Take ONE clear, number-driven directional stance; never call the same stock both a 'discount' and a 'premium' in the same sentence.
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
 - P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
@@ -1368,6 +1374,11 @@ def prompt_b(lang='en'):
 
 NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
+- Never output a literal placeholder token: no 'X', 'X%', '$X', 'X.XX', or phrases like 'target of $X' / 'return of X%'. If a value is missing from the input, omit that clause entirely — do not invent it.
+- Use ONLY the numeric values present in the input JSON. Never confuse the dividend yield with the Fed Funds or risk-free rate; quote div_yield exactly as given (a 0.1% yield is NOT 5%).
+- Money scale: market_cap_m is in MILLIONS. A company with market_cap_m=1190000 is worth $1.19 TRILLION — never describe it as '$1.1 billion'. Keep every magnitude consistent.
+- Margin of safety = (intrinsic fair value minus current price) / current price. If the fair value is BELOW the current price the stock trades at a PREMIUM / is overvalued — never call that a 'margin of safety'.
+- Take ONE clear, number-driven directional stance; never call the same stock both a 'discount' and a 'premium' in the same sentence.
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
 - P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
@@ -1396,6 +1407,11 @@ def prompt_c(lang='en'):
 
 NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
+- Never output a literal placeholder token: no 'X', 'X%', '$X', 'X.XX', or phrases like 'target of $X' / 'return of X%'. If a value is missing from the input, omit that clause entirely — do not invent it.
+- Use ONLY the numeric values present in the input JSON. Never confuse the dividend yield with the Fed Funds or risk-free rate; quote div_yield exactly as given (a 0.1% yield is NOT 5%).
+- Money scale: market_cap_m is in MILLIONS. A company with market_cap_m=1190000 is worth $1.19 TRILLION — never describe it as '$1.1 billion'. Keep every magnitude consistent.
+- Margin of safety = (intrinsic fair value minus current price) / current price. If the fair value is BELOW the current price the stock trades at a PREMIUM / is overvalued — never call that a 'margin of safety'.
+- Take ONE clear, number-driven directional stance; never call the same stock both a 'discount' and a 'premium' in the same sentence.
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
 - P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
@@ -1430,6 +1446,11 @@ def prompt_c1(lang='en'):
 
 NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
+- Never output a literal placeholder token: no 'X', 'X%', '$X', 'X.XX', or phrases like 'target of $X' / 'return of X%'. If a value is missing from the input, omit that clause entirely — do not invent it.
+- Use ONLY the numeric values present in the input JSON. Never confuse the dividend yield with the Fed Funds or risk-free rate; quote div_yield exactly as given (a 0.1% yield is NOT 5%).
+- Money scale: market_cap_m is in MILLIONS. A company with market_cap_m=1190000 is worth $1.19 TRILLION — never describe it as '$1.1 billion'. Keep every magnitude consistent.
+- Margin of safety = (intrinsic fair value minus current price) / current price. If the fair value is BELOW the current price the stock trades at a PREMIUM / is overvalued — never call that a 'margin of safety'.
+- Take ONE clear, number-driven directional stance; never call the same stock both a 'discount' and a 'premium' in the same sentence.
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
 - P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
@@ -1457,6 +1478,11 @@ def prompt_c2(lang='en'):
 
 NON-NEGOTIABLE STANDARDS:
 DATA INTEGRITY — these rules override everything below:
+- Never output a literal placeholder token: no 'X', 'X%', '$X', 'X.XX', or phrases like 'target of $X' / 'return of X%'. If a value is missing from the input, omit that clause entirely — do not invent it.
+- Use ONLY the numeric values present in the input JSON. Never confuse the dividend yield with the Fed Funds or risk-free rate; quote div_yield exactly as given (a 0.1% yield is NOT 5%).
+- Money scale: market_cap_m is in MILLIONS. A company with market_cap_m=1190000 is worth $1.19 TRILLION — never describe it as '$1.1 billion'. Keep every magnitude consistent.
+- Margin of safety = (intrinsic fair value minus current price) / current price. If the fair value is BELOW the current price the stock trades at a PREMIUM / is overvalued — never call that a 'margin of safety'.
+- Take ONE clear, number-driven directional stance; never call the same stock both a 'discount' and a 'premium' in the same sentence.
 - Use ONLY values present in the input JSON. If a field is missing, null, empty or zero, write 'not disclosed' or omit it. NEVER invent or estimate numbers — this applies especially to revenue_segments percentages, geographic_exposure percentages, customer-concentration figures, management revenue guidance, and any CAGR.
 - Only state a multi-year CAGR when historical_financials contains two or more years; otherwise describe the latest figure as year-over-year growth and never relabel a single YoY number as a CAGR.
 - P/E versus the peer median: a company P/E BELOW the peer median is a DISCOUNT, ABOVE is a PREMIUM. State the direction correctly and never reverse it. If the peer median is distorted by an outlier peer with depressed or negative earnings, flag it as not directly comparable instead of implying mispricing. A pre-computed pe_vs_peer_median field (direction + pct) is in the input — use its direction verbatim.
@@ -1504,7 +1530,7 @@ def _repair_json(text):
 def call_openai(system_prompt, user_data, max_tokens=4500):
     try:
         payload = json.dumps({
-            'model':MODEL, 'max_tokens':max_tokens,
+            'model':MODEL, 'max_tokens':max_tokens, 'temperature':0.2,
             'messages':[
                 {'role':'system','content':system_prompt},
                 {'role':'user','content':json.dumps(user_data)}
@@ -1740,6 +1766,7 @@ def analyse(ticker, lang='en'):
     roa       = resolve(gm(m_fh,'roaAnnual','roaTTM'), av.get('roa')) or yf.get('roa')
     roic      = gm(m_fh,'roicAnnual','roiAnnual','roicTTM')
     rev_growth= resolve(get_rev_growth_fh(m_fh), av.get('rev_growth')) or yf.get('rev_growth')
+    if rev_growth is not None and abs(rev_growth) > 150: rev_growth = None  # implausible YoY on an established name
     eps_growth= resolve(get_eps_growth_fh(m_fh), av.get('eps_growth')) or yf.get('eps_growth')
     eps_ttm   = resolve(gm(m_fh,'epsTTM','epsAnnual'), av.get('eps_ttm'))
     de        = resolve(get_de_fh(m_fh), av.get('de')) or yf.get('de')
